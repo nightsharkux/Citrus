@@ -5,6 +5,7 @@ import { startRouter, navigate } from './core/router.js';
 import { live } from './core/live.js';
 import { registerRoutes } from './routes.js';
 import { mountApp, mountPublic, setTheme } from './shell.js';
+import { startTranslating, syncFromUser } from './core/i18n.js';
 
 async function boot() {
   registerRoutes();
@@ -27,6 +28,12 @@ async function boot() {
 
   const theme = data.user?.preferences?.theme;
   if (theme && theme !== 'system' && !document.documentElement.dataset.theme) setTheme(theme);
+
+  // Language and the assistant's name first, so nothing flashes in the wrong language.
+  startTranslating({ language: data.user?.preferences?.language, assistantName: data.user?.preferences?.assistantName });
+  on('session', (patch) => {
+    if ('user' in patch) syncFromUser(patch.user);
+  });
 
   if (session.user) mountApp();
   else mountPublic();

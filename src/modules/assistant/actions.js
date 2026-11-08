@@ -16,6 +16,7 @@
 const { HttpError } = require('../../http/errors');
 const { zonedToUtc, zonedParts, DAY } = require('../../lib/time');
 const { KINDS } = require('../timetable/service');
+const { readPreferences, applyPreferences } = require('../account/preferences');
 
 const ERRORS = {
   when: 'I could not read that date and time.',
@@ -25,14 +26,14 @@ const ERRORS = {
 
 /** Where "navigate" may go, by role. */
 const PAGES = {
-  home: '/home', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile',
+  home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile',
 };
 const ROLE_PAGES = {
   student: { learning: '/learning', review: '/learning', participation: '/participation', career: '/career' },
   lecturer: { classroom: '/classroom', participation: '/participation' },
   admin: { people: '/admin/people', moderation: '/admin/moderation', ai: '/admin/ai', devices: '/admin/devices', institution: '/admin/institution', classroom: '/classroom', participation: '/participation' },
 };
-const ALIASES = { calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings' };
+const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings' };
 
 function createActionRunner({ db, config, access, timetable, audit }) {
   const tz = config.site.timezone;
@@ -152,7 +153,74 @@ function createActionRunner({ db, config, access, timetable, audit }) {
         label = c.code;
       }
       if (!path) throw fail('I do not know that page.');
+      if (path === '/campus/map' && a.place) path = `/campus/map?to=${encodeURIComponent(String(a.place).slice(0, 40))}`;
       return { title: `Opening ${label.replace(/_/g, ' ')}`, client: { type: 'navigate', path } };
+    },
+
+    /**
+     * Settings the person asks for in chat. Account settings are saved here (and can be undone); settings that belong
+     * to the device they are using (voice speed, voice, read-aloud) are sent to the browser to apply.
+     */
+    'settings.update'(user, a) {
+      const yes = (v) => !(v === false || /^(false|off|no|aus|nein|0)$/i.test(String(v)));
+      const word = (v) => String(v ?? '').trim().toLowerCase();
+      const input = {};
+      if (a.assistant_name !== undefined) input.assistantName = /^(reset|default|standard|campus)$/i.test(String(a.assistant_name).trim()) ? '' : a.assistant_name;
+      if (a.language !== undefined) input.language = /^(de|deutsch|german|germany)/.test(word(a.language)) ? 'de' : /^(en|english|englisch)/.test(word(a.language)) ? 'en' : a.language;
+      if (a.speech_language !== undefined) input.speechLanguage = /^(de|deutsch|german)/.test(word(a.speech_language)) ? 'de' : /^(en|english|englisch)/.test(word(a.speech_language)) ? 'en' : /^(auto|both|beide|automatic)/.test(word(a.speech_language)) ? 'auto' : a.speech_language;
+      if (a.wake_word !== undefined) input.voiceWake = yes(a.wake_word);
+      if (a.animations !== undefined) input.visuals = yes(a.animations);
+      if (a.opportunity_matching !== undefined) input.matching = yes(a.opportunity_matching);
+      if (a.theme !== undefined) input.theme = word(a.theme);
+
+      const device = {};
+      if (a.voice_speed !== undefined) {
+        const s = word(a.voice_speed);
+        const n = Number(s);
+        if (/^(slower|slow|langsamer)/.test(s)) device.voiceSpeed = 'slower';
+        else if (/^(faster|fast|quicker|schneller)/.test(s)) device.voiceSpeed = 'faster';
+        else if (/^(normal|default|standard)/.test(s)) device.voiceSpeed = 1;
+        else if (Number.isFinite(n) && n >= 0.5 && n <= 2) device.voiceSpeed = n;
+        else throw fail('Voice speed can be slower, faster, normal or a number from 0.5 to 2.');
+      }
+      if (a.voice_style !== undefined) {
+        if (!['natural', 'calm', 'bright', 'deep', 'quick'].includes(word(a.voice_style))) throw fail('Voice style can be natural, calm, bright, deep or quick.');
+        device.voiceStyle = word(a.voice_style);
+      }
+      if (a.voice_gender !== undefined) {
+        const g = word(a.voice_gender);
+        device.voiceGender = /^(f|female|weiblich|woman|frau)/.test(g) ? 'female' : /^(m|male|männlich|maennlich|man|mann)/.test(g) ? 'male' : 'any';
+      }
+      if (a.read_aloud !== undefined) {
+        if (!['spoken', 'always', 'never'].includes(word(a.read_aloud))) throw fail('Read aloud can be spoken, always or never.');
+        device.readAloud = word(a.read_aloud);
+      }
+
+      const changes = readPreferences(input);
+      if (!Object.keys(changes).length && !Object.keys(device).length) throw fail('Tell me which setting to change.');
+      const current = JSON.parse(db.get('SELECT preferences FROM users WHERE id = ?', user.id)?.preferences || '{}');
+      const before = Object.fromEntries(Object.keys(changes).map((k) => [k, current[k] ?? null]));
+      const next = applyPreferences(current, changes);
+      if (Object.keys(changes).length) db.run('UPDATE users SET preferences = ? WHERE id = ?', JSON.stringify(next), user.id);
+
+      const parts = [];
+      if ('assistantName' in changes) parts.push(changes.assistantName ? `Name: ${changes.assistantName}` : 'Name: back to the default');
+      if (changes.language) parts.push(`Language: ${changes.language === 'de' ? 'Deutsch' : 'English'}`);
+      if (changes.speechLanguage) parts.push(`Speech recognition: ${{ auto: 'automatic', en: 'English', de: 'Deutsch' }[changes.speechLanguage]}`);
+      if ('voiceWake' in changes) parts.push(`Listening for the name: ${changes.voiceWake ? 'on' : 'off'}`);
+      if ('visuals' in changes) parts.push(`Animated explanations: ${changes.visuals ? 'on' : 'off'}`);
+      if ('matching' in changes) parts.push(`Opportunity matching: ${changes.matching ? 'on' : 'off'}`);
+      if (changes.theme) parts.push(`Theme: ${changes.theme}`);
+      if (device.voiceSpeed !== undefined) parts.push(`Voice speed: ${typeof device.voiceSpeed === 'number' ? device.voiceSpeed : device.voiceSpeed}`);
+      if (device.voiceStyle) parts.push(`Voice style: ${device.voiceStyle}`);
+      if (device.voiceGender) parts.push(`Voice: ${device.voiceGender === 'any' ? 'automatic' : device.voiceGender}`);
+      if (device.readAloud) parts.push(`Read aloud: ${{ spoken: 'when I speak', always: 'every answer', never: 'never' }[device.readAloud]}`);
+      return {
+        title: 'Settings updated',
+        detail: parts.join(' · '),
+        client: { type: 'settings', prefs: next, device },
+        ...(Object.keys(changes).length ? { undo: { op: 'prefs', before } } : {}),
+      };
     },
 
     'app.theme'(user, a) {
@@ -180,7 +248,7 @@ function createActionRunner({ db, config, access, timetable, audit }) {
     if (!fn) return { ...base, ok: false, error: 'I cannot do that yet.' };
     try {
       const result = fn(user, action.args || {});
-      if (action.name.startsWith('calendar.')) audit(user, 'assistant_action', `${action.name}: ${result.detail || ''}`.slice(0, 200));
+      if (action.name.startsWith('calendar.') || action.name === 'settings.update') audit(user, 'assistant_action', `${action.name}: ${result.detail || ''}`.slice(0, 200));
       return { ...base, ok: true, ...result };
     } catch (error) {
       if (error instanceof HttpError && error.status < 500) return { ...base, ok: false, error: error.message };
@@ -199,6 +267,12 @@ function createActionRunner({ db, config, access, timetable, audit }) {
     } else if (u.op === 'restore') {
       personal(user, u.id);
       restoreRow(u.id, u.row);
+    } else if (u.op === 'prefs') {
+      const current = JSON.parse(db.get('SELECT preferences FROM users WHERE id = ?', user.id)?.preferences || '{}');
+      const restored = applyPreferences(current, u.before);
+      db.run('UPDATE users SET preferences = ? WHERE id = ?', JSON.stringify(restored), user.id);
+      audit(user, 'assistant_action_undone', result.name);
+      return { ...result, undone: true, client: { type: 'settings', prefs: restored, device: {} } };
     } else if (u.op === 'recreate') {
       timetable.insert(user, { ownerId: user.id }, { ...u.row, repeatWeeks: u.row.repeat_weeks });
     } else {

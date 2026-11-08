@@ -342,3 +342,48 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
 .menu-text small { font-size: 12px; color: var(--text-3); }
 
 .composer > textarea:first-child { margin-left: 10px; }
+
+/* ------------------------------------------------------------ Campus map */
+.campus-map { padding: 0; overflow: hidden; }
+.map-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--hairline); }
+.map-bar .segmented { flex: 0 0 auto; }
+.map-find { flex: 1 1 220px; display: flex; align-items: center; gap: 8px; color: var(--text-3); min-width: 0; }
+.map-find .input { flex: 1; min-width: 0; }
+.map-stage { position: relative; height: clamp(300px, 56vh, 560px); background: color-mix(in srgb, var(--bg) 70%, var(--bg-solid)); touch-action: none; cursor: grab; }
+.map-stage:active { cursor: grabbing; }
+.map-svg { width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; }
+.map-zoom { position: absolute; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.map-zoom .btn { background: var(--bg-solid); box-shadow: var(--shadow-sm); }
+.map-credit { position: absolute; left: 10px; bottom: 6px; margin: 0; padding: 2px 6px; border-radius: var(--radius-xs); background: color-mix(in srgb, var(--bg-solid) 80%, transparent); }
+.map-svg { --u: 1; }
+.map-parking { fill: color-mix(in srgb, var(--text-3) 14%, transparent); stroke: none; }
+.map-path { fill: none; stroke: color-mix(in srgb, var(--text-3) 55%, transparent); stroke-width: 1px; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.map-road { fill: none; stroke: color-mix(in srgb, var(--text-3) 38%, var(--bg-solid)); stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.map-road.is-major { stroke: color-mix(in srgb, var(--text-3) 55%, var(--bg-solid)); stroke-width: 3.5px; }
+.map-building { fill: color-mix(in srgb, var(--text-3) 24%, var(--bg-solid)); stroke: color-mix(in srgb, var(--text-3) 50%, transparent); stroke-width: 0.6px; vector-effect: non-scaling-stroke; }
+.map-place { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.4px; vector-effect: non-scaling-stroke; cursor: pointer; }
+.map-place.kind-food { fill: var(--warning-soft); stroke: var(--warning); }
+.map-place.kind-library { fill: var(--info-soft); stroke: var(--info); }
+.map-place.kind-housing, .map-place.kind-sport { fill: var(--success-soft); stroke: var(--success); }
+.map-pin { cursor: pointer; }
+.map-pin-dot { fill: var(--accent); stroke: var(--bg-solid); stroke-width: 0.5; r: calc(var(--u) * 1.25px); }
+.map-label, .map-stop-name, .map-road-name { font: 600 calc(var(--u) * 3.4px) var(--font); fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--bg-solid); stroke-width: calc(var(--u) * 1px); stroke-linejoin: round; pointer-events: none; }
+.map-label { transform: translateY(calc(var(--u) * -1.2px)); }
+.map-stop-name, .map-road-name { font-weight: 500; font-size: calc(var(--u) * 2.7px); fill: var(--text-2); }
+.map-stop-dot { fill: var(--info); transform: scale(calc(var(--u) * 1.4)); }
+.map-user-acc { fill: color-mix(in srgb, var(--info) 14%, transparent); stroke: color-mix(in srgb, var(--info) 40%, transparent); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.map-user { fill: var(--info); stroke: var(--bg-solid); stroke-width: 2px; vector-effect: non-scaling-stroke; r: calc(var(--u) * 1.5px); }
+.map-route { stroke: var(--accent); stroke-width: 2.5px; stroke-dasharray: 6 5; vector-effect: non-scaling-stroke; }
+.map-target { fill: var(--accent); stroke: var(--bg-solid); stroke-width: 2px; vector-effect: non-scaling-stroke; r: calc(var(--u) * 1.7px); }
+.map-target-ring { fill: none; stroke: var(--accent); stroke-width: 2px; vector-effect: non-scaling-stroke; opacity: .45; r: calc(var(--u) * 3.6px); }
+.map-dest { border-top: 1px solid var(--hairline); padding: 14px 16px; }
+.map-dest-body { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.map-dest-body .grow { flex: 1 1 260px; min-width: 0; }
+.map-dest-body p { margin: 2px 0 0; }
+.map-dest-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.map-picker { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.map-picker .field { flex: 1 1 200px; margin: 0; }
+@media (max-width: 640px) {
+  .map-bar { padding: 12px; }
+  .map-stage { height: clamp(280px, 52vh, 420px); }
+}

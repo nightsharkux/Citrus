@@ -33,7 +33,8 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken } from './voice.js';
+import { applySettingsEffect, deviceSettings } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words } from './turns.js';
 import { matchCommand } from './commands.js';
 
@@ -455,6 +456,8 @@ function createConversation({ threadId: startThread }) {
   async function ask(text) {
     const mine = ++turn;
     chime.done();
+    // Follow the person from one language to the other: the microphone listens in the language they spoke last.
+    if (noteSpoken(text) && listener.running) listener.refresh();
     showYou(text);
     reply = '';
     effects = [];
@@ -467,7 +470,7 @@ function createConversation({ threadId: startThread }) {
     const said = speaker;
     let failure = null;
     try {
-      await stream('/assistant/messages', { prompt: text, thread_id: threadId, mode: 'voice' }, {
+      await stream('/assistant/messages', { prompt: text, thread_id: threadId, mode: 'voice', device: deviceSettings() }, {
         signal: controller.signal,
         onEvent(type, payload) {
           if (mine !== turn) return;
@@ -532,7 +535,10 @@ function createConversation({ threadId: startThread }) {
     effects = [];
     for (const effect of list) {
       if (effect.type === 'theme') setTheme(effect.mode === 'system' ? null : effect.mode);
-      else if (effect.type === 'navigate' && navigation) {
+      else if (effect.type === 'settings') {
+        applySettingsEffect(effect);
+        if (listener.running) listener.refresh();
+      } else if (effect.type === 'navigate' && navigation) {
         minimise();
         navigate(effect.path);
       }

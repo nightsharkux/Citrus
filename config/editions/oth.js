@@ -47,5 +47,10 @@ module.exports = {
     { label: 'International Office', description: 'Exchange and visa support', url: 'https://www.oth-aw.de/en/international/international-profile/international-office/', icon: 'globe' },
     { label: 'Marketplace', description: 'Housing and learning partners', url: 'https://www.oth-aw.de/en/studies/campus-life/marketplace/about-the-marketplace/', icon: 'bag' },
   ],
-  knowledgePack: 'resources/OTH_Public_Knowledge_2026-10-31.jsonl',
+  campusMap: 'resources/oth-campus-map.json',
+  knowledgePack: [
+    'resources/OTH_Public_Knowledge_2026-10-31.jsonl',
+    'resources/OTH_Website_Knowledge.jsonl',
+    'resources/OTH_Timetable_Documents.jsonl',
+  ],
 };

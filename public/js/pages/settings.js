@@ -10,6 +10,7 @@ import { setTheme, signOut } from '../shell.js';
 import { createFace } from '../features/face.js';
 import { wake, voiceProblem, previewVoice } from '../features/voice.js';
 import { PRESETS, READ_ALOUD, QUALITY_LABEL, getVoiceSettings, saveVoiceSettings, voicesReady, listVoices } from '../features/voices.js';
+import { applySettingsEffect } from '../features/preferences.js';
 
 const SECTIONS = [
   ['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun'], ['assistant', 'Assistant', 'sparkle'], ['notifications', 'Notifications', 'bell'],
@@ -98,7 +99,7 @@ function assistant() {
   const prefs = session.user.preferences || {};
   const problem = voiceProblem();
   return html`<section class="card assistant-settings">
-    <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2>Campus</h2><p class="small muted">Your assistant across Campus OS.</p></div></div>
+    <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Campus OS.</p></div></div>
     <div class="stack mt-24" style="--gap:18px">
       <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
         <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Campus"><span></span></span></label>
@@ -106,6 +107,7 @@ function assistant() {
         <span class="switch"><input type="checkbox" data-pref="visuals" ${prefs.visuals === false ? '' : 'checked'} aria-label="Animated explanations"><span></span></span></label>
     </div>
   </section>
+  ${identityCard()}
   ${voiceCard()}
   <section class="card"><h2>What Campus can see</h2>
     <ul class="small muted mt-8" style="padding-left:18px;line-height:1.8">
@@ -117,18 +119,49 @@ function assistant() {
   </section>`;
 }
 
-/** How Campus sounds. Voices belong to the browser and system, so the choice is kept on this device (features/voices.js). */
+/** The assistant's name, the interface language and the language voice input listens for. All of it is also changeable by asking in chat. */
+function identityCard() {
+  const prefs = session.user.preferences || {};
+  const name = assistantName();
+  const language = prefs.language || document.documentElement.lang || 'en';
+  const speech = prefs.speechLanguage || 'auto';
+  const option = (value, label, current) => html`<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`;
+  return html`<section class="card"><h2>Name and language</h2>
+    <p class="small muted mt-8">Call the assistant what you like and “Hey ${name}” follows. You can also just ask in chat: “call yourself Nova”, “nenn dich Max”, “speak faster”, “auf Deutsch umstellen”.</p>
+    <form class="form mt-16" id="identity-form">
+      <label class="field"><span>Assistant name</span><input class="input" name="assistantName" value="${prefs.assistantName || ''}" placeholder="Campus" maxlength="24" autocomplete="off" data-no-translate><span class="hint">Letters, up to 24. Leave it empty for the default name.</span></label>
+      <label class="field"><span>Interface language</span><select class="select" name="language">${option('en', 'English', language)}${option('de', 'Deutsch', language)}</select></label>
+      <label class="field"><span>Voice input language</span><select class="select" name="speechLanguage">${option('auto', 'Automatic (English and German)', speech)}${option('en', 'English', speech)}${option('de', 'Deutsch', speech)}</select>
+        <span class="hint">Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.</span></label>
+      <div class="form-actions"><button class="btn btn-primary">Save</button></div>
+    </form></section>`;
+}
+
+function mountIdentity(root) {
+  const form = $('#identity-form', root);
+  if (!form) return;
+  onSubmit(form, async (v) => {
+    const r = await api.patch('/me', { preferences: { assistantName: v.assistantName, language: v.language, speechLanguage: v.speechLanguage } });
+    applySettingsEffect({ prefs: r.user.preferences });
+    return 'Saved';
+  });
+}
+
+/** How the assistant sounds. Voices belong to the browser and system, so the choice is kept on this device (features/voices.js). */
 function voiceCard() {
   if (!('speechSynthesis' in window)) return html`<section class="card"><h2>Voice</h2><p class="small muted mt-8">This browser can’t read answers aloud.</p></section>`;
   const v = getVoiceSettings();
   return html`<section class="card"><h2>Voice</h2>
-    <p class="small muted mt-8">How ${assistantName()} sounds on this device. Talk hands-free with the waveform button in the assistant, or say “Hey ${assistantName()}, let’s talk”.</p>
+    <p class="small muted mt-8">How ${assistantName()} sounds on this device. Each language has its own voice, so German sentences are read by a German voice and English ones by an English voice, even in the same answer. Talk hands-free with the waveform button in the assistant, or say “Hey ${assistantName()}, let’s talk”.</p>
     <form class="form mt-16" id="voice-form">
-      <label class="field"><span>Voice</span><select class="select" name="uri" data-voice-list><option value="">Automatic</option></select>
-        <span class="hint">Voices come from your browser and system. Natural voices sound most like a person; Edge and Safari have the most.</span></label>
+      <label class="field"><span>English voice</span><select class="select" name="voice-en" data-voice-list="en"><option value="">Automatic</option></select></label>
+      <label class="field"><span>German voice (Deutsch)</span><select class="select" name="voice-de" data-voice-list="de"><option value="">Automatic</option></select>
+        <span class="hint">Voices come from your browser and system. Natural voices sound most like a person; Edge and Safari have the most. If a language has no voice here, install one in your system settings.</span></label>
+      <div class="field"><span>Automatic should prefer</span><div class="cluster">${[['any', 'Any voice'], ['female', 'Female'], ['male', 'Male']].map(([id, label]) => html`<label class="chip-radio"><input type="radio" name="gender" value="${id}" ${(v.gender || 'any') === id ? 'checked' : ''}><span>${label}</span></label>`)}</div></div>
       <div class="field"><span>Style</span><div class="cluster">${PRESETS.map((p) => html`<label class="chip-radio"><input type="radio" name="preset" value="${p.id}" ${v.preset === p.id ? 'checked' : ''}><span>${p.label}</span></label>`)}</div></div>
+      <label class="field"><span>Speed <output data-rate-label>${Number(v.rate).toFixed(2)}×</output></span><input type="range" name="rate" min="0.7" max="1.7" step="0.05" value="${v.rate}" aria-label="Speaking speed"></label>
       <label class="field"><span>Read answers aloud</span><select class="select" name="readAloud">${READ_ALOUD.map(([value, label]) => html`<option value="${value}" ${v.readAloud === value ? 'selected' : ''}>${label}</option>`)}</select></label>
-      <div class="form-actions"><button type="button" class="btn" data-voice-preview>${icon('volume', 16)} Play a sample</button></div>
+      <div class="form-actions"><button type="button" class="btn" data-voice-preview="en">${icon('volume', 16)} English sample</button><button type="button" class="btn" data-voice-preview="de">${icon('volume', 16)} Deutsche Hörprobe</button></div>
     </form>
   </section>`;
 }
@@ -136,17 +169,18 @@ function voiceCard() {
 function mountVoice(root) {
   const form = $('#voice-form', root);
   if (!form) return () => {};
-  const list = $('[data-voice-list]', form);
-  const sample = () => previewVoice(`Hi, I’m ${assistantName()}. This is how I sound.`);
+  const sample = (code) => previewVoice(code === 'de' ? `Hallo, ich bin ${assistantName()}. So klinge ich auf Deutsch.` : `Hi, I’m ${assistantName()}. This is how I sound.`);
   voicesReady().then(() => {
-    if (!list.isConnected) return;
     const all = listVoices();
-    const code = (document.documentElement.lang || navigator.language || 'en').slice(0, 2).toLowerCase();
-    const mine = all.filter((x) => x.lang.toLowerCase().startsWith(code));
-    const shown = mine.length ? mine : all;
-    const saved = getVoiceSettings().uri;
-    const groups = ['natural', 'online', 'standard'].map((q) => [q, shown.filter((x) => x.quality === q)]).filter(([, items]) => items.length);
-    render(list, html`<option value="">Automatic</option>${groups.map(([q, items]) => html`<optgroup label="${QUALITY_LABEL[q]}">${items.map((x) => html`<option value="${x.uri}" ${x.uri === saved ? 'selected' : ''}>${x.name} · ${x.accent}${x.gender === 'other' ? '' : ` · ${x.gender === 'female' ? 'Female' : 'Male'}`}</option>`)}</optgroup>`)}`);
+    const saved = getVoiceSettings();
+    for (const list of form.querySelectorAll('[data-voice-list]')) {
+      if (!list.isConnected) continue;
+      const code = list.dataset.voiceList;
+      const shown = all.filter((x) => x.lang.toLowerCase().startsWith(code));
+      const chosen = saved.voices?.[code] || (saved.uri && shown.some((x) => x.uri === saved.uri) ? saved.uri : '');
+      const groups = ['natural', 'online', 'standard'].map((q) => [q, shown.filter((x) => x.quality === q)]).filter(([, items]) => items.length);
+      render(list, html`<option value="">${shown.length ? 'Automatic' : 'No voice installed for this language'}</option>${groups.map(([q, items]) => html`<optgroup label="${QUALITY_LABEL[q]}">${items.map((x) => html`<option value="${x.uri}" ${x.uri === chosen ? 'selected' : ''}>${x.name} · ${x.accent}${x.gender === 'other' ? '' : ` · ${x.gender === 'female' ? 'Female' : 'Male'}`}</option>`)}</optgroup>`)}`);
+    }
   });
   const offs = [
     on(form, 'change', 'select, input', (e) => {
@@ -154,15 +188,29 @@ function mountVoice(root) {
       if (name === 'preset') {
         const p = PRESETS.find((x) => x.id === value) || PRESETS[0];
         saveVoiceSettings({ preset: p.id, rate: p.rate, pitch: p.pitch });
+        form.rate.value = p.rate;
+        $('[data-rate-label]', form).textContent = `${p.rate.toFixed(2)}×`;
+      } else if (name.startsWith('voice-')) {
+        const code = name.slice(6);
+        saveVoiceSettings({ voices: { ...getVoiceSettings().voices, [code]: value } });
+        sample(code);
+        return;
+      } else if (name === 'rate') {
+        saveVoiceSettings({ rate: Number(value) });
+        $('[data-rate-label]', form).textContent = `${Number(value).toFixed(2)}×`;
+        return;
       } else saveVoiceSettings({ [name]: value });
-      if (name !== 'readAloud') sample();
+      if (name !== 'readAloud') sample(document.documentElement.lang === 'de' ? 'de' : 'en');
     }),
-    on(form, 'click', '[data-voice-preview]', sample),
+    // The slider plays a sample when it is let go, not on every step.
+    on(form, 'pointerup', 'input[name="rate"]', () => sample(document.documentElement.lang === 'de' ? 'de' : 'en')),
+    on(form, 'click', '[data-voice-preview]', (e, b) => sample(b.dataset.voicePreview)),
   ];
   return () => offs.forEach((off) => off());
 }
 
 function mountAssistant(root) {
+  mountIdentity(root);
   const offVoice = mountVoice(root);
   const slot = $('[data-settings-face]', root);
   const face = createFace({ size: 64, mood: session.ai?.aiEnabled ? 'idle' : 'asleep' });

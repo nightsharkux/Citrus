@@ -9,6 +9,7 @@ const { hashPassword, verifyPassword } = require('../../lib/crypto');
 const { text, oneOf } = require('../../lib/validate');
 const { badRequest, forbidden, notFound } = require('../../http/errors');
 const { publicUser } = require('../auth/routes');
+const { readPreferences, applyPreferences } = require('./preferences');
 
 const INTEREST_TAGS = ['software', 'data', 'ai', 'design', 'business', 'marketing', 'engineering', 'research', 'teaching', 'healthcare', 'sustainability', 'logistics', 'media', 'entrepreneurship', 'international', 'sports', 'music', 'volunteering'];
 
@@ -26,11 +27,7 @@ function register(router, { db, config, sessions, audit }) {
       db.run('UPDATE users SET name = ? WHERE id = ?', text(b.name, { min: 2, max: 80, label: 'Name' }), ctx.user.id);
     }
     if (b.preferences && typeof b.preferences === 'object') {
-      const prefs = { ...ctx.user.preferences };
-      if (b.preferences.theme !== undefined) prefs.theme = oneOf(b.preferences.theme, ['system', 'light', 'dark'], 'Theme');
-      if (b.preferences.voiceWake !== undefined) prefs.voiceWake = !!b.preferences.voiceWake;
-      if (b.preferences.visuals !== undefined) prefs.visuals = !!b.preferences.visuals;
-      if (b.preferences.matching !== undefined) prefs.matching = !!b.preferences.matching;
+      const prefs = applyPreferences(ctx.user.preferences, readPreferences(b.preferences));
       db.run('UPDATE users SET preferences = ? WHERE id = ?', JSON.stringify(prefs), ctx.user.id);
     }
     const user = sessions.identify(ctx.req);

@@ -7,8 +7,9 @@ import { pageHead, segmented, empty, roomChip, ROOM_LABELS } from '../core/compo
 import { ago, dateTime, humanize, plural } from '../core/format.js';
 import { sheet, onSubmit, toast, toastError, confirm, prompt, menu, busy } from '../core/ui.js';
 import { debounce } from '../core/live.js';
+import { mapTab, loadMapTab, mountMapTab } from '../features/campus-map.js';
 
-const TABS = [['feed', 'Feed', '/campus'], ['guide', 'Guide', '/campus/guide'], ['rooms', 'Rooms', '/campus/rooms']];
+const tabsFor = () => [['feed', 'Feed', '/campus'], ['guide', 'Guide', '/campus/guide'], ...(session.site.map ? [['map', 'Map', '/campus/map']] : []), ['rooms', 'Rooms', '/campus/rooms']];
 const CAT = {
   announcement: ['bell', 'Announcement', 'info'], event: ['calendar', 'Event', 'accent'], job: ['briefcase', 'Job', 'success'],
   housing: ['home', 'Housing', 'warning'], research: ['target', 'Research', 'info'], community: ['users', 'Community', ''], product: ['sparkle', 'App update', ''],
@@ -19,6 +20,7 @@ export default {
   title: 'Campus life',
   async load(ctx) {
     const tab = ctx.params.tab || 'feed';
+    if (tab === 'map' && session.site.map) return { tab, ...(await loadMapTab()) };
     if (tab === 'guide') return { tab, ...(await api.get('/campus')) };
     if (tab === 'rooms') return { tab, ...(await api.get('/campus')) };
     return { tab: 'feed', ...(await api.get('/connect/posts')) };
@@ -26,12 +28,13 @@ export default {
   render(d, ctx) {
     return html`
       ${pageHead({ title: 'Campus life', subtitle: d.tab === 'feed' ? 'Announcements, events and opportunities from your university community.' : d.tab === 'guide' ? 'Find your way around and search official information.' : 'Which rooms are open, busy or available for consultation.', actions: d.tab === 'feed' ? html`<button class="btn btn-primary" data-compose>${icon('plus', 17)} Post</button>` : d.tab === 'rooms' && isStaff() ? html`<a class="btn btn-primary" href="/classroom">${icon('door', 17)} Update a room</a>` : '' })}
-      <div class="page-tabs">${segmented(TABS, d.tab)}</div>
-      ${d.tab === 'feed' ? feed(d, ctx) : d.tab === 'guide' ? guide(d) : rooms(d)}`;
+      <div class="page-tabs">${segmented(tabsFor(), d.tab)}</div>
+      ${d.tab === 'feed' ? feed(d, ctx) : d.tab === 'guide' ? guide(d) : d.tab === 'map' ? mapTab(d) : rooms(d)}`;
   },
   mount(root, d, ctx) {
     if (d.tab === 'feed') return mountFeed(root, d, ctx);
     if (d.tab === 'guide') return mountGuide(root);
+    if (d.tab === 'map') return mountMapTab(root, d, ctx);
     ctx.live.on('room.updated', debounce(ctx.refresh, 400));
     return undefined;
   },

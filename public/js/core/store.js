@@ -40,5 +40,5 @@ export function setSession(patch) {
 
 export const role = () => session.user?.role || null;
 export const isStaff = () => role() === 'lecturer' || role() === 'admin';
-export const assistantName = () => session.site.assistant || 'Campus';
+export const assistantName = () => session.user?.preferences?.assistantName || session.site.assistant || 'Campus';
 export const firstName = () => (session.user?.name || '').split(/\s+/)[0];

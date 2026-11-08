@@ -7,10 +7,54 @@
  * Swap `search()` for a vector index here if you want semantic retrieval —
  * the rest of the app only depends on the returned shape.
  */
+const fs = require('node:fs');
 const { buildIndex, search } = require('../lib/search');
 
-function createRetrieval(db) {
+/**
+ * Packs bundled with the edition (public university pages, timetable documents) are read straight from their
+ * files, so they are always current with the deployment and nobody has to import them. They are searched together
+ * with the entries an administrator adds. Their ids are negative so they never collide with database rows.
+ */
+function readPacks(files) {
+  const docs = [];
+  for (const file of files) {
+    let text = '';
+    try {
+      text = fs.readFileSync(file, 'utf8');
+    } catch {
+      continue;
+    }
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let r;
+      try {
+        r = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (!r || typeof r.title !== 'string' || typeof r.content !== 'string') continue;
+      docs.push({
+        id: -(docs.length + 1),
+        title: r.title,
+        content: r.content,
+        category: String(r.category || ''),
+        source_url: Array.isArray(r.sources) && r.sources[0]?.url ? String(r.sources[0].url) : String(r.source_url || ''),
+        tags: Array.isArray(r.tags) ? r.tags.join(',') : '',
+        volatility: r.volatility || 'stable',
+        observed_on: r.observed_on || null,
+      });
+    }
+  }
+  return docs;
+}
+
+function createRetrieval(db, { packs = [] } = {}) {
   const cache = new Map();
+  let packDocs = null;
+  const bundled = () => {
+    packDocs ||= readPacks(packs);
+    return packDocs;
+  };
 
   function indexFor(institutionId) {
     const sig = db.get('SELECT COUNT(*) n, MAX(id) maxId, MAX(updated) changed FROM institution_knowledge WHERE institution_id = ?', institutionId);
@@ -22,7 +66,7 @@ function createRetrieval(db) {
        FROM institution_knowledge WHERE institution_id = ?`,
       institutionId,
     );
-    const index = buildIndex(docs);
+    const index = buildIndex([...docs, ...bundled()]);
     cache.set(institutionId, { signature, index });
     return index;
   }
@@ -31,10 +75,19 @@ function createRetrieval(db) {
   function find(institutionId, query, { limit = 4 } = {}) {
     // BM25 scores depend on library size. A fixed cutoff drops real matches
     // in a new library with just one or two entries.
-    return search(indexFor(institutionId), query, { limit, minScore: 0 });
+    // An entry an administrator imported from a bundled pack would otherwise appear twice.
+    const seen = new Set();
+    return search(indexFor(institutionId), query, { limit: limit * 2, minScore: 0 })
+      .filter((hit) => {
+        const key = `${hit.title}|${hit.source_url}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .slice(0, limit);
   }
 
-  return { find };
+  return { find, bundledCount: () => bundled().length };
 }
 
 /** Shape a hit for clients: short excerpt, source link and freshness hint. */

@@ -11,15 +11,17 @@
  */
 const KEY = 'campus-voice';
 
+// Browsers read at "1" noticeably slower than people talk, so even the calm style is a little quicker than 1.
 export const PRESETS = [
-  { id: 'natural', label: 'Natural', rate: 1, pitch: 1 },
-  { id: 'calm', label: 'Calm', rate: 0.92, pitch: 0.96 },
-  { id: 'bright', label: 'Bright', rate: 1.06, pitch: 1.1 },
-  { id: 'deep', label: 'Deep', rate: 0.97, pitch: 0.8 },
-  { id: 'quick', label: 'Quick', rate: 1.25, pitch: 1 },
+  { id: 'natural', label: 'Natural', rate: 1.12, pitch: 1 },
+  { id: 'calm', label: 'Calm', rate: 1, pitch: 0.96 },
+  { id: 'bright', label: 'Bright', rate: 1.18, pitch: 1.1 },
+  { id: 'deep', label: 'Deep', rate: 1.08, pitch: 0.8 },
+  { id: 'quick', label: 'Quick', rate: 1.35, pitch: 1 },
 ];
 
-export const DEFAULTS = { uri: '', preset: 'natural', rate: 1, pitch: 1, volume: 1, readAloud: 'spoken' };
+/** voices: the chosen voice per language ({ en: uri, de: uri }); gender: what Automatic should prefer. */
+export const DEFAULTS = { v: 2, voices: {}, uri: '', preset: 'natural', rate: 1.12, pitch: 1, volume: 1, readAloud: 'spoken', gender: 'any' };
 export const READ_ALOUD = [
   ['spoken', 'When I speak to Campus'],
   ['always', 'Every answer'],
@@ -28,9 +30,12 @@ export const READ_ALOUD = [
 
 export function getVoiceSettings() {
   try {
-    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    // Settings saved before the faster defaults still say 1: that was the old "normal", so move it to the new one.
+    if (!saved.v && saved.rate === 1) saved.rate = DEFAULTS.rate;
+    return { ...DEFAULTS, ...saved, v: 2, voices: { ...(saved.voices || {}) } };
   } catch {
-    return { ...DEFAULTS };
+    return { ...DEFAULTS, voices: {} };
   }
 }
 
@@ -130,16 +135,24 @@ export function listVoices() {
     .sort((a, b) => RANK[a.quality] - RANK[b.quality] || a.name.localeCompare(b.name));
 }
 
-/** The voice to speak with: the saved one, else the best match for the interface language. */
+/**
+ * The voice for a piece of speech in a language: the one chosen for that language, otherwise the best voice of
+ * that language (natural ones first) in the preferred gender. Each language has its own choice, so a German
+ * sentence is read by a German voice even when the person picked an English one.
+ */
 export function chooseVoice(settings = getVoiceSettings(), languageCode = navigator.language || 'en-US') {
   const all = listVoices();
   if (!all.length) return null;
-  const saved = settings.uri && all.find((v) => v.uri === settings.uri);
-  if (saved) return saved.voice;
   const code = languageCode.slice(0, 2).toLowerCase();
-  const sameLanguage = all.filter((v) => v.lang.toLowerCase().startsWith(code));
-  const exact = sameLanguage.filter((v) => v.lang.toLowerCase().replace('_', '-') === languageCode.toLowerCase());
-  return (exact[0] || sameLanguage[0] || all[0]).voice;
+  const sameLanguage = all.filter((v) => v.lang.toLowerCase().replace('_', '-').startsWith(code));
+  const chosen = settings.voices?.[code] || (settings.uri && sameLanguage.some((v) => v.uri === settings.uri) ? settings.uri : '');
+  const saved = chosen && all.find((v) => v.uri === chosen);
+  if (saved) return saved.voice;
+  if (!sameLanguage.length) return null;
+  const wanted = settings.gender && settings.gender !== 'any' ? sameLanguage.filter((v) => v.gender === settings.gender) : [];
+  const pool = wanted.length ? wanted : sameLanguage;
+  const exact = pool.filter((v) => v.lang.toLowerCase().replace('_', '-') === languageCode.toLowerCase());
+  return (exact[0] || pool[0]).voice;
 }
 
 /** Speech rate, pitch and volume from the saved settings. */

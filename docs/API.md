@@ -86,6 +86,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
+| GET | `/api/campus/map` | user | any |
+| GET | `/api/campus/map/classes` | user | any |
 | GET | `/api/campus` | user | any |
 
 ## capabilities

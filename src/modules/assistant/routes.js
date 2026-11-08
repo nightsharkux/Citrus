@@ -23,6 +23,19 @@ const { assistantPrompt } = require('../../ai/prompts');
 const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
 const { createAttachments } = require('./attachments');
+const { assistantNameFor } = require('../account/preferences');
+
+/** The few device settings the browser reports with a message, so the assistant knows what "faster" is relative to. */
+function readDevice(input) {
+  const d = input && typeof input === 'object' ? input : {};
+  const out = {};
+  const rate = Number(d.voiceRate);
+  if (Number.isFinite(rate) && rate >= 0.5 && rate <= 2) out.voiceRate = Math.round(rate * 100) / 100;
+  if (['natural', 'calm', 'bright', 'deep', 'quick'].includes(d.voiceStyle)) out.voiceStyle = d.voiceStyle;
+  if (['female', 'male', 'any'].includes(d.voiceGender)) out.voiceGender = d.voiceGender;
+  if (['spoken', 'always', 'never'].includes(d.readAloud)) out.readAloud = d.readAloud;
+  return out;
+}
 
 /** Long enough for worked examples with formulas; reasoning models also spend this budget thinking. */
 const ANSWER_TOKENS = 2600;
@@ -31,7 +44,6 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
   const runner = createActionRunner({ db, config, access, timetable, audit });
   const attachments = createAttachments({ db });
   const isoNow = () => new Date().toISOString();
-  const assistantName = site.assistant;
   const parseJson = (json, fallback = null) => {
     try {
       return json ? JSON.parse(json) : fallback;
@@ -92,7 +104,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
 
   router.get('/api/assistant', (ctx) => ({
     status: ai.status(ctx.user),
-    name: assistantName,
+    name: assistantNameFor(ctx.user, site),
     threads: listThreads(ctx.user),
     starters: starters(ctx.user),
   }));
@@ -144,7 +156,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const { sources, references } = ai.retrieveContext(user, [...history.slice(-2).filter((h) => h.role === 'user').map((h) => h.content), prompt].join(' '));
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice });
+    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice });
 
     const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();

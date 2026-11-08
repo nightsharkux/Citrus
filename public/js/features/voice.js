@@ -20,10 +20,52 @@
 import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { getVoiceSettings, chooseVoice, voiceTuning } from './voices.js';
-import { speakBoundary } from './turns.js';
+import { speakBoundary, detectLanguage } from './turns.js';
+import { session } from '../core/store.js';
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-const lang = () => (document.documentElement.lang === 'de' ? 'de-DE' : navigator.language || 'en-US');
+
+// ------------------------------------------------------------------ languages
+//
+// People here speak German and English, often mixed. A browser's speech recogniser can only listen for one language
+// at a time, so "automatic" listens in the language you spoke last (and you can say "auf Deutsch" / "in English" to
+// switch), while a fixed choice always listens in that language. Answers are read in the language they are written in.
+
+let heardLanguage = null; // 'en' | 'de': the language of the last thing the person said
+let writtenLanguage = null; // the language of the last piece of text read aloud
+const uiLanguage = () => (document.documentElement.lang === 'de' ? 'de' : 'en');
+const englishCode = () => (/^en\b/i.test(navigator.language || '') ? navigator.language : 'en-GB');
+const speechPreference = () => session.user?.preferences?.speechLanguage || 'auto';
+
+/** The language code to give the speech recogniser right now. */
+export function recognitionLanguage() {
+  const pref = speechPreference();
+  const code = pref === 'auto' ? heardLanguage || uiLanguage() : pref;
+  return code === 'de' ? 'de-DE' : englishCode();
+}
+const lang = recognitionLanguage;
+
+/**
+ * Tell the voice layer what the person just said, so automatic mode follows them from one language to the other.
+ * Returns true when the recogniser has to be reopened in the other language (the caller reopens its own).
+ */
+export function noteSpoken(text) {
+  if (speechPreference() !== 'auto') return false;
+  const found = detectLanguage(text);
+  if (!found || found === heardLanguage) return false;
+  const before = recognitionLanguage();
+  heardLanguage = found;
+  const changed = recognitionLanguage() !== before;
+  // The always-on session reopens by itself when it ends, in the new language.
+  if (changed && mode === 'idle') {
+    try {
+      recognizer?.abort();
+    } catch {
+      /* already stopped */
+    }
+  }
+  return changed;
+}
 
 /** Null when voice works here, otherwise a short reason to show the user. */
 export function voiceProblem() {
@@ -110,18 +152,19 @@ const emitText = (text, final) => textListeners.forEach((fn) => fn({ text, final
  * the pattern accepts the usual confusions (c/k, u/o/a, doubled s: "Campos", "Kampus", "Compass").
  */
 function phonetic(name) {
-  return [...String(name || 'Campus').toLowerCase().replace(/[^a-z\s]/g, '')].map((c) => {
+  const plain = String(name || 'Campus').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss')
+    .replace(/ph/g, 'f').replace(/[^a-z\s]/g, '').replace(/(.)\1+/g, '$1').trim();
+  const vowel = { a: '[aeo]', e: '[eia]', i: '[iey]', o: '[oua]', u: '[uoaw]', y: '[iye]' };
+  const letter = { c: '[ckq]', k: '[ckq]', q: '[ckq]', s: '[sz]{1,2}', z: '[sz]{1,2}', v: '[vwf]', w: '[vwf]', f: '[fv]', t: '[td]', d: '[td]', b: '[bp]', p: '[bp]', g: '[gk]', h: 'h?', j: '[jy]', x: '(?:x|[ck]s)' };
+  return [...plain].map((c, i, all) => {
     if (c === ' ') return '\\s?';
-    if (c === 'c' || c === 'k') return '[ck]';
-    if (c === 'u' || c === 'o') return '[uoa]';
-    if (c === 'a') return '[ao]';
-    if (c === 's') return 's{1,2}';
-    return c;
+    if (vowel[c]) return vowel[c] + (all[i + 1] && vowel[all[i + 1]] ? '?' : '');
+    return letter[c] || c;
   }).join('');
 }
 
 function wakePattern(letters) {
-  const greeting = '(?:hey|hay|hi|hello|hallo|okay|ok|yo)';
+  const greeting = '(?:hey|hay|hi|hello|hallo|halo|okay|ok|yo|servus|moin|ey|hej)';
   // "Hey Campus" can come anywhere; a bare "Campus" only at the start, so "the campus library" never wakes it.
   return new RegExp(`(?:^|[\\s,.!?])${greeting}[\\s,.!?]+(${letters})(?=$|[\\s,.!?])[\\s,.:!?]*(.*)$|^\\W*(${letters})(?=$|[\\s,.!?])[\\s,.:!?]*(.*)$`, 'i');
 }
@@ -134,7 +177,7 @@ function matchWake(text) {
 }
 
 /** "Campus, stop" while Campus is talking. */
-const stopPattern = (letters) => new RegExp(`^\\W*(?:(?:hey|hay|hi|ok|okay)\\W+)?${letters}\\W+(?:stop|quiet|cancel|enough|shut up|be quiet)\\W*$`, 'i');
+const stopPattern = (letters) => new RegExp(`^\\W*(?:(?:hey|hay|hi|ok|okay|hallo|ey)\\W+)?${letters}\\W+(?:stop|stopp|quiet|cancel|enough|shut up|be quiet|halt|genug|ruhe|sei still)\\W*$`, 'i');
 
 function dispatch(text) {
   setState('sent', text);
@@ -164,6 +207,7 @@ function finishCapture(reason) {
     handlers?.onEnd?.('');
     return;
   }
+  noteSpoken(text);
   if (handlers) {
     handlers.onFinal?.(text);
     handlers.onEnd?.(text);
@@ -455,12 +499,17 @@ function utteranceFor(text) {
   const release = () => queuedUtterances.delete(utterance);
   utterance.addEventListener('end', release);
   utterance.addEventListener('error', release);
-  const voice = chooseVoice(settings, lang());
+  // Read in the language the text is written in; short or unclear pieces ("Okay.") keep the language before them.
+  const found = detectLanguage(text);
+  if (found) writtenLanguage = found;
+  const language = found || writtenLanguage || heardLanguage || uiLanguage();
+  const code = language === 'de' ? 'de-DE' : englishCode();
+  const voice = chooseVoice(settings, code);
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
   } else {
-    utterance.lang = lang();
+    utterance.lang = code;
   }
   const { rate, pitch, volume } = voiceTuning(settings);
   utterance.rate = rate;
@@ -475,7 +524,8 @@ function pieces(text) {
   const out = [];
   let current = '';
   for (const s of sentences) {
-    if (current && (current + s).length > 220) {
+    // The first piece is short so speech starts at once; the rest are longer so it does not stutter.
+    if (current && (current + s).length > (out.length === 0 ? 90 : 220)) {
       out.push(current.trim());
       current = '';
     }
@@ -782,6 +832,14 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble } 
     },
     get running() {
       return wanted;
+    },
+    /** Reopen the session in the language that is now expected; it comes back by itself. */
+    refresh() {
+      try {
+        rec?.abort();
+      } catch {
+        /* already stopped */
+      }
     },
   };
 }

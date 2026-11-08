@@ -22,7 +22,7 @@ function applySecurityHeaders(res, { secure }) {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'microphone=(self), camera=(), geolocation=(), payment=()');
+  res.setHeader('Permissions-Policy', 'microphone=(self), camera=(), geolocation=(self), payment=()');
   if (secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
 }
 

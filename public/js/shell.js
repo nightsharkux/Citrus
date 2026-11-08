@@ -14,6 +14,7 @@ import { navFor, allItems, isActive } from './nav.js';
 import { wordmark } from './core/brand.js';
 import { wake, stopSpeaking, isSpeaking } from './features/voice.js';
 import { matchCommand } from './features/commands.js';
+import { setLanguage, getLanguage } from './core/i18n.js';
 
 const app = () => document.getElementById('app');
 const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
@@ -32,7 +33,7 @@ export function mountPublic() {
   document.body.classList.remove('is-app');
   render(app(), html`${ambient}
     <div class="public">
-      <header class="public-top">${brand('/')}<nav class="cluster" id="public-nav"></nav></header>
+      <header class="public-top">${brand('/')}<nav class="cluster" id="public-nav"></nav><button type="button" class="btn btn-ghost btn-sm" data-lang-toggle aria-label="Language" data-no-translate>${getLanguage() === 'de' ? 'EN' : 'DE'}</button></header>
       <main id="view" class="view"></main>
       <footer class="public-foot"><span>${session.site.conceptNotice || ''}</span><span>${session.site.name} ${session.site.version || ''}</span></footer>
     </div>`);
@@ -137,10 +138,14 @@ function handleVoiceCommand(text) {
       document.dispatchEvent(new CustomEvent('campus:stop'));
     },
     stopListening: () => turnOffWake(),
+    setSpeechLanguage: async (code) => {
+      const res = await api.patch('/me', { preferences: { speechLanguage: code } }).catch(() => null);
+      if (res) (await import('./features/preferences.js')).applySettingsEffect({ prefs: res.user.preferences });
+    },
     talk: () => talkToCampus({ threadId: currentThreadId() }),
   });
   if (!command) return false;
-  toast(command.say, 'info', { duration: 1800 });
+  toast(command.say.replace('Stopped listening', `${assistantName()} stopped listening.`), 'info', { duration: 1800 });
   command.run();
   return true;
 }
@@ -261,6 +266,7 @@ function userMenu(button) {
   const current = document.documentElement.dataset.theme || 'system';
   menu(button, [
     { label: 'Settings', icon: 'settings', onSelect: () => navigate('/settings') },
+    { label: getLanguage() === 'de' ? 'English' : 'Deutsch', icon: 'globe', onSelect: toggleLanguage },
     { label: 'Profile & interests', icon: 'user', onSelect: () => navigate('/settings/profile') },
     'divider',
     { label: `Light${current === 'light' ? ' ✓' : ''}`, icon: 'sun', onSelect: () => setTheme('light') },
@@ -270,6 +276,19 @@ function userMenu(button) {
     { label: 'Sign out', icon: 'logout', danger: true, onSelect: signOut },
   ]);
 }
+
+/** English <-> German, from the public header or the account menu. Signed-in people keep the choice on their account. */
+function toggleLanguage() {
+  const next = getLanguage() === 'de' ? 'en' : 'de';
+  setLanguage(next);
+  document.querySelectorAll('[data-lang-toggle]').forEach((b) => { b.textContent = next === 'de' ? 'EN' : 'DE'; });
+  if (session.user) {
+    api.patch('/me', { preferences: { language: next } }).then((r) => setSession({ user: { ...session.user, preferences: r.user.preferences } })).catch(() => {});
+  }
+}
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('[data-lang-toggle]')) toggleLanguage();
+});
 
 /** Called after sign-in or registration. */
 export async function enterApp(returnTo = '/home') {

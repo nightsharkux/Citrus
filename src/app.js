@@ -18,6 +18,7 @@ const { createSecretBox } = require('./lib/crypto');
 const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
+const { createProgrammeTimetables } = require('./ai/programme-timetables');
 const { createAccess } = require('./services/access');
 const { createAudit } = require('./services/audit');
 const { createSettings } = require('./services/settings');
@@ -66,7 +67,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const keys = createKeys({ config, db, env });
   const secretBox = createSecretBox(keys.master());
   const nfcKey = keys.nfc();
-  const ai = createAiService({ db, env, fetchImpl });
+  const packs = env.CAMPUS_BUNDLED_KNOWLEDGE === 'off' ? [] : [].concat(site.knowledgePack || []).map((file) => require('node:path').join(config.root, file));
+  const ai = createAiService({ db, env, fetchImpl, packs });
   const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
   const notifier = createNotifier({ db, bus, push, timeZone });
   const timetable = createTimetable({ db, timeZone });
@@ -77,12 +79,13 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const sessions = createSessions({ db, config });
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
-  const buildContext = createContextBuilder({ db, timetable, timeZone });
+  const programmes = createProgrammeTimetables({ root: config.root, timeZone });
+  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes });
   const maintenance = createMaintenance({ db, config, settings });
 
   const deps = {
     db, config, site, env, access, bus, audit, settings, secretBox, nfcKey, ai, push, notifier,
-    timetable, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext,
+    timetable, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes,
   };
 
   const router = new Router();

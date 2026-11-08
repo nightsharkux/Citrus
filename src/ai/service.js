@@ -16,9 +16,9 @@ const { createRetrieval, toSource } = require('./retrieval');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest } = require('../http/errors');
 
-function createAiService({ db, env = process.env, fetchImpl }) {
+function createAiService({ db, env = process.env, fetchImpl, packs = [] }) {
   const providers = makeProviders({ env, ...(fetchImpl ? { fetchImpl } : {}) });
-  const retrieval = createRetrieval(db);
+  const retrieval = createRetrieval(db, { packs });
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
@@ -59,11 +59,11 @@ function createAiService({ db, env = process.env, fetchImpl }) {
   }
 
   /** Longer passages for the model; short citations remain suitable for the UI. */
-  function retrieveContext(user, query, limit = 4) {
+  function retrieveContext(user, query, limit = 6) {
     const hits = retrieval.find(user.institution_id, query, { limit });
     return {
       sources: hits.map((hit, i) => toSource(hit, i + 1)),
-      references: hits.map((hit, i) => ({ ...toSource(hit, i + 1), excerpt: hit.content.slice(0, 3500) })),
+      references: hits.map((hit, i) => ({ ...toSource(hit, i + 1), excerpt: hit.content.slice(0, 3000) })),
     };
   }
 
@@ -74,6 +74,7 @@ function createAiService({ db, env = process.env, fetchImpl }) {
     stream,
     retrieve,
     retrieveContext,
+    bundledCount: retrieval.bundledCount,
     providers: providers.list,
   };
 }

@@ -98,7 +98,7 @@ function register(router, { db, config, ai, audit }) {
 
   router.get('/api/knowledge', (ctx) => ({
     knowledge: db.all('SELECT * FROM institution_knowledge WHERE institution_id = ? ORDER BY category, title', ctx.user.institution_id),
-    pack: config.site.knowledgePack ? { file: path.basename(config.site.knowledgePack) } : null,
+    pack: config.site.knowledgePack ? { file: path.basename([].concat(config.site.knowledgePack)[0]), bundled: ai.bundledCount() } : null,
   }), { roles: ['admin'] });
 
   router.post('/api/knowledge', async (ctx) => {
@@ -154,7 +154,7 @@ function register(router, { db, config, ai, audit }) {
   /** Import the public reference pack bundled with this edition (e.g. OTH public information). */
   router.post('/api/knowledge/import-pack', (ctx) => {
     if (!config.site.knowledgePack) throw badRequest('This edition has no bundled knowledge pack');
-    const file = path.join(config.root, config.site.knowledgePack);
+    const file = path.join(config.root, [].concat(config.site.knowledgePack)[0]);
     const result = upsert(ctx.user, parseJsonl(fs.readFileSync(file, 'utf8')));
     audit(ctx.user, 'knowledge_pack_imported', `${path.basename(file)}: ${result.added} added, ${result.updated} updated`);
     return result;

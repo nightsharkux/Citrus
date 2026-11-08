@@ -14,7 +14,7 @@ const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 20;
 const MIN_FREE_MINUTES = 45;
 
-function createContextBuilder({ db, timetable, timeZone }) {
+function createContextBuilder({ db, timetable, timeZone, programmes = null }) {
   const fmt = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone, ...opts }).format(new Date(iso));
   const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const hhmm = (iso) => fmt(iso, { hour: '2-digit', minute: '2-digit' });
@@ -55,6 +55,25 @@ function createContextBuilder({ db, timetable, timeZone }) {
       const interests = p ? JSON.parse(p.interests) : [];
       if (interests.length) bits.push(`Interests: ${interests.join(', ')}`);
       return bits.join(' · ');
+    },
+
+    /**
+     * The university's published class timetable for the user's programme, taken from their profile or from what
+     * they said in this conversation ("I'm in DTM"). It is how "what lecture do I have right now?" is answered
+     * without any further context.
+     */
+    function programme(user, shared) {
+      if (!programmes) return '';
+      const profile = db.get('SELECT programme, semester FROM user_profiles WHERE user_id = ?', user.id);
+      const said = shared.extras.query || '';
+      let codes = programmes.mentioned(said);
+      const own = profile?.programme ? programmes.fromProfile(profile.programme) : [];
+      if (!codes.length) codes = own;
+      if (!codes.length) {
+        return `Official class timetables (from the university's PDFs) exist for these programme codes: ${programmes.programmes().map((p) => p.code).join(', ')}. When the user says which programme they study (or asks about their classes), their timetable appears here; if you do not know it yet, ask which programme in one short question, then use it.`;
+      }
+      const semester = programmes.semesterIn(said) || (codes.some((c) => own.includes(c)) ? profile?.semester ?? null : null);
+      return programmes.describe({ codes, semester, now: new Date() }).join('\n');
     },
 
     /** Where the user is in their day: in class, or how long until the next one. */
@@ -181,6 +200,26 @@ function createContextBuilder({ db, timetable, timeZone }) {
       return n ? `Unread notifications: ${n}` : '';
     },
 
+    /** What the person can change by asking, and what it is now, so "make it faster" or "call yourself Claudia" needs no setup. */
+    function settings(user, shared) {
+      const p = user.preferences || {};
+      const d = shared.extras.device || {};
+      const bits = [
+        `assistant name "${shared.extras.assistantName || 'Campus'}"`,
+        `interface language ${p.language === 'de' ? 'German' : p.language === 'en' ? 'English' : 'not chosen (follows the browser)'}`,
+        `speech recognition ${{ de: 'German', en: 'English' }[p.speechLanguage] || 'automatic (English or German)'}`,
+        `listening for the assistant's name ${p.voiceWake ? 'on' : 'off'}`,
+        `animated explanations ${p.visuals === false ? 'off' : 'on'}`,
+        `opportunity matching ${p.matching === false ? 'off' : 'on'}`,
+        `theme ${p.theme || 'system'}`,
+      ];
+      if (d.voiceRate) bits.push(`voice speed ${d.voiceRate} (1 is normal)`);
+      if (d.voiceStyle) bits.push(`voice style ${d.voiceStyle}`);
+      if (d.voiceGender) bits.push(`voice ${d.voiceGender === 'any' ? 'automatic' : d.voiceGender}`);
+      if (d.readAloud) bits.push(`read aloud: ${{ spoken: 'when the user speaks', always: 'every answer', never: 'never' }[d.readAloud]}`);
+      return `Current settings (change them with settings.update when asked): ${bits.join('; ')}`;
+    },
+
     /** Titles of the latest conversations, so "like we talked about before" has something to go on. */
     function recent(user) {
       const rows = db.all('SELECT title FROM assistant_threads WHERE user_id = ? ORDER BY updated DESC LIMIT 5', user.id);
@@ -188,9 +227,10 @@ function createContextBuilder({ db, timetable, timeZone }) {
     },
   ];
 
-  return function build(user) {
+  return function build(user, extras = {}) {
     let events = null;
     const shared = {
+      extras,
       get events() {
         if (!events) events = timetable.upcoming(user, { days: 14, limit: 120 });
         return events;

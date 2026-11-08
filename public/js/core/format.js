@@ -2,10 +2,12 @@
 import { session } from './store.js';
 
 const tz = () => session.site.timezone || undefined;
+/** German when the interface is German, otherwise whatever the browser prefers. */
+const locale = () => (document.documentElement.lang === 'de' ? 'de-DE' : undefined);
 const cache = new Map();
 function fmt(options) {
-  const key = JSON.stringify(options) + tz();
-  if (!cache.has(key)) cache.set(key, new Intl.DateTimeFormat(undefined, { timeZone: tz(), ...options }));
+  const key = JSON.stringify(options) + tz() + document.documentElement.lang;
+  if (!cache.has(key)) cache.set(key, new Intl.DateTimeFormat(locale(), { timeZone: tz(), ...options }));
   return cache.get(key);
 }
 
@@ -33,15 +35,15 @@ export function dayLabel(iso) {
   return longDay(iso);
 }
 
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+const rtf = () => new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
 export function ago(iso) {
   if (!iso) return '';
   const seconds = (new Date(iso).getTime() - Date.now()) / 1000;
   const abs = Math.abs(seconds);
   if (abs < 45) return 'just now';
-  if (abs < 3600) return rtf.format(Math.round(seconds / 60), 'minute');
-  if (abs < 86_400) return rtf.format(Math.round(seconds / 3600), 'hour');
-  if (abs < 7 * 86_400) return rtf.format(Math.round(seconds / 86_400), 'day');
+  if (abs < 3600) return rtf().format(Math.round(seconds / 60), 'minute');
+  if (abs < 86_400) return rtf().format(Math.round(seconds / 3600), 'hour');
+  if (abs < 7 * 86_400) return rtf().format(Math.round(seconds / 86_400), 'day');
   return shortDate(iso);
 }
 

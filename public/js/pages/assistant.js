@@ -17,6 +17,7 @@ import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.j
 import { inferVisual } from '../features/face-visuals.js';
 import { wake, dictate, speak, createSpeaker, primeSpeech, stopSpeaking, voiceProblem } from '../features/voice.js';
 import { getVoiceSettings } from '../features/voices.js';
+import { applySettingsEffect, deviceSettings } from '../features/preferences.js';
 import { startConversation, conversationOpen, conversationProblem } from '../features/conversation.js';
 import { createAttachments, attachmentList, zoomPicture, watchDrops, pastedFiles, ACCEPT } from '../features/attach.js';
 
@@ -144,7 +145,7 @@ export default {
             <button class="btn btn-ghost btn-icon chat-history-btn" data-history aria-label="Conversations">${icon('history', 19)}</button>
             <span class="chat-face-slot" data-face-slot></span>
             <div class="grow chat-head-text">
-              <h2 class="truncate">${active ? active.title : 'Campus'}</h2>
+              <h2 class="truncate">${active ? active.title : assistantName()}</h2>
               <span class="small muted chat-status">${statusLine(ready, data.status)}</span>
             </div>
             <div class="chat-head-actions">
@@ -315,6 +316,7 @@ export default {
     function runClientEffect(effect) {
       if (effect.type === 'theme') setTheme(effect.mode === 'system' ? null : effect.mode);
       else if (effect.type === 'navigate') ctx.navigate(effect.path);
+      else if (effect.type === 'settings') applySettingsEffect(effect);
     }
 
     /** `spoken`: the question was said, not typed; with the default read-aloud setting the answer is then spoken as it arrives. */
@@ -377,7 +379,7 @@ export default {
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
-        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id) }, {
+        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), device: deviceSettings() }, {
           signal: controller.signal,
           onEvent(type, payload) {
             if (type === 'thread') attach.sent();
@@ -583,6 +585,7 @@ export default {
           const res = await api.post(`/assistant/messages/${b.dataset.message}/actions/${b.dataset.undo}/undo`);
           const card = b.closest('.action-card');
           card.outerHTML = actionCard(res.action, null, Number(b.dataset.undo)).value;
+          if (res.action.client?.type === 'settings') applySettingsEffect(res.action.client);
           toast('Undone', 'success', { duration: 1800 });
         } catch (error) {
           b.disabled = false;
@@ -595,7 +598,7 @@ export default {
         if (!enable) wake.stop();
         const res = await api.patch('/me', { preferences: { voiceWake: enable } }).catch(() => null);
         if (res) setSession({ user: { ...session.user, preferences: res.user.preferences } });
-        toast(enable ? 'Say “Hey Campus” on any page. Answers are read aloud.' : 'Campus stopped listening.', 'info');
+        toast(enable ? `Say “Hey ${assistantName()}” on any page. Answers are read aloud.` : `${assistantName()} stopped listening.`, 'info');
       }),
       on(root, 'click', '[data-fullscreen]', () => setFull(!isFull())),
       on(root, 'click', '.face', () => {

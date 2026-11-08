@@ -183,6 +183,39 @@ Safety rules, all enforced on the server:
 
 **Adding an action:** add a function to `ACTIONS` in `src/modules/assistant/actions.js` returning `{ title, detail?, warning?, link?, client?, undo? }`, describe it in `ACTION_GUIDE` in `prompts.js`, and add a test with an access-denied case.
 
+## What it knows about the university
+
+The assistant answers university questions from four sources, all read directly from files in `resources/` (nothing to import):
+
+| Source | File | Made by | What it holds |
+|---|---|---|---|
+| Curated facts | `OTH_Public_Knowledge_*.jsonl` | by hand | identity, faculties, key services (can also be imported into the database from Admin → AI & knowledge) |
+| The university website | `OTH_Website_Knowledge.jsonl` | `node scripts/crawl-oth.js` | about 3,000 passages from the public pages in German and English: programmes, services, procedures, contacts (names, e-mail, phone, rooms, office hours as printed) |
+| Timetable and exam documents | `OTH_Timetable_Documents.jsonl` | `python scripts/oth-timetables.py` | the text of the published exam plans, lecture-hall allocation and notes |
+| Class timetables | `oth-timetables.json` | `python scripts/oth-timetables.py` | every programme's weekly pattern as data: weekday, start, end, course, room, lecturer |
+
+- **Retrieval** (`src/ai/retrieval.js`, `src/lib/search.js`) searches these together with the entries an administrator adds. It matches English questions to German pages through a synonym list (contact/Kontakt, timetable/Stundenplan, canteen/Mensa, mentor/Mentoring...), forgives spelling slips ("Banhof" finds Bahnhof) and finds German compounds from their parts. The six best passages go to the model with their source links. Set `CAMPUS_BUNDLED_KNOWLEDGE=off` to leave the packs out (the tests do).
+- **"What do I have right now?"** The class timetables are not searched, they are computed (`src/ai/programme-timetables.js`). The programme comes from the profile or from the conversation ("I'm in DTM", "Digital Technology and Management, 3rd semester"), and `CONTEXT` then lists what runs now, what comes later today and the week, with room and lecturer. With no semester known, every semester that has something on is listed and the assistant asks only when that changes the answer. A programme that publishes its timetable only as a picture is linked instead.
+- **Refreshing.** Run the two scripts again when the university publishes a new semester or changes pages, review the diff, commit. They read only public pages, one request at a time, follow `robots.txt`, and skip the staff directory (`/hochschule/ueber-uns/personen/`), which the university asks AI crawlers to leave alone. `storage/oth-crawl/` caches the raw pages and is git-ignored. `scripts/oth-timetables.py` needs `pip install pymupdf`; the app itself does not.
+- Everything copied from the website is public information with the source link and the date it was read shown with each answer. Confirm anything that matters on the live page.
+
+## Languages
+
+People here use German and English together, often in one sentence. `LANGUAGE_GUIDE` in `src/ai/prompts.js` tells the model that this is normal: mixed sentences, German words and place names inside English ("Banhof", "Schirmitzer Weg"), missing umlauts, broken grammar and speech-recognition errors in both languages. It answers in the language of the latest message, keeps official German terms with a short gloss and understands German dates ("halb drei", "übermorgen"). The same guide is in the classroom voice and workspace prompts.
+
+- **Interface.** `public/js/core/i18n.js` translates what is on screen from the dictionary in `i18n-de*.js` (text, placeholders, labels, toasts) and follows each person's language setting, then the browser. Add a string by adding its English text and the German beside it. Text people wrote is never touched. Not everything is translated: the feature catalogue (`config/capabilities.js`) and the career questions are English only.
+- **Voice.** Speech recognition can listen for one language at a time. *Voice input language* is Automatic (follow the language you spoke last), English or Deutsch; "auf Deutsch" and "in English" switch it by voice. Answers are read piece by piece in the language they are written in, with a voice chosen per language (Settings → Assistant → Voice). `detectLanguage` in `features/turns.js` tells the two apart by common words and umlauts.
+- Voice commands (`features/commands.js`) and stop/goodbye phrases (`features/turns.js`) work in both languages.
+
+## Names and settings in chat
+
+- **The assistant's name is per account** (`preferences.assistantName`, 24 letters, validated in `src/modules/account/preferences.js` because it reaches the prompt). The wake phrase, every label and the prompt follow it: "Hey Claudia".
+- **Settings by chat.** `settings.update` (in `src/modules/assistant/actions.js`) changes the name, interface language, voice-input language, wake word, animations, matching, theme and, on the current device, voice speed, style, gender and read-aloud. Account settings are saved on the server and can be undone; device settings are sent to the browser as a client effect and applied by `features/preferences.js`. The browser reports its voice settings with each message so "faster" and "what is my speed?" make sense; `CONTEXT` lists the current values.
+
+## Campus map
+
+`/campus/map` draws both campuses from OpenStreetMap data (`node scripts/oth-campus-map.js` builds `resources/oth-campus-map.json`; credit is shown on the map). A room such as "HSG 001", "WTC 1.25" or "EMI104" finds its building by code (`features/campus-places.js`). Your position comes from the browser's location and stays in the browser. Distance and walking time are estimates; *Directions* opens turn-by-turn in OpenStreetMap or Google Maps. `GET /api/campus/map/classes` lists the next lessons that have a room, from the person's schedule and the official timetable of their programme. Buildings that OpenStreetMap does not show (the E-House) are listed as not mapped instead of guessed. The assistant opens it with `app.navigate {"to":"map","place":"HSG"}`.
+
 ## Voice
 
 The browser handles voice (`public/js/features/voice.js`):
