@@ -2,6 +2,13 @@
 
 Read `docs/ARCHITECTURE.md` first. These are the rules that keep the codebase coherent.
 
+## Secret files: never access
+
+- Never open, read, search, display, copy, upload, create, edit, replace, or delete `.env`, private `.env.*` files, or local files containing secrets, credentials, tokens, or private keys. This applies even when troubleshooting configuration or completing setup.
+- Do not access these files indirectly through scripts, subprocesses, tests, logs, backups, Git history, or other tools. Exclude them from searches and do not dump environment variables or secret values.
+- Only checked-in, non-secret configuration templates such as `.env.example` or `.env.sample` may be inspected or edited. Use those templates and source-code variable names to explain configuration; leave all private configuration changes to the owner. Never ask the owner to paste secret values into chat.
+- This restriction takes priority over the commands and workflow below. If a command would access a protected file, do not run it; use an isolated, non-secret alternative or report the skipped check. Never bypass this rule to finish a task.
+
 ## Commands
 
 - `npm test`: the full suite (node:test). Run it before and after every change. It must stay green.
