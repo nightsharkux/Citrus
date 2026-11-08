@@ -14,9 +14,11 @@ const { seed } = require('./src/db/seed');
 const { createApp } = require('./src/app');
 
 const config = loadConfig();
-// Run directly (npm start), or loaded by Vercel, which needs the server to listen as the module loads.
-const standalone = require.main === module || !!process.env.VERCEL;
-const log = standalone ? console.log : () => {};
+// Run directly (npm start) the process listens itself. On Vercel it must not: the platform calls the
+// exported function for each request.
+const standalone = require.main === module;
+const onVercel = !!process.env.VERCEL;
+const log = standalone || onVercel ? console.log : () => {};
 
 let db;
 let app;
@@ -41,6 +43,8 @@ const handler = startupError
   }
   : app.handler;
 const server = http.createServer(handler);
+
+if (onVercel) app?.maintenance.start();
 
 if (standalone) {
   app?.maintenance.start();
@@ -71,6 +75,6 @@ if (standalone) {
   process.on('SIGTERM', shutdown);
 }
 
-// Vercel requires the default export to be the HTTP server (or a function), so the server is the
-// export and carries the pieces the tests use: const { server, db } = require('./server').
-module.exports = Object.assign(server, { server, db, handler, app, config });
+// Vercel calls the default export as (req, res) for every request. The function also carries the pieces
+// the tests use: const { server, db } = require('./server').
+module.exports = Object.assign((req, res) => handler(req, res), { server, db, handler, app, config });
