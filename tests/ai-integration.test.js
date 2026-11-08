@@ -9,12 +9,12 @@ const { makeProviders } = require('../src/ai/providers');
 async function configured(t, env = {}) {
   const state = { calls: [], reply: 'A grounded answer [1].', fail: false };
   const app = await startApp({
-    env: { CAMPUS_AI_PROVIDER: 'ollama', ...env },
+    env: { CAMPUS_AI_PROVIDER: 'gateway', AI_GATEWAY_API_KEY: 'fixture-key', ...env },
     fetchImpl: async (url, options) => {
-      const body = options.body instanceof FormData ? options.body : JSON.parse(options.body);
+      const body = JSON.parse(options.body);
       state.calls.push({ url, options, body });
       if (state.fail) throw new Error('private provider failure');
-      return new Response(JSON.stringify(body instanceof FormData ? { text: 'Fixture meeting transcript.' } : { message: { content: state.reply } }));
+      return new Response(JSON.stringify({ choices: [{ message: { content: state.reply } }] }));
     },
   });
   t.after(() => app.close());
@@ -128,7 +128,7 @@ test('practice generation validates model JSON and reports provider failure or a
   state.fail = true;
   const failed = await app.call('student', 'POST', '/api/revision', { course_id: 1 });
   assert.equal(failed.status, 503);
-  assert.match(failed.body.error, /Ollama/);
+  assert.match(failed.body.error, /Vercel AI Gateway/);
   const topicId = app.db.get('SELECT id FROM topics LIMIT 1').id;
   app.db.run('INSERT INTO polls(topic_id, question, options, correct, created) VALUES(?, ?, ?, ?, ?)', topicId, 'Fixture lecturer check?', JSON.stringify(['Yes', 'No']), 0, new Date().toISOString());
   const fallback = await app.call('student', 'POST', '/api/revision', { course_id: 1 });
@@ -177,32 +177,29 @@ test('classroom voice uses approved sources, staff quotas and current staff auth
   assert.equal(state.calls.length, 1);
 });
 
-test('recording transcription stays explicitly opted in and private even when local chat is selected', async (t) => {
-  const { app, state } = await configured(t, { OPENAI_API_KEY: 'fixture-key', CAMPUS_TRANSCRIPTION_PROVIDER: 'openai' });
+test('recordings remain private and never send audio to the gateway', async (t) => {
+  const { app, state } = await configured(t);
   await app.register('member');
   const space = (await app.call('admin', 'POST', '/api/workspaces', { title: 'Fixture private meeting', kind: 'meeting' })).body;
   const upload = await app.call('admin', 'POST', `/api/workspaces/${space.id}/recordings`, Buffer.from('fixture-audio'), { headers: { 'content-type': 'audio/webm' } });
   assert.equal(upload.status, 201);
-  assert.equal(upload.body.transcript, 'Fixture meeting transcript.');
-  assert.equal(upload.body.provider, 'ollama');
-  assert.equal(state.calls[0].url, 'https://api.openai.com/v1/audio/transcriptions');
+  assert.equal(upload.body.transcript, '');
+  assert.equal(upload.body.transcription, 'Disabled');
+  assert.equal(upload.body.provider, 'gateway');
+  assert.equal(state.calls.length, 0, 'uploading audio never triggers an AI request');
   await app.call('member', 'POST', '/api/workspaces/join', { code: space.joinCode });
   assert.equal((await app.call('member', 'GET', `/api/workspaces/${space.id}`)).body.recordings.length, 0);
   assert.equal((await app.call('member', 'GET', `/api/workspaces/recordings/${upload.body.id}/audio`)).status, 403);
-  const localOnly = await configured(t, { OPENAI_API_KEY: 'fixture-key', CAMPUS_TRANSCRIPTION_PROVIDER: 'off' });
-  const localSpace = (await localOnly.app.call('admin', 'POST', '/api/workspaces', { title: 'Fixture local meeting', kind: 'meeting' })).body;
-  await localOnly.app.call('admin', 'POST', `/api/workspaces/${localSpace.id}/recordings`, Buffer.from('fixture-audio'), { headers: { 'content-type': 'audio/webm' } });
-  assert.equal(localOnly.state.calls.length, 0, 'a cloud key alone never uploads audio');
 });
 
 test('provider streaming caps visible text and does not expose raw provider errors', async () => {
-  const providers = makeProviders({ env: {}, fetchImpl: async () => new Response(JSON.stringify({ message: { content: 'x'.repeat(15_000) }, done: true }) + '\n') });
+  const providers = makeProviders({ env: { AI_GATEWAY_API_KEY: 'fixture-key' }, fetchImpl: async () => new Response('data: ' + JSON.stringify({ choices: [{ delta: { content: 'x'.repeat(15_000) } }] }) + '\n\n') });
   let answer = '';
-  for await (const delta of providers.stream('ollama', 'system', 'prompt')) answer += delta;
+  for await (const delta of providers.stream('gateway', 'system', 'prompt')) answer += delta;
   assert.equal(answer.length, 12_000);
-  const failing = makeProviders({ env: {}, fetchImpl: async () => new Response('{"error":"private provider details"}\n') });
+  const failing = makeProviders({ env: { AI_GATEWAY_API_KEY: 'fixture-key' }, fetchImpl: async () => new Response('data: {"error":"private provider details"}\n\n') });
   await assert.rejects(async () => {
-    for await (const delta of failing.stream('ollama', 'system', 'prompt')) assert.fail(delta);
+    for await (const delta of failing.stream('gateway', 'system', 'prompt')) assert.fail(delta);
   }, (error) => error.status === 503 && !error.message.includes('private provider details'));
 });
 
@@ -211,12 +208,12 @@ test('disconnecting a streamed chat cancels the provider request', async (t) => 
   let reportAbort;
   const aborted = new Promise((resolve) => { reportAbort = resolve; });
   const app = await startApp({
-    env: { CAMPUS_AI_PROVIDER: 'ollama' },
+    env: { CAMPUS_AI_PROVIDER: 'gateway', AI_GATEWAY_API_KEY: 'fixture-key' },
     fetchImpl: async (url, options) => {
       providerSignal = options.signal;
       return new Response(new ReadableStream({
         start(controller) {
-          controller.enqueue(new TextEncoder().encode('{"message":{"content":"Starting answer"}}\n'));
+          controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"Starting answer"}}]}\n\n'));
           options.signal.addEventListener('abort', () => {
             controller.error(new DOMException('Request cancelled', 'AbortError'));
             reportAbort();

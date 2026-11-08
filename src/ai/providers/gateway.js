@@ -1,11 +1,11 @@
 'use strict';
 /** Vercel AI Gateway's OpenAI-compatible API. Credentials stay on the server. */
-const { parse, parseStream } = require('./openai');
+const { readSse, safeJson } = require('./stream');
 
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
-const chatModel = (env) => String(env.CAMPUS_GATEWAY_MODEL || '').trim() || 'openai/gpt-6-luna';
+const chatModel = (env) => String(env.CAMPUS_GATEWAY_MODEL || '').trim() || 'openai/gpt-6.1-terra';
 const summaryModel = (env) => String(env.CAMPUS_GATEWAY_SUMMARY_MODEL || '').trim() || 'google/gemini-2.5-flash-lite';
-const noThinkingModels = new Set(['openai/gpt-6-luna', 'google/gemini-2.5-flash-lite']);
+const noThinkingModels = new Set(['openai/gpt-6.1-terra', 'google/gemini-2.5-flash-lite']);
 
 module.exports = {
   id: 'gateway',
@@ -33,8 +33,17 @@ module.exports = {
     };
   },
 
-  parse,
-  parseStream,
+  parse: (json) => json?.choices?.[0]?.message?.content,
+
+  async *parseStream(response) {
+    for await (const { data } of readSse(response.body)) {
+      if (data === '[DONE]') return;
+      const json = safeJson(data);
+      if (json?.error) throw new Error('Gateway stream error');
+      const delta = json?.choices?.[0]?.delta?.content;
+      if (delta) yield delta;
+    }
+  },
   errors: {
     unreachable: 'Cannot reach Vercel AI Gateway. Check server connectivity.',
     status: (code) => `Vercel AI Gateway returned HTTP ${code}. Check the gateway key, credits and model access.`,

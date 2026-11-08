@@ -12,6 +12,52 @@ Campus OS needs a machine that runs Node.js continuously and keeps its `storage/
 
 ---
 
+## Vercel hosting and environment variables
+
+**The current backend needs a persistent disk and a long-running Node process. It is not ready for Vercel Functions.** SQLite, meeting audio, the connector encryption key, the NFC HMAC key and Web Push keys live on disk. Vercel Functions have ephemeral storage that is not shared across instances ([Vercel's SQLite guidance](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel)). Moving `DB_PATH` to `/tmp` does not provide durability. There is no `DATABASE_URL` integration in this app.
+
+For the existing code, run `npm start` on a persistent Node server using the VPS steps below. Vercel AI Gateway works from that server. Hosting the backend on Vercel requires separate work: an external durable database, object storage, persistent secret handling, and changes to background maintenance, rate limits and real-time delivery. Deploying just `public/` also omits the server APIs and server-rendered configuration.
+
+### AI variables
+
+| Variable | Value | Required? |
+|---|---|---|
+| `AI_GATEWAY_API_KEY` | Your Vercel AI Gateway key | Required for AI; store as Secret |
+| `CAMPUS_GATEWAY_MODEL` | `openai/gpt-6.1-terra` | Optional; shown default |
+| `CAMPUS_GATEWAY_SUMMARY_MODEL` | `google/gemini-2.5-flash-lite` | Optional; shown default |
+| `CAMPUS_AI_PROVIDER` | `gateway` | Optional; `gateway` or `off`; saved Admin choice wins |
+| `CAMPUS_AI_RATE_PER_MINUTE` | `12` | Optional; per-user request quota, not a spending cap |
+
+These are the only AI environment variables. Do not add direct-provider keys or local model URLs. Complete Vercel AI Gateway billing setup before testing requests; configure any spending budget in the gateway dashboard.
+
+### App variables on the backend host
+
+| Variable | Value / purpose |
+|---|---|
+| `CAMPUS_ADMIN_EMAIL` | First administrator's email for a fresh database |
+| `CAMPUS_ADMIN_PASSWORD` | New password of 12+ characters; store as Secret. Existing accounts are unchanged. |
+| `PUBLIC_URL` | Final HTTPS address people use, e.g. `https://campus.example.edu` |
+| `CAMPUS_EDITION` | `general` or `oth` |
+| `COOKIE_SECURE` | `1` for HTTPS; defaults on when unset and `PUBLIC_URL` is HTTPS |
+| `TRUST_PROXY` | `1` only when the app is behind your trusted reverse proxy |
+| `HOST`, `PORT` | Bind address and port required by the Node host; see VPS example below |
+| `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
+
+When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/campusos` and `/var/lib/campusos/campusos.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
+
+### Entering variables in Vercel
+
+These steps configure a Vercel project; they do not resolve the backend hosting requirements above.
+
+1. Open the project, then **Settings > Environment Variables**.
+2. Add each variable using its exact name and its raw value. Choose **Secret** for the gateway key and administrator password, and **Config** for model IDs and other non-sensitive settings. Older dashboards may call the secret option **Sensitive** ([Vercel reference](https://vercel.com/docs/environment-variables/sensitive-environment-variables)).
+3. Select **Production** for the live project. Configure **Preview** separately if you need test deployments, with its own test credentials and data. Your local `.env` is not automatically copied into the deployment.
+4. Save and create a new deployment. Environment changes only apply to new deployments ([Vercel reference](https://vercel.com/docs/environment-variables)).
+
+Keep the key server-side under `AI_GATEWAY_API_KEY`. Never add a public/browser prefix to a secret. Leave platform-managed `PORT` alone when deploying functions; setting it does not turn the function into a persistent server.
+
+---
+
 ## On your own network
 
 With `HOST=0.0.0.0` in `.env` (the default), every device on the same Wi-Fi can open Campus OS while it runs. The server window prints the addresses:
@@ -32,7 +78,6 @@ Leave `PUBLIC_URL` empty here. Links such as calendar feeds then use whichever a
 **You need:**
 - A VPS with 2 vCPU and 4 GB RAM. An EU provider keeps the data in the EU (GDPR).
 - A domain or subdomain, e.g. `campus.example.edu`.
-- About 8–16 GB RAM or a GPU only if you also want to run Ollama on the server. Otherwise use a cloud AI key.
 
 ### 1. Point your domain at the server
 
@@ -92,8 +137,10 @@ PORT=3100
 TRUST_PROXY=1
 CAMPUS_ADMIN_EMAIL=you@example.edu
 CAMPUS_ADMIN_PASSWORD=<a new long password, not the one from your PC>
-# AI: a cloud key, or CAMPUS_OLLAMA_URL pointing at a machine that runs Ollama
-ANTHROPIC_API_KEY=...
+# AI through Vercel AI Gateway
+AI_GATEWAY_API_KEY=<your gateway key>
+CAMPUS_GATEWAY_MODEL=openai/gpt-6.1-terra
+CAMPUS_GATEWAY_SUMMARY_MODEL=google/gemini-2.5-flash-lite
 ```
 
 `HOST=127.0.0.1` keeps Campus OS reachable only through Caddy. `TRUST_PROXY=1` lets rate limits see real visitor addresses.

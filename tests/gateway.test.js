@@ -4,10 +4,10 @@ const assert = require('node:assert/strict');
 const { makeProviders } = require('../src/ai/providers');
 const { startApp } = require('./helpers');
 
-test('gateway uses its own server key, task models and bounded output without changing direct OpenAI', async () => {
+test('gateway uses its own server key, task models and bounded output with configurable models', async () => {
   const requests = [];
   const providers = makeProviders({
-    env: { AI_GATEWAY_API_KEY: ' gateway-fixture-key ', OPENAI_API_KEY: 'direct-fixture-key' },
+    env: { AI_GATEWAY_API_KEY: ' gateway-fixture-key ' },
     fetchImpl: async (url, options) => {
       requests.push({ url, options, body: JSON.parse(options.body) });
       return new Response(JSON.stringify({ choices: [{ message: { content: 'An answer.' } }] }));
@@ -17,18 +17,15 @@ test('gateway uses its own server key, task models and bounded output without ch
   assert.equal(await providers.generate('gateway', 'Instructions', 'Notes', [], { task: 'summary', maxTokens: 800 }), 'An answer.');
   assert.equal(requests[0].url, 'https://ai-gateway.vercel.sh/v1/chat/completions');
   assert.equal(requests[0].options.headers.Authorization, 'Bearer gateway-fixture-key');
-  assert.equal(requests[0].body.model, 'openai/gpt-6-luna');
+  assert.equal(requests[0].body.model, 'openai/gpt-6.1-terra');
   assert.equal(requests[1].body.model, 'google/gemini-2.5-flash-lite');
   assert.equal(requests[1].body.max_tokens, 800);
   assert.deepEqual(requests[0].body.reasoning, { effort: 'none' });
   assert.deepEqual(requests[0].body.provider, { sort: 'cost' });
   assert.equal(requests[0].body.models, undefined, 'no automatic model escalation');
   assert.doesNotMatch(JSON.stringify(providers.list()) + JSON.stringify(providers.status('gateway')), /fixture-key/);
-  assert.equal(providers.transcriptionReady(), false);
+  assert.equal(providers.status('gateway').transcription, 'Disabled');
 
-  await providers.generate('openai', 'Instructions', 'Question');
-  assert.equal(requests[2].url, 'https://api.openai.com/v1/chat/completions');
-  assert.equal(requests[2].options.headers.Authorization, 'Bearer direct-fixture-key');
   const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_GATEWAY_MODEL: 'other/model', CAMPUS_GATEWAY_SUMMARY_MODEL: 'other/summary' } });
   assert.equal(custom.status('gateway').model, 'other/model');
   assert.equal(custom.status('gateway').summaryModel, 'other/summary');
@@ -49,10 +46,10 @@ test('gateway streams only visible text and fails without trying another provide
   assert.equal(answer, 'Hello there');
   assert.equal(calls, 1);
 
-  const failed = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', OPENAI_API_KEY: 'direct-key' }, fetchImpl: async () => { calls++; throw new Error('private key details'); } });
+  const failed = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key' }, fetchImpl: async () => { calls++; throw new Error('private key details'); } });
   await assert.rejects(failed.generate('gateway', 'Instructions', 'Question'), /Cannot reach Vercel AI Gateway/);
   assert.equal(calls, 2);
-  const missing = makeProviders({ env: { AI_GATEWAY_API_KEY: ' ', OPENAI_API_KEY: 'direct-key' }, fetchImpl: async () => { throw new Error('must not call'); } });
+  const missing = makeProviders({ env: { AI_GATEWAY_API_KEY: ' ' }, fetchImpl: async () => { throw new Error('must not call'); } });
   assert.equal(missing.status('gateway').aiEnabled, false);
   await assert.rejects(missing.generate('gateway', 'Instructions', 'Question'), /not configured/);
 });
@@ -77,6 +74,9 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   assert.equal((await app.call('student', 'PATCH', '/api/ai/settings', { provider: 'gateway' })).status, 403);
   assert.equal((await app.call('student', 'POST', '/api/ai/test')).status, 403);
   assert.equal(requests.length, 0);
+  for (const provider of ['openai', 'anthropic', 'ollama']) {
+    assert.equal((await app.call('admin', 'PATCH', '/api/ai/settings', { provider })).status, 400);
+  }
   const selected = await app.call('admin', 'PATCH', '/api/ai/settings', { provider: 'gateway' });
   assert.equal(selected.status, 200);
   assert.equal(selected.body.summaryModel, 'google/gemini-2.5-flash-lite');
@@ -84,9 +84,9 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   assert.equal((await app.call('admin', 'GET', '/api/ai/settings')).body.provider, 'gateway');
   assert.equal((await app.call('outsider', 'GET', '/api/assistant')).body.status.provider, 'off');
   assert.equal((await app.call('admin', 'POST', '/api/ai/test')).status, 200);
-  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra');
   assert.equal((await app.call('student', 'POST', '/api/assistant/messages', { prompt: 'Explain a linear algorithm.', task: 'summary', model: 'expensive/model' })).status, 200);
-  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna', 'clients cannot override server routing');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra', 'clients cannot override server routing');
 
   const space = (await app.call('admin', 'POST', '/api/workspaces', { title: 'Gateway fixture meeting', kind: 'meeting' })).body;
   const base = `/api/workspaces/${space.id}`;
@@ -107,5 +107,5 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   const practice = await app.call('student', 'POST', '/api/revision', { course_id: 1 });
   assert.equal(practice.status, 201);
   assert.equal(practice.body.source, 'ai');
-  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra');
 });

@@ -237,19 +237,8 @@ function register(router, { db, config, access, ai, bus, audit }) {
     const filename = crypto.randomUUID() + AUDIO_TYPES[mime];
     fs.writeFileSync(path.join(config.audioDir, filename), buffer, { flag: 'wx', mode: 0o600 });
     const recId = db.insert('INSERT INTO meeting_recordings(workspace_id, owner_id, filename, mime, bytes, created) VALUES(?, ?, ?, ?, ?, ?)', w.id, ctx.user.id, filename, mime, buffer.length, isoNow());
-    let transcript = '';
-    let warning = '';
-    if (ai.transcriptionReady()) {
-      try {
-        transcript = await ai.transcribe({ user: ctx.user, buffer, mime });
-        if (transcript) db.run('UPDATE meeting_recordings SET transcript = ? WHERE id = ?', transcript, recId);
-        else warning = 'Audio saved, but automatic transcription returned nothing.';
-      } catch {
-        warning = 'Audio saved, but automatic transcription failed.';
-      }
-    }
     ctx.status = 201;
-    return { id: recId, transcript, warning, ...ai.status(ctx.user) };
+    return { id: recId, transcript: '', warning: '', ...ai.status(ctx.user) };
   });
 
   router.get('/api/workspaces/recordings/:id/audio', (ctx) => {

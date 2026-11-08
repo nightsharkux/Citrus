@@ -23,7 +23,7 @@ const PASSWORD = 'Member-password-for-tests-1';
 
 async function startApp({ env = {}, fetchImpl } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-test-'));
-  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', CAMPUS_AI_PROVIDER: '', ...env };
+  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', ...env };
   const config = loadConfig(fullEnv);
   const db = openDatabase(config.dbPath);
   runMigrations(db);

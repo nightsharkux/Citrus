@@ -1,4 +1,4 @@
-/** Admin · AI & knowledge: choose the model provider and curate citable sources. */
+/** Admin · AI & knowledge: configure the gateway and curate citable sources. */
 import { html, render, $, $$, on } from '../../core/dom.js';
 import { icon } from '../../core/icons.js';
 import { api } from '../../core/api.js';
@@ -9,10 +9,7 @@ import { sheet, onSubmit, confirm, toast, toastError, busy } from '../../core/ui
 
 const PROVIDER_INFO = {
   off: ['x', 'Off', 'No AI. Minutes use a simple text extractor.'],
-  ollama: ['cpu', 'Local · Ollama', 'Runs on your own server. Prompts never leave your network.'],
-  openai: ['globe', 'Cloud · OpenAI', 'Needs OPENAI_API_KEY in the server’s .env.'],
   gateway: ['globe', 'Cloud · Vercel AI Gateway', 'Needs AI_GATEWAY_API_KEY in the server’s .env.'],
-  anthropic: ['globe', 'Cloud · Anthropic', 'Needs ANTHROPIC_API_KEY in the server’s .env.'],
 };
 
 export default {
@@ -40,7 +37,7 @@ export default {
                 ${p.id !== 'off' && !p.ready ? html`<span class="chip warning">Needs key</span>` : ''}
               </label>`;
             })}</div>
-            <div class="form-actions mt-16"><span class="small muted grow" id="test-result">${s.transcription !== 'Disabled' ? `Transcription: ${s.transcription}` : 'Audio transcription is off (set CAMPUS_TRANSCRIPTION_PROVIDER=openai to enable).'}</span><button type="button" class="btn" data-test ${s.aiEnabled ? '' : 'disabled'}>${icon('bolt', 16)} Test connection</button><button class="btn btn-primary">Save</button></div>
+            <div class="form-actions mt-16"><span class="small muted grow" id="test-result">Uploaded audio transcription is in development.</span><button type="button" class="btn" data-test ${s.aiEnabled ? '' : 'disabled'}>${icon('bolt', 16)} Test connection</button><button class="btn btn-primary">Save</button></div>
           </form>
         </section>
 

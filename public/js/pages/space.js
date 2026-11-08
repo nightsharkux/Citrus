@@ -122,7 +122,7 @@ function meeting(d) {
           <span class="rec-time"></span>
         </div>
         <label class="check"><input type="checkbox" id="rec-consent"> Everyone present knows this is being recorded and agrees.</label>
-        <p class="hint">Audio is stored on your university’s server and is private to you until you share it.${d.transcription !== 'Disabled' ? ' It is transcribed automatically.' : ''}</p>
+        <p class="hint">Audio is stored on your university’s server and is private to you until you share it. Add a transcript or use live captions to prepare minutes.</p>
       </section>
       <section class="card flush">
         <div class="card-head"><h2>Recordings</h2></div>

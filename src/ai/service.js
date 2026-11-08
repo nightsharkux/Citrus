@@ -21,7 +21,7 @@ function createAiService({ db, env = process.env, fetchImpl }) {
   const retrieval = createRetrieval(db);
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
 
-  const defaultProvider = () => env.CAMPUS_AI_PROVIDER || (env.OPENAI_API_KEY ? 'openai' : 'off');
+  const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
   function selected(institutionId) {
     const row = db.get('SELECT provider FROM institution_ai_settings WHERE institution_id = ?', institutionId);
@@ -54,11 +54,6 @@ function createAiService({ db, env = process.env, fetchImpl }) {
     return providers.stream(selected(user.institution_id), system, prompt, history, { signal, maxTokens });
   }
 
-  async function transcribe({ user, buffer, mime }) {
-    checkQuota(user);
-    return providers.transcribe(buffer, mime);
-  }
-
   function retrieve(user, query, limit = 4) {
     return retrieval.find(user.institution_id, query, { limit }).map((hit, i) => toSource(hit, i + 1));
   }
@@ -80,8 +75,6 @@ function createAiService({ db, env = process.env, fetchImpl }) {
     retrieve,
     retrieveContext,
     providers: providers.list,
-    transcribe,
-    transcriptionReady: providers.transcriptionReady,
   };
 }
 

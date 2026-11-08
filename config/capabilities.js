@@ -38,7 +38,8 @@ module.exports = Object.freeze([
       item('explainers', 'Animated explanations', 'limited', '/assistant', 'Campus’s eye turns into small animations — formulas, steps, figures — while it explains. Depends on the AI model.'),
       item('citations', 'Knowledge search with citations', 'available', '/campus/guide', 'Answers grounded in the approved knowledge library, with sources.'),
       item('spaces', 'Workspaces and shared notes', 'available', '/spaces', 'Invite-only spaces for groups, lectures and meetings.'),
-      item('meetings', 'Meeting recording and minutes', 'limited', '/spaces', 'Record with consent, transcribe, and draft minutes for review.'),
+      item('transcription', 'Audio transcription', 'planned', null, 'Automatic transcription of uploaded recordings.'),
+      item('meetings', 'Meeting recording and minutes', 'limited', '/spaces', 'Record audio with consent, add a transcript, and draft minutes for review.'),
       item('guidance', 'Lecturer-defined AI guidance', 'available', '/spaces', 'Coach, Socratic, direct or assessment-safe assistant behaviour.'),
       item('wake', 'Voice wake word', 'limited', '/settings/assistant', 'Say “Hey Campus” or “Campus” on any page. Needs Chrome, Edge or Safari over HTTPS or on this computer.'),
       item('moodle', 'Moodle connection', 'configuration', '/settings/connections', 'Link your Moodle account with a personal token. Needs MOODLE_URL.'),
@@ -75,7 +76,7 @@ module.exports = Object.freeze([
     group: 'Administration',
     items: [
       item('approval', 'Lecturer approvals', 'available', '/admin/people', 'Verify staff before teaching permissions activate.', ADMIN),
-      item('providers', 'AI provider selection', 'available', '/admin/ai', 'Local (Ollama), Vercel AI Gateway, OpenAI or Anthropic — or off.', ADMIN),
+      item('providers', 'AI Gateway settings', 'available', '/admin/ai', 'Configure Vercel AI Gateway or turn AI off.', ADMIN),
       item('knowledge', 'University knowledge library', 'available', '/admin/ai', 'Curate the sources the assistant is allowed to cite.', ADMIN),
       item('moderation', 'Moderation and feedback triage', 'available', '/admin/moderation', 'Review posts, reports and suggestions.', ADMIN),
       item('devices', 'Device registry', 'available', '/admin/devices', 'Register, monitor and revoke classroom hardware.', ADMIN),

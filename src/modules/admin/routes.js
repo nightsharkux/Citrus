@@ -144,7 +144,7 @@ function register(router, deps) {
       sso: { configured: oidc.enabled(), label: oidc.label(), issuer: config.oidc.issuer || null },
       moodle: { configured: !!config.moodle.url, url: config.moodle.url || null },
       push: { configured: true, publicKey: push.publicKey, subscribers: db.get('SELECT COUNT(DISTINCT p.user_id) n FROM push_subscriptions p JOIN users u ON u.id = p.user_id WHERE u.institution_id = ?', ctx.user.institution_id).n },
-      transcription: { configured: ai.transcriptionReady() },
+      transcription: { configured: false },
       ai: ai.status(ctx.user),
     },
     publicUrl: config.publicUrl,

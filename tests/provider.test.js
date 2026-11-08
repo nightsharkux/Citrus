@@ -1,33 +1,32 @@
-'use strict';
-const test=require('node:test'),assert=require('node:assert/strict');
-const {makeProviders}=require('../src/ai/providers');
-test('Ollama uses local /api/chat without cloud Authorization header',async()=>{
- let request;
- const providers=makeProviders({env:{CAMPUS_OLLAMA_URL:'http://127.0.0.1:11434',CAMPUS_OLLAMA_MODEL:'llama3.2'},fetchImpl:async(url,opts)=>{
-  request={url,opts};return {ok:true,json:async()=>({message:{role:'assistant',content:'Hello local'}})};
- }});
- assert.equal(providers.status('ollama').aiEnabled,true);
- const response=await providers.generate('ollama','You are a helpful teacher','Hello',[{role:'assistant',content:'Earlier'}]);
- assert.equal(response,'Hello local');assert.equal(request.url,'http://127.0.0.1:11434/api/chat');
- assert.equal(request.opts.headers.Authorization,undefined);
- const body=JSON.parse(request.opts.body);assert.equal(body.stream,false);assert.equal(body.messages[2].content,'Hello');
- assert.equal(providers.transcriptionReady(),false);
+"use strict";
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { makeProviders } = require('../src/ai/providers');
+const { startApp } = require('./helpers');
+
+test('retired providers and their credentials cannot make requests', async () => {
+  const providers = makeProviders({
+    env: { AI_GATEWAY_API_KEY: 'gateway-key', OPENAI_API_KEY: 'retired-key', ANTHROPIC_API_KEY: 'retired-key' },
+    fetchImpl: async () => assert.fail('Retired providers must never make requests'),
+  });
+  assert.deepEqual(providers.list().map(p => p.id), ['off', 'gateway']);
+  for (const mode of ['openai', 'anthropic', 'ollama', 'off']) {
+    assert.equal(providers.status(mode).aiEnabled, false);
+    await assert.rejects(providers.generate(mode, 'test', 'test'), /not configured/);
+  }
+  const retiredKeysOnly = makeProviders({ env: { OPENAI_API_KEY: 'retired-key', ANTHROPIC_API_KEY: 'retired-key' } });
+  assert.equal(retiredKeysOnly.status('gateway').aiEnabled, false);
 });
-test('Cloud request uses server-side key; no fallback on cloud or local failure',async()=>{
- let request;
- const providers=makeProviders({env:{OPENAI_API_KEY:'secret-testing-key',CAMPUS_AI_MODEL:'gpt-4.1-mini'},fetchImpl:async(url,opts)=>{
-  request={url,opts};return {ok:true,json:async()=>({choices:[{message:{content:'Cloud reply'}}]})};
- }});
- assert.equal(providers.status('openai').aiEnabled,true);
- assert.equal(await providers.generate('openai','Instructor directions','Help me'),'Cloud reply');
- assert.equal(request.url,'https://api.openai.com/v1/chat/completions');
- assert.equal(request.opts.headers.Authorization,'Bearer secret-testing-key');
- assert.equal(providers.status('off').aiEnabled,false);
- await assert.rejects(providers.generate('off','test','test'),/not configured/);
-});
-test('Transcription is explicitly opted in, separate from selected chat provider',async()=>{
- const a=makeProviders({env:{OPENAI_API_KEY:'key'}});
- assert.equal(a.transcriptionReady(),false);
- const b=makeProviders({env:{OPENAI_API_KEY:'key',CAMPUS_TRANSCRIPTION_PROVIDER:'openai'}});
- assert.equal(b.transcriptionReady(),true);
+
+test('a saved retired provider stays disabled until an administrator selects Gateway', async (t) => {
+  const app = await startApp({ env: { AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_AI_PROVIDER: 'gateway' } });
+  t.after(() => app.close());
+  await app.login('admin');
+  for (const provider of ['openai', 'anthropic', 'ollama']) {
+    app.db.run('INSERT INTO institution_ai_settings(institution_id, provider, updated) VALUES(1, ?, ?) ON CONFLICT(institution_id) DO UPDATE SET provider = excluded.provider', provider, new Date().toISOString());
+    const status = (await app.call('admin', 'GET', '/api/ai/settings')).body;
+    assert.equal(status.provider, 'off');
+    assert.equal(status.aiEnabled, false, 'never silently switch an institution to cloud AI');
+  }
+  assert.equal((await app.call('admin', 'PATCH', '/api/ai/settings', { provider: 'gateway' })).body.aiEnabled, true);
 });

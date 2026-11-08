@@ -1,6 +1,6 @@
 # AI integration
 
-All AI goes through one service (`src/ai/service.js`), so provider choice, quotas and data boundaries are applied in one place.
+All AI goes through one service (`src/ai/service.js`), so gateway configuration, quotas and data boundaries are applied in one place.
 
 ```js
 const { ai } = deps;
@@ -16,9 +16,9 @@ Every call is attributed to a user. Their institution's provider setting is appl
 
 | File | What it is |
 |---|---|
-| `src/ai/providers/index.js` | The registry and generic driver (timeouts, errors, streaming, history trimming) |
-| `src/ai/providers/{ollama,gateway,openai,anthropic}.js` | One small adapter per provider |
-| `src/ai/providers/stream.js` | NDJSON and SSE readers for `fetch` bodies |
+| `src/ai/providers/index.js` | Gateway transport (timeouts, errors, streaming, history trimming) |
+| `src/ai/providers/gateway.js` | The Vercel AI Gateway adapter and response parser |
+| `src/ai/providers/stream.js` | SSE readers for `fetch` bodies |
 | `src/ai/prompts.js` | **Every system prompt**: tone, safety, teaching modes |
 | `src/ai/retrieval.js` | Knowledge search (BM25) and the source shape used for citations |
 | `src/ai/context.js` | The user's own data for the personal assistant (courses, schedule, difficulties, review) |
@@ -35,51 +35,37 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_GATEWAY_MODEL=openai/gpt-6-luna
+   CAMPUS_GATEWAY_MODEL=openai/gpt-6.1-terra
    CAMPUS_GATEWAY_SUMMARY_MODEL=google/gemini-2.5-flash-lite
-   CAMPUS_TRANSCRIPTION_PROVIDER=off
    ```
 
-3. Restart with `npm start`. In **Admin → AI & knowledge**, select **Vercel AI Gateway**, save and use **Test connection**. The institution's saved provider takes precedence over `CAMPUS_AI_PROVIDER`.
+3. Restart with `npm start`. In **Admin → AI & knowledge**, select **Vercel AI Gateway**, save and use **Test connection**. The institution's saved Gateway/Off choice takes precedence over `CAMPUS_AI_PROVIDER`. With no saved choice, Gateway is the default; a missing key leaves it inactive.
 4. Import approved knowledge sources, then check citations, teaching answers and practice questions against your own examples. A successful connection test checks connectivity, not answer quality. `npm run check -- --ai` also makes one live chat-model request per institution; ordinary `npm run check` makes none.
 
 ### Cost-conscious task routing
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6-luna` | `CAMPUS_GATEWAY_MODEL` |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_GATEWAY_MODEL` |
 | Meeting minutes, live-caption summaries and feedback themes | `google/gemini-2.5-flash-lite` | `CAMPUS_GATEWAY_SUMMARY_MODEL` |
 
-Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the chat model. This metadata affects only Gateway. Existing Ollama, direct OpenAI and Anthropic routing is unchanged. The chosen chat model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
+Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the chat model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen chat model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
-The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists Luna at $0.10 input / $0.50 output and Flash-Lite at $0.10 / $0.40 per million text tokens at standard global rates. At 3,000 input and 500 output tokens, 1,000 requests would cost about $0.55 and $0.50 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
+The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists GPT-6.1 Terra at $1.00 input / $5.00 output and Flash-Lite at $0.10 / $0.40 per million text tokens at standard global rates for contexts below 272,001 tokens. At 3,000 input and 500 output tokens, 1,000 requests would cost about $5.50 and $0.50 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
 
-The adapter disables thinking for these two default models, preserves each feature's output limit, and asks the gateway to sort providers by cost for the selected model. Other model overrides use that model's default reasoning behavior. No fallback model or automatic premium-model escalation is configured. Evaluate a more capable chat model only if real examples show Luna falling short. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
+The adapter disables thinking for these two default models, preserves each feature's output limit, and asks the gateway to sort providers by cost for the selected model. Other model overrides use that model's default reasoning behavior. No fallback model or automatic premium-model escalation is configured. Evaluate Terra against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
 
-The gateway key stays on the server. It does not enable cloud audio transcription or trigger local-to-cloud fallback. Gateway and downstream provider data policies apply to prompts sent through this cloud option.
+Terra supports the current text Chat Completions requests. Future tool calling with Terra requires the Responses API.
 
-## Adding a provider
+The gateway key stays on the server. Uploaded audio is never sent to a provider. Automatic transcription is in development; recordings can have a typed transcript and meetings can use browser live captions. Gateway and downstream provider data policies apply to prompts sent through this cloud option.
 
-Create `src/ai/providers/<name>.js`:
+## Configuration and upgrades
 
-```js
-module.exports = {
-  id: 'mistral', label: 'Cloud · Mistral', location: 'cloud', timeoutMs: 60_000,
-  model: (env) => env.CAMPUS_MISTRAL_MODEL || 'mistral-large-latest',
-  missing: (env) => (env.MISTRAL_API_KEY ? null : 'MISTRAL_API_KEY is missing on the server'),
-  describe: () => 'Cloud AI selected (Mistral).',
-  request({ env, model, system, messages, stream, maxTokens }) {
-    return { url: 'https://api.mistral.ai/v1/chat/completions',
-             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.MISTRAL_API_KEY}` },
-             body: { model, messages: [{ role: 'system', content: system }, ...messages], max_tokens: maxTokens, stream } };
-  },
-  parse: (json) => json?.choices?.[0]?.message?.content,
-  async *parseStream(response) { /* see openai.js — same SSE format */ },
-  errors: { unreachable: 'Cannot reach Mistral.', status: (c) => `Mistral returned HTTP ${c}.` },
-};
-```
+The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_GATEWAY_MODEL`, `CAMPUS_GATEWAY_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 
-Then add it to `PROVIDERS` in `providers/index.js`. It appears in Admin → AI & knowledge automatically. No schema change is needed.
+Retired direct-provider and local-provider environment variables are ignored and can be removed. Saved institution choices for a retired provider resolve to Off until an administrator explicitly selects Gateway. Existing conversations and knowledge stay intact; no database migration is required.
+
+Gateway access is separate from website hosting. See [DEPLOYMENT.md](DEPLOYMENT.md#vercel-hosting-and-environment-variables) before importing this app into Vercel: the current backend needs persistent disk storage.
 
 ## Changing behaviour
 
@@ -93,8 +79,8 @@ Then add it to `PROVIDERS` in `providers/index.js`. It appears in Admin → AI &
 - Untrusted text (notes, transcripts, knowledge) sits in delimited blocks, and the prompt tells the model never to follow instructions inside them.
 - The personal assistant sees only the signed-in user's data. Workspace assistants see that workspace's notes and the institution's approved knowledge.
 - Keys stay on the server and are never sent to the browser.
-- Local (Ollama) never falls back to the cloud silently.
-- Meeting transcription is a separate opt-in (`CAMPUS_TRANSCRIPTION_PROVIDER`).
+- Off and retired provider selections never trigger gateway requests.
+- Uploaded meeting audio stays on the app server; automatic transcription is in development.
 
 ## Where AI is used
 

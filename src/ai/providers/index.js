@@ -1,21 +1,8 @@
 'use strict';
-/**
- * AI provider registry.
- *
- * To add a provider, create a file next to this one that exports:
- *   { id, label, location: 'local'|'cloud', timeoutMs,
- *     model(env), missing(env) -> string|null, describe(env),
- *     request({ env, model, system, messages, stream, maxTokens }) -> { url, headers, body },
- *     parse(json) -> string, async *parseStream(response),
- *     errors: { unreachable, status(code) },
- *     transcribe?(...), transcriptionReady?(env) }
- * then add it to PROVIDERS below. Nothing else in the app needs to change.
- *
- * Credentials are read from `env` at call time and never returned to clients.
- */
+/** Gateway transport and bounded responses. Credentials remain on the server. */
 const { HttpError } = require('../../http/errors');
 
-const PROVIDERS = [require('./ollama'), require('./gateway'), require('./openai'), require('./anthropic')];
+const PROVIDERS = [require('./gateway')];
 const BY_ID = new Map(PROVIDERS.map((p) => [p.id, p]));
 const MODES = ['off', ...BY_ID.keys()];
 
@@ -31,10 +18,6 @@ const NOT_CONFIGURED = 'The selected AI provider is not configured. Ask the admi
 function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.env } = {}) {
   const providerName = (mode) => (MODES.includes(mode) ? mode : 'off');
 
-  function transcriptionReady() {
-    return PROVIDERS.some((p) => p.transcriptionReady?.(env));
-  }
-
   function status(mode) {
     const id = providerName(mode);
     const provider = BY_ID.get(id);
@@ -46,7 +29,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
       aiEnabled: !!provider && !missing,
       model: provider ? provider.model(env) : null,
       ...(provider?.summaryModel ? { summaryModel: provider.summaryModel(env) } : {}),
-      transcription: transcriptionReady() ? 'OpenAI (explicitly enabled)' : 'Disabled',
+      transcription: 'Disabled',
       description: missing || provider.describe(env),
     };
   }
@@ -121,13 +104,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     }
   }
 
-  async function transcribe(buffer, mime) {
-    const provider = PROVIDERS.find((p) => p.transcriptionReady?.(env));
-    if (!provider) return '';
-    return provider.transcribe({ env, fetchImpl, buffer, mime });
-  }
-
-  return { status, list, generate, stream, transcribe, transcriptionReady, providerName, modes: MODES };
+  return { status, list, generate, stream, providerName, modes: MODES };
 }
 
 module.exports = { makeProviders, AiError, MODES };
