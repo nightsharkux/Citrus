@@ -6,7 +6,8 @@ const path = require('node:path');
 const { startApp } = require('./helpers');
 
 test('configuration check reads saved provider choices without claiming a live connection', async (t) => {
-  const app = await startApp();
+  // The check script reads a local database file.
+  const app = await startApp({ remote: false });
   t.after(() => app.close());
   app.db.run('INSERT INTO institution_ai_settings(institution_id, provider, updated) VALUES(1, ?, ?)', 'gateway', new Date().toISOString());
   const env = { ...process.env, DB_PATH: app.config.dbPath, CAMPUS_AI_PROVIDER: 'off', AI_GATEWAY_API_KEY: 'fixture-gateway-key' };

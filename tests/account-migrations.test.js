@@ -97,7 +97,7 @@ test('a CampusOS 0.6 database upgrades in place without losing data', () => {
 
   const db = openDatabase(file);
   try {
-    assert.equal(runMigrations(db), 4);
+    assert.equal(runMigrations(db), 5);
     assert.equal(runMigrations(db), 0, 'idempotent');
     assert.equal(db.get('SELECT name FROM users WHERE id = 1').name, 'Old Admin');
     assert.ok(db.columns('users').includes('requested_role') && db.columns('users').includes('preferences'));

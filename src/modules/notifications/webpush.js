@@ -4,7 +4,8 @@
  *   - VAPID (RFC 8292): ES256-signed JWT identifying this server.
  *   - Payload encryption (RFC 8291, aes128gcm content coding, RFC 8188).
  *
- * Keys are generated once and stored in storage/vapid.json.
+ * Keys are generated once and stored in storage/vapid.json, or in the database when a hosted
+ * database is used (the caller then passes them in as `storedKeys`).
  */
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -25,11 +26,11 @@ function isAllowedEndpoint(endpoint, allowAny = false) {
   }
 }
 
-function loadVapidKeys(storageDir) {
+function loadVapidKeys(storageDir, storedKeys) {
   const file = path.join(storageDir, 'vapid.json');
-  let stored;
+  let stored = storedKeys;
   try {
-    stored = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (!stored) stored = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
     const ecdh = crypto.createECDH('prime256v1');
     ecdh.generateKeys();
@@ -75,8 +76,8 @@ function encryptPayload({ p256dh, auth }, payload) {
   return Buffer.concat([salt, recordSize, Buffer.from([asPublic.length]), asPublic, body]);
 }
 
-function createPushSender({ storageDir, subject, fetchImpl = (...a) => fetch(...a), allowAnyEndpoint = false }) {
-  const vapid = loadVapidKeys(storageDir);
+function createPushSender({ storageDir, storedKeys, subject, fetchImpl = (...a) => fetch(...a), allowAnyEndpoint = false }) {
+  const vapid = loadVapidKeys(storageDir, storedKeys);
 
   /** Returns 'sent' | 'gone' | 'failed'. */
   async function send(subscription, message, { ttl = 86_400, urgency = 'normal' } = {}) {

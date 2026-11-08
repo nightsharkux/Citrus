@@ -8,14 +8,14 @@
  *   2. Add it to MODULES below.
  *   3. Add an entry to config/capabilities.js and a test in tests/.
  */
-const path = require('node:path');
 const { Router } = require('./http/router');
 const { HttpError } = require('./http/errors');
 const { readJson, readRaw } = require('./http/body');
 const { applySecurityHeaders, isCrossSite, clientIp } = require('./http/security');
 const { createStaticServer } = require('./http/static');
 const { createBus } = require('./realtime/bus');
-const { loadKeyFile, createSecretBox } = require('./lib/crypto');
+const { createSecretBox } = require('./lib/crypto');
+const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
 const { createAccess } = require('./services/access');
@@ -62,10 +62,11 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const bus = createBus({ canSee: access.canSee });
   const audit = createAudit(db);
   const settings = createSettings(db);
-  const secretBox = createSecretBox(loadKeyFile(path.join(config.storageDir, 'master.key')));
-  const nfcKey = loadKeyFile(path.join(config.storageDir, 'nfc-hmac.key'));
+  const keys = createKeys({ config, db, env });
+  const secretBox = createSecretBox(keys.master());
+  const nfcKey = keys.nfc();
   const ai = createAiService({ db, env, fetchImpl });
-  const push = createPushSender({ storageDir: config.storageDir, subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
+  const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
   const notifier = createNotifier({ db, bus, push, timeZone });
   const timetable = createTimetable({ db, timeZone });
   const review = createReview({ db });

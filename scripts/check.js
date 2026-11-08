@@ -19,8 +19,24 @@ const counts = {};
 for (const group of catalog) for (const item of group.items) counts[item.status] = (counts[item.status] || 0) + 1;
 ok(true, `Features: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`);
 
-ok(fs.existsSync(config.dbPath), `Database ${fs.existsSync(config.dbPath) ? 'found' : 'will be created'} at ${config.dbPath}`);
-ok(!!process.env.CAMPUS_ADMIN_PASSWORD || fs.existsSync(config.dbPath), 'Administrator configured (CAMPUS_ADMIN_PASSWORD or existing database)');
+const hostedDatabase = !!config.database.url;
+let hostedHasData = false;
+if (hostedDatabase) {
+  try {
+    const { openConfiguredDatabase } = require('../src/db/database');
+    const hosted = openConfiguredDatabase(config);
+    hostedHasData = hosted.hasTable('users');
+    hosted.close();
+    ok(true, `Hosted database reachable at ${config.database.url}`);
+  } catch (error) {
+    ok(false, error.message);
+    process.exitCode = 1;
+  }
+} else {
+  ok(fs.existsSync(config.dbPath), `Database ${fs.existsSync(config.dbPath) ? 'found' : 'will be created'} at ${config.dbPath}`);
+}
+const hasData = hostedDatabase ? hostedHasData : fs.existsSync(config.dbPath);
+ok(!!process.env.CAMPUS_ADMIN_PASSWORD || hasData, 'Administrator configured (CAMPUS_ADMIN_PASSWORD or existing database)');
 
 const providers = makeProviders();
 for (const p of providers.list().filter((x) => x.id !== 'off')) ok(p.ready, `AI provider ${p.label}${p.ready ? ` configured (${p.model}); connection untested` : `: ${p.missing}`}`, true);
@@ -37,12 +53,12 @@ if (config.hosted) {
 
 /** Read saved choices without opening a writable database or running migrations. */
 async function checkAi() {
-  if (!fs.existsSync(config.dbPath)) return;
+  if (!config.database.url && !fs.existsSync(config.dbPath)) return;
   const { DatabaseSync } = require('node:sqlite');
-  const { withHelpers } = require('../src/db/database');
+  const { withHelpers, openConfiguredDatabase } = require('../src/db/database');
   const { createAiService } = require('../src/ai/service');
   const { connectionTestPrompt } = require('../src/ai/prompts');
-  const db = withHelpers(new DatabaseSync(config.dbPath, { readOnly: true }));
+  const db = config.database.url ? openConfiguredDatabase(config) : withHelpers(new DatabaseSync(config.dbPath, { readOnly: true }));
   try {
     if (!db.hasTable('institution_ai_settings')) {
       ok(false, 'AI settings need database migrations (run npm start)');

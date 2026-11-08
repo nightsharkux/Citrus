@@ -54,6 +54,8 @@ function loadConfig(env = process.env) {
     // True on Vercel. Off Vercel, links (e.g. calendar feeds) follow the address each visitor used.
     hosted,
     dbPath,
+    // A hosted database (Turso) replaces the local file when TURSO_DATABASE_URL is set. See src/db/remote.js.
+    database: { url: (env.TURSO_DATABASE_URL || '').trim(), authToken: (env.TURSO_AUTH_TOKEN || '').trim() },
     storageDir,
     audioDir: path.join(storageDir, 'audio'),
     cookieSecure: bool(env.COOKIE_SECURE, publicUrl.startsWith('https://')),

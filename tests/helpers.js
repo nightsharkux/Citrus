@@ -7,13 +7,17 @@
  *   await app.login('admin');
  *   const r = await app.call('admin', 'GET', '/api/courses');
  *   await app.close();
+ *
+ * Set CAMPUS_TEST_DB=turso (or pass remote: true) to run against a stand-in
+ * hosted database instead of a SQLite file; see tests/support/fake-turso.cjs.
  */
 const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { loadConfig } = require('../src/config');
-const { openDatabase } = require('../src/db/database');
+const { spawn } = require('node:child_process');
+const { openConfiguredDatabase } = require('../src/db/database');
 const { runMigrations } = require('../src/db/migrate');
 const { seed } = require('../src/db/seed');
 const { createApp } = require('../src/app');
@@ -21,11 +25,27 @@ const { createApp } = require('../src/app');
 const ADMIN = { email: 'admin@test.invalid', password: 'Admin-password-for-tests-1' };
 const PASSWORD = 'Member-password-for-tests-1';
 
-async function startApp({ env = {}, fetchImpl } = {}) {
+const FAKE_TURSO = path.join(__dirname, 'support', 'fake-turso.cjs');
+const TURSO_TOKEN = 'test-token';
+
+/** Start the stand-in hosted database in its own process; resolves with its address. */
+async function startFakeTurso() {
+  const child = spawn(process.execPath, [FAKE_TURSO, TURSO_TOKEN], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', () => reject(new Error('The stand-in database stopped before it was ready')));
+    child.stdout.once('data', (chunk) => resolve(String(chunk).trim()));
+  });
+  child.removeAllListeners('exit');
+  return { child, url: `http://127.0.0.1:${port}` };
+}
+
+async function startApp({ env = {}, fetchImpl, remote = process.env.CAMPUS_TEST_DB === 'turso' } = {}) {
+  const fake = remote ? await startFakeTurso() : null;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-test-'));
-  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', ...env };
+  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', ...(fake ? { TURSO_DATABASE_URL: fake.url, TURSO_AUTH_TOKEN: TURSO_TOKEN } : {}), ...env };
   const config = loadConfig(fullEnv);
-  const db = openDatabase(config.dbPath);
+  const db = openConfiguredDatabase(config);
   runMigrations(db);
   seed(db, config, () => {});
   const app = createApp({ config, db, env: fullEnv, fetchImpl });
@@ -70,10 +90,11 @@ async function startApp({ env = {}, fetchImpl } = {}) {
     server.closeAllConnections?.();
     await new Promise((resolve) => server.close(resolve));
     db.close();
+    fake?.child.kill();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 
   return { base, call, login, register, lecturer, close, db, config, app, dir };
 }
 
-module.exports = { startApp, ADMIN, PASSWORD };
+module.exports = { startApp, startFakeTurso, TURSO_TOKEN, ADMIN, PASSWORD };

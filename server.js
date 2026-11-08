@@ -8,14 +8,16 @@
  */
 const http = require('node:http');
 const { loadConfig } = require('./src/config');
-const { openDatabase } = require('./src/db/database');
+const { openConfiguredDatabase } = require('./src/db/database');
 const { runMigrations } = require('./src/db/migrate');
 const { seed } = require('./src/db/seed');
 const { createApp } = require('./src/app');
 
 const config = loadConfig();
-const db = openDatabase(config.dbPath);
-const log = require.main === module ? console.log : () => {};
+const db = openConfiguredDatabase(config);
+// Run directly (npm start), or loaded by Vercel, which needs the server to listen as the module loads.
+const standalone = require.main === module || !!process.env.VERCEL;
+const log = standalone ? console.log : () => {};
 runMigrations(db, { log });
 seed(db, config, log);
 
@@ -23,7 +25,7 @@ const app = createApp({ config, db });
 const server = http.createServer(app.handler);
 const handler = app.handler;
 
-if (require.main === module) {
+if (standalone) {
   app.maintenance.start();
   server.listen(config.port, config.host, () => {
     const { networkUrls, listensOnNetwork } = require('./src/lib/network');

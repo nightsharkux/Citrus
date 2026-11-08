@@ -126,7 +126,7 @@ test('works behind a reverse proxy with an https public address', async () => {
 test('online backup snapshots a running database and applies retention', async () => {
   const { execFileSync } = require('node:child_process');
   const os = require('node:os');
-  const app = await startApp();
+  const app = await startApp({ remote: false });
   const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-backups-'));
   try {
     await app.register('stu');

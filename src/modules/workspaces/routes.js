@@ -34,7 +34,13 @@ function offlineMinutes(notes) {
 
 function register(router, { db, config, access, ai, bus, audit }) {
   const isoNow = () => new Date().toISOString();
-  fs.mkdirSync(config.audioDir, { recursive: true });
+  // Recordings are files. A host without a writable disk (Vercel) cannot keep them.
+  let audioReady = true;
+  try {
+    fs.mkdirSync(config.audioDir, { recursive: true });
+  } catch {
+    audioReady = false;
+  }
 
   const member = (user, wid) => {
     const w = access.workspaceMember(user, id(wid));
@@ -227,6 +233,10 @@ function register(router, { db, config, access, ai, bus, audit }) {
 
   router.post('/api/workspaces/:id/recordings', async (ctx) => {
     const w = member(ctx.user, ctx.params.id);
+    if (!audioReady) {
+      ctx.status = 503;
+      return { error: 'Recordings cannot be saved on this server yet. It has no storage for audio files.' };
+    }
     const mime = String(ctx.req.headers['content-type'] || '').split(';')[0].trim();
     if (!AUDIO_TYPES[mime]) {
       ctx.status = 415;

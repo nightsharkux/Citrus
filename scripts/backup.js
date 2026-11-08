@@ -15,6 +15,13 @@ const { DatabaseSync } = require('node:sqlite');
 const { loadConfig, ROOT } = require('../src/config');
 
 const config = loadConfig();
+
+if (config.database.url) {
+  console.error('The database is hosted (TURSO_DATABASE_URL is set), so there is no local file to copy.');
+  console.error('Back it up from Turso: "turso db shell <name> .dump > campusos.sql". Turso also keeps point-in-time restore points.');
+  console.error('Keep CAMPUS_MASTER_KEY and CAMPUS_NFC_KEY (or the app_keys table) with that dump: without them, device secrets and Moodle tokens cannot be read.');
+  process.exit(1);
+}
 const backupRoot = path.resolve(process.env.BACKUP_DIR || path.join(ROOT, 'backups'));
 const keep = Math.max(1, Number.parseInt(process.env.BACKUP_KEEP || '14', 10) || 14);
 

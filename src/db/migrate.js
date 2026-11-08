@@ -19,15 +19,16 @@ function runMigrations(db, { log = () => {} } = {}) {
   const pending = migrations.filter((m) => !applied.has(m.version)).sort((a, b) => a.version - b.version);
 
   for (const migration of pending) {
-    // Table rebuilds need foreign keys off; it cannot be toggled inside a transaction.
-    db.exec('PRAGMA foreign_keys = OFF');
     try {
+      // Table rebuilds need foreign key checks off, which cannot be toggled inside a transaction.
       db.transaction(() => {
         migration.up(db);
         db.run('INSERT INTO schema_migrations(version, name, applied_at) VALUES(?, ?, ?)', migration.version, migration.name, new Date().toISOString());
-      });
-    } finally {
-      db.exec('PRAGMA foreign_keys = ON');
+      }, { foreignKeys: false });
+    } catch (error) {
+      // Another server instance may have applied it a moment ago (two cold starts after a deploy).
+      if (!db.get('SELECT 1 FROM schema_migrations WHERE version = ?', migration.version)) throw error;
+      continue;
     }
     log(`Applied migration ${String(migration.version).padStart(3, '0')} ${migration.name}`);
   }

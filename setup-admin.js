@@ -7,7 +7,7 @@
  * Reads CAMPUS_ADMIN_EMAIL and CAMPUS_ADMIN_PASSWORD (12+ characters).
  */
 const { loadConfig } = require('./src/config');
-const { openDatabase } = require('./src/db/database');
+const { openConfiguredDatabase } = require('./src/db/database');
 const { runMigrations } = require('./src/db/migrate');
 const { hashPassword } = require('./src/lib/crypto');
 
@@ -18,7 +18,7 @@ if (!adminPassword || adminPassword.length < 12) {
   process.exit(1);
 }
 
-const db = openDatabase(config.dbPath);
+const db = openConfiguredDatabase(config);
 runMigrations(db, { log: console.log });
 
 let institution = db.get('SELECT id, name FROM institutions ORDER BY id LIMIT 1');

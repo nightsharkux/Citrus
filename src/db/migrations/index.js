@@ -5,4 +5,5 @@ module.exports = [
   require('./002-platform'),
   require('./003-ai-and-desk'),
   require('./004-assistant-visuals'),
+  require('./005-app-keys'),
 ];
