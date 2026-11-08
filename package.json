@@ -1,0 +1,19 @@
+{
+  "name": "campusos-one",
+  "private": true,
+  "version": "1.1.0",
+  "description": "CampusOS — university platform with an AI assistant, schedule, learning, spaces, campus feed and a classroom device gateway.",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --env-file-if-exists=.env scripts/check.js",
+    "backup": "node --env-file-if-exists=.env scripts/backup.js",
+    "setup-admin": "node --env-file-if-exists=.env setup-admin.js",
+    "simulate-device": "node hardware/simulator.js",
+    "routes": "node scripts/routes.js",
+    "share": "node --env-file-if-exists=.env scripts/share.js"
+  }
+}

@@ -1,0 +1,200 @@
+/* ==========================================================================
+   Brand (wordmark + ring) and Campus's face (animated eye + illustrations).
+   ========================================================================== */
+
+/* ---------- Wordmark: "Campus" + gradient ring "O" + "S" ---------- */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  color: var(--text);
+  white-space: nowrap;
+}
+.wordmark-o {
+  display: inline-block;
+  width: 0.98em;
+  height: 0.98em;
+  margin: 0 0.035em 0 0.07em;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-1));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.19em), #000 calc(100% - 0.19em + 0.6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 0.19em), #000 calc(100% - 0.19em + 0.6px));
+  transform: translateY(0.1em);
+}
+.wordmark.lg { font-size: clamp(30px, 4.6vw, 44px); }
+.wordmark.on-dark { color: #fff; }
+
+/* Standalone ring mark (icons, compact headers) */
+.ring-mark {
+  display: inline-block;
+  flex: none;
+  width: var(--ring, 32px);
+  height: var(--ring, 32px);
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-1));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring, 32px) * 0.19), #000 calc(100% - var(--ring, 32px) * 0.19 + 0.6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring, 32px) * 0.19), #000 calc(100% - var(--ring, 32px) * 0.19 + 0.6px));
+}
+
+/* ---------- Static ring (message avatars) ---------- */
+.face-mark {
+  display: inline-block;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: conic-gradient(from 210deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-1));
+  -webkit-mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+  mask: radial-gradient(farthest-side, transparent 68%, #000 70%);
+}
+.face-mark.sm { width: 22px; height: 22px; }
+.face-mark.lg { width: 44px; height: 44px; }
+
+/* ---------- Live face ---------- */
+.face {
+  --face-size: 44px;
+  position: relative;
+  z-index: 1;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--face-size);
+  height: var(--face-size);
+  border-radius: 50%;
+  transition: transform 520ms var(--ease-spring), filter var(--dur) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.face-svg { width: 100%; height: 100%; overflow: visible; }
+.face-svg .s1 { stop-color: var(--aurora-1); }
+.face-svg .s2 { stop-color: var(--aurora-2); }
+.face-svg .s3 { stop-color: var(--aurora-3); }
+/* The ring is the eye: its shape is drawn by face.js every frame. */
+.face-ring { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.face-glow { flood-color: var(--aurora-2); flood-opacity: 0.32; }
+.face-inner { fill: var(--bg-solid); opacity: 0; transition: opacity 360ms var(--ease); }
+.face-visual { opacity: 0; transform: scale(0.55); transition: opacity 320ms var(--ease) 120ms, transform 480ms var(--ease-spring) 120ms; }
+.face.is-visual .face-inner { opacity: 1; }
+.face.is-visual .face-visual { opacity: 1; transform: none; }
+.face.is-thinking { filter: drop-shadow(0 0 calc(var(--face-size) * 0.12) color-mix(in srgb, var(--aurora-2) 55%, transparent)); }
+.face.is-listening { animation: face-listen 1.6s ease-in-out infinite; }
+.face.is-asleep { filter: saturate(0.35); opacity: 0.85; }
+.face.is-sad { filter: saturate(0.6); }
+@keyframes face-listen {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 calc(var(--face-size) * 0.16) color-mix(in srgb, var(--aurora-1) 60%, transparent)); }
+}
+
+/* A "stage" face grows in place while it illustrates. It takes real space
+   (the header makes room) so it never covers the answer being written. */
+.face.can-stage {
+  cursor: pointer;
+  transition: width 560ms var(--ease-spring), height 560ms var(--ease-spring), filter var(--dur) var(--ease);
+}
+.face.can-stage.is-visual {
+  width: var(--stage-size, 120px);
+  height: var(--stage-size, 120px);
+}
+
+/* ---------- Illustration primitives (inside the eye) ---------- */
+.face-visual text { font-family: var(--font-display); font-weight: 700; }
+.fv-ink { fill: var(--text); }
+.fv-accent { fill: var(--accent); }
+.fv-mono { font-family: var(--mono) !important; font-weight: 600 !important; }
+.fv-stroke { fill: none; stroke: var(--text); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.fv-stroke.thin { stroke-width: 1.4; }
+.fv-stroke.faint, .fv-faint-stroke { opacity: 0.28; }
+.fv-faint-stroke { fill: none; stroke: var(--text); }
+.fv-accent-stroke { fill: none; stroke: var(--accent); }
+.fv-label { font-weight: 600 !important; opacity: 0.75; }
+.fv-formula { letter-spacing: -0.02em; }
+
+.fv-char { opacity: 0; animation: fv-in 420ms var(--ease) forwards; }
+.fv-float { opacity: 0; animation: fv-float 3.4s ease-in-out infinite; }
+.fv-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: fv-draw 900ms var(--ease) 600ms forwards; }
+.fv-draw.slow { animation-duration: 1700ms; animation-delay: 0ms; }
+.fv-draw.loop { animation: fv-draw-loop 3.2s var(--ease) infinite; }
+.fv-pop { transform-box: fill-box; transform-origin: center; animation: fv-pop 3.2s var(--ease) infinite; }
+
+.fv-bar { fill: var(--accent); transform-box: fill-box; transform-origin: 50% 100%; animation: fv-grow 760ms var(--ease-spring) both, fv-sway 2.6s ease-in-out infinite alternate; }
+.fv-bar.alt { fill: color-mix(in srgb, var(--aurora-3) 80%, var(--accent)); }
+.fv-sort-bar { fill: color-mix(in srgb, var(--text) 55%, transparent); transition: transform 440ms var(--ease-spring), fill 240ms; }
+.fv-sort-bar.is-compared { fill: var(--accent); }
+.fv-sort-bar.is-done { fill: var(--success); }
+
+.fv-node circle { fill: var(--bg-solid); stroke: color-mix(in srgb, var(--text) 35%, transparent); stroke-width: 1.6; transition: fill 260ms, stroke 260ms; }
+.fv-node text { fill: var(--text-2); transition: fill 260ms; }
+.fv-node.is-on circle { fill: var(--accent); stroke: var(--accent); }
+.fv-node.is-on text { fill: #fff; }
+.fv-node.pulse circle { animation: fv-node-pulse 4s ease-in-out infinite; animation-delay: inherit; }
+.fv-node.pulse { animation-delay: inherit; }
+.fv-traveler { fill: var(--accent); }
+.fv-orbit { animation: fv-spin 4s linear infinite; }
+
+.fv-wave { animation: fv-wave 900ms ease-in-out infinite alternate; }
+.fv-nod { animation: fv-nod 1.6s ease-in-out infinite; }
+.fv-walker { animation: fv-walk 4.2s linear infinite; }
+.fv-leg { animation: fv-leg 520ms ease-in-out infinite alternate; }
+.fv-leg.back { animation-direction: alternate-reverse; }
+.fv-bubble rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; }
+.fv-dot { fill: var(--accent); animation: fv-blink 1.2s ease-in-out infinite; }
+
+.fv-hand { transform-origin: 0 0; }
+.fv-hand.minute { animation: fv-spin 3s linear infinite; }
+.fv-hand.hour { animation: fv-spin 36s linear infinite; }
+
+.fv-code-line { fill: color-mix(in srgb, var(--text) 70%, transparent); transform-box: fill-box; transform-origin: 0 50%; animation: fv-type 3.6s var(--ease) infinite; }
+.fv-cursor { fill: var(--accent); animation: fv-blink 900ms steps(2) infinite; }
+
+.fv-glow { transform-box: fill-box; transform-origin: center; animation: fv-glow 2.2s ease-in-out infinite; }
+.fv-ray { animation: fv-ray 2.2s ease-in-out infinite; }
+
+@keyframes fv-in { to { opacity: 1; } }
+@keyframes fv-float { 0% { opacity: 0; transform: translateY(5px); } 35% { opacity: 0.32; } 100% { opacity: 0; transform: translateY(-7px); } }
+@keyframes fv-draw { to { stroke-dashoffset: 0; } }
+@keyframes fv-draw-loop { 0% { stroke-dashoffset: 1; } 55%, 85% { stroke-dashoffset: 0; } 100% { stroke-dashoffset: 0; opacity: 0; } }
+@keyframes fv-pop { 0%, 45% { transform: scale(0); } 60% { transform: scale(1.35); } 70%, 90% { transform: scale(1); } 100% { transform: scale(1); opacity: 0; } }
+@keyframes fv-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes fv-sway { from { transform: scaleY(1); } to { transform: scaleY(0.86); } }
+@keyframes fv-node-pulse { 0%, 100% { fill: var(--bg-solid); } 8%, 22% { fill: var(--accent); stroke: var(--accent); } }
+@keyframes fv-spin { to { transform: rotate(360deg); } }
+@keyframes fv-wave { from { transform: rotate(-16deg); } to { transform: rotate(24deg); } }
+@keyframes fv-nod { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.6px); } }
+@keyframes fv-walk { from { transform: translateX(-46px); } to { transform: translateX(46px); } }
+@keyframes fv-leg { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+@keyframes fv-blink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes fv-type { 0% { transform: scaleX(0); } 28% { transform: scaleX(1); } 86% { transform: scaleX(1); opacity: 1; } 100% { transform: scaleX(1); opacity: 0; } }
+@keyframes fv-glow { 0%, 100% { opacity: 0.85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+@keyframes fv-ray { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+/* Reduced motion: show each illustration as a finished, still picture. */
+@media (prefers-reduced-motion: reduce) {
+  .fv-draw, .fv-draw.loop { animation: none; stroke-dashoffset: 0; }
+  .fv-char { animation: none; opacity: 1; }
+}
+
+/* ---------- Assistant: full-screen chat ---------- */
+body.chat-fullscreen { overflow: hidden; }
+body.chat-fullscreen .sidebar,
+body.chat-fullscreen .topbar,
+body.chat-fullscreen .tabbar { display: none !important; }
+body.chat-fullscreen .main { margin-left: 0; }
+body.chat-fullscreen .view { max-width: none; padding: 0; }
+body.chat-fullscreen .chat { height: 100dvh; min-height: 0; grid-template-columns: minmax(0, 1fr); gap: 0; }
+body.chat-fullscreen .chat-threads { display: none; }
+body.chat-fullscreen .chat-main { width: min(900px, 100%); margin: 0 auto; padding: max(12px, env(safe-area-inset-top)) 20px max(14px, env(safe-area-inset-bottom)); }
+body.chat-fullscreen .chat-head { flex-direction: column; text-align: center; gap: 8px; padding: 22px 0 14px; position: relative; }
+/* !important: the face sets its default size inline. */
+body.chat-fullscreen .chat-head .face { --face-size: 116px !important; --stage-size: 156px; }
+body.chat-fullscreen .chat-head-text { align-items: center; }
+body.chat-fullscreen .chat-head-actions { position: absolute; top: 12px; right: 0; }
+body.chat-fullscreen .chat-head .chat-history-btn { display: grid; position: absolute; top: 12px; left: 0; }
+body.chat-fullscreen .chat-welcome .face { display: none; }
+body.chat-fullscreen .chat-log { padding-top: 4px; }
+@media (max-width: 640px) {
+  body.chat-fullscreen .chat-main { padding-left: 12px; padding-right: 12px; }
+  body.chat-fullscreen .chat-head .face { --face-size: 88px !important; --stage-size: 120px; }
+}

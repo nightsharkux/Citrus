@@ -1,0 +1,8 @@
+'use strict';
+/** Register migrations in order. Never edit a migration that has shipped — add a new one. */
+module.exports = [
+  require('./001-baseline'),
+  require('./002-platform'),
+  require('./003-ai-and-desk'),
+  require('./004-assistant-visuals'),
+];

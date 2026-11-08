@@ -1,0 +1,294 @@
+/**
+ * Application frames: the signed-in shell (sidebar, top bar, tab bar,
+ * command palette) and the public frame (landing, sign-in).
+ */
+import { html, render, $, $$, on } from './core/dom.js';
+import { icon } from './core/icons.js';
+import { api } from './core/api.js';
+import { session, setSession, on as onStore, assistantName } from './core/store.js';
+import { navigate } from './core/router.js';
+import { live } from './core/live.js';
+import { toast, sheet, menu } from './core/ui.js';
+import { avatar } from './core/components.js';
+import { navFor, allItems, isActive } from './nav.js';
+import { wordmark } from './core/brand.js';
+import { wake } from './features/voice.js';
+
+const app = () => document.getElementById('app');
+const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
+
+function brand(href = '/home') {
+  return html`<a class="brand" href="${href}" aria-label="Campus OS home">
+    <span class="brand-text">${wordmark()}<small>${session.site.tagline || ''}</small></span>
+  </a>`;
+}
+
+const badge = (item) => (item.badge === 'unread' && session.unread ? html`<span class="count" data-unread>${session.unread > 99 ? '99+' : session.unread}</span>` : '');
+
+// ---------------------------------------------------------------- Public frame
+
+export function mountPublic() {
+  document.body.classList.remove('is-app');
+  render(app(), html`${ambient}
+    <div class="public">
+      <header class="public-top">${brand('/')}<nav class="cluster" id="public-nav"></nav></header>
+      <main id="view" class="view"></main>
+      <footer class="public-foot"><span>${session.site.conceptNotice || ''}</span><span>${session.site.name} ${session.site.version || ''}</span></footer>
+    </div>`);
+}
+
+// ---------------------------------------------------------------- App frame
+
+export function mountApp() {
+  document.body.classList.add('is-app');
+  const nav = navFor(session.user.role);
+  const u = session.user;
+  render(app(), html`${ambient}
+    <aside class="sidebar" aria-label="Main navigation">
+      ${brand()}
+      <div class="sidebar-scroll">
+        <nav class="nav">${nav.primary.map(navLink)}</nav>
+        ${nav.secondary.length ? html`<div class="nav-label">More</div><nav class="nav">${nav.secondary.map(navLink)}</nav>` : ''}
+      </div>
+      <div class="sidebar-foot">
+        ${nav.foot.map(navLink)}
+        ${session.site.logo ? html`<div class="edition-logo"><img src="${session.site.logo}" alt=""><small>Independent concept</small></div>` : ''}
+        <button class="profile-chip" data-user-menu>${avatar(u.name)}<span class="body"><strong>${u.name}</strong><small>${roleLabel(u.role)}${u.requested_role === 'lecturer' ? ' · lecturer pending' : ''}</small></span>${icon('more', 18)}</button>
+      </div>
+    </aside>
+    <div class="main">
+      <header class="topbar" id="topbar">
+        <a class="topbar-mobile-brand" href="/home" aria-label="Campus OS home">${wordmark()}</a>
+        <span class="topbar-title" id="topbar-title"></span>
+        <div class="topbar-actions">
+          <button class="icon-btn wake-indicator" data-wake-indicator hidden aria-label="Campus is listening for “Hey Campus”. Click to stop." title="Listening for “Hey Campus” — click to stop">${icon('mic', 18)}</button>
+          <button class="search-pill" data-palette aria-label="Search">${icon('search', 18)}<span>Search or jump to…</span><kbd>${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'} K</kbd></button>
+          <a class="icon-btn" href="/inbox" aria-label="Inbox">${icon('bell', 19)}<span data-unread-slot>${session.unread ? html`<span class="count">${session.unread > 99 ? '99+' : session.unread}</span>` : ''}</span></a>
+          <button class="icon-btn" data-user-menu aria-label="Account menu" style="padding:0;overflow:hidden">${avatar(u.name, 'sm')}</button>
+        </div>
+      </header>
+      <main id="view" class="view" tabindex="-1"></main>
+    </div>
+    <nav class="tabbar" aria-label="Tabs">${nav.tabs.map((href) => tab(href, nav))}</nav>`);
+
+  wireShell();
+  live.connect();
+  if (session.user.preferences?.voiceWake && !wake.enabled) wake.start(assistantName());
+  syncWakeIndicator();
+}
+
+function syncWakeIndicator() {
+  const el = $('[data-wake-indicator]');
+  if (el) el.hidden = !wake.enabled;
+}
+
+function navLink(item) {
+  const active = isActive(item.href, location.pathname);
+  return html`<a class="nav-link ${active ? 'is-active' : ''}" href="${item.href}" ${active ? 'aria-current="page"' : ''}>${icon(item.icon, 19)}<span>${item.label}</span>${badge(item)}</a>`;
+}
+
+function tab(href, nav) {
+  if (href === 'more') return html`<button class="tab" data-more>${icon('menu', 22)}<span>More</span></button>`;
+  const item = allItems(session.user.role).find((i) => i.href === href);
+  const label = href === '/assistant' ? 'Ask' : href === '/campus' ? 'Campus life' : item.label;
+  return html`<a class="tab ${isActive(href, location.pathname) ? 'is-active' : ''}" href="${href}">${icon(item.icon, 22)}<span>${label}</span>${badge(item)}</a>`;
+}
+
+const roleLabel = (r) => ({ student: 'Student', lecturer: 'Lecturer', admin: 'Administrator' })[r] || r;
+
+let wired = false;
+function wireShell() {
+  updateActive();
+  if (wired) return;
+  wired = true;
+
+  onStore('route', updateActive);
+  onStore('title', (title) => {
+    const el = $('#topbar-title');
+    if (el) el.textContent = title || '';
+  });
+  onStore('session', (patch) => {
+    if ('unread' in patch) updateBadges();
+  });
+  window.addEventListener('scroll', () => $('#topbar')?.classList.toggle('is-scrolled', window.scrollY > 48), { passive: true });
+
+  on(document, 'click', '[data-user-menu]', (e, button) => userMenu(button));
+  on(document, 'click', '[data-palette]', () => openPalette());
+  on(document, 'click', '[data-more]', () => openMore());
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && session.user) {
+      e.preventDefault();
+      openPalette();
+    }
+  });
+
+  // "Hey Campus" from any page: open the assistant (and ask, if a question followed).
+  wake.setFallback((text) => navigate(text ? `/assistant?q=${encodeURIComponent(text)}` : '/assistant'));
+  wake.onState(syncWakeIndicator);
+  on(document, 'click', '[data-wake-indicator]', async () => {
+    wake.stop();
+    const res = await api.patch('/me', { preferences: { voiceWake: false } }).catch(() => null);
+    if (res) setSession({ user: { ...session.user, preferences: res.user.preferences } });
+    toast('Campus stopped listening.', 'info');
+  });
+
+  live.on('notification', (n) => {
+    setSession({ unread: session.unread + 1 });
+    if (!location.pathname.startsWith('/inbox')) toast(n.title, 'info');
+  });
+  live.on('activation', async (a) => {
+    if (a.status) return;
+    const { openActivation } = await import('./pages/classroom.js');
+    openActivation(a.id);
+  });
+}
+
+function updateActive() {
+  const path = location.pathname;
+  $$('.nav-link, .tab[href]').forEach((a) => {
+    const active = isActive(a.getAttribute('href'), path);
+    a.classList.toggle('is-active', active);
+    if (active) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
+  });
+}
+
+function updateBadges() {
+  const n = session.unread;
+  const text = n > 99 ? '99+' : String(n);
+  $$('[data-unread]').forEach((el) => (n ? (el.textContent = text) : el.remove()));
+  const slot = $('[data-unread-slot]');
+  if (slot) render(slot, n ? html`<span class="count">${text}</span>` : '');
+  if (n && !$$('.nav-link [data-unread]').length) {
+    $$('.nav-link[href="/inbox"], .tab[href="/inbox"]').forEach((a) => a.insertAdjacentHTML('beforeend', `<span class="count" data-unread>${text}</span>`));
+  }
+}
+
+// ---------------------------------------------------------------- Menus & sheets
+
+export function setTheme(mode) {
+  const rootEl = document.documentElement;
+  if (mode === 'light' || mode === 'dark') rootEl.dataset.theme = mode;
+  else delete rootEl.dataset.theme;
+  try {
+    localStorage.setItem('campus-theme', mode || 'system');
+  } catch {
+    /* private mode */
+  }
+  if (session.user) api.patch('/me', { preferences: { theme: mode || 'system' } }).catch(() => {});
+}
+
+function userMenu(button) {
+  const current = document.documentElement.dataset.theme || 'system';
+  menu(button, [
+    { label: 'Settings', icon: 'settings', onSelect: () => navigate('/settings') },
+    { label: 'Profile & interests', icon: 'user', onSelect: () => navigate('/settings/profile') },
+    'divider',
+    { label: `Light${current === 'light' ? ' ✓' : ''}`, icon: 'sun', onSelect: () => setTheme('light') },
+    { label: `Dark${current === 'dark' ? ' ✓' : ''}`, icon: 'moon', onSelect: () => setTheme('dark') },
+    { label: `Match system${current === 'system' ? ' ✓' : ''}`, icon: 'monitor', onSelect: () => setTheme('system') },
+    'divider',
+    { label: 'Sign out', icon: 'logout', danger: true, onSelect: signOut },
+  ]);
+}
+
+/** Called after sign-in or registration. */
+export async function enterApp(returnTo = '/home') {
+  const data = await api.get('/bootstrap');
+  setSession({ user: data.user, ai: data.ai || null, unread: data.unread || 0 });
+  const theme = data.user?.preferences?.theme;
+  if (theme && theme !== 'system') setTheme(theme);
+  mountApp();
+  navigate(returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/home', { replace: true });
+}
+
+export async function signOut() {
+  wake.stop();
+  await api.post('/logout').catch(() => {});
+  live.disconnect();
+  setSession({ user: null, unread: 0, ai: null });
+  mountPublic();
+  navigate('/', { replace: true });
+}
+
+function openMore() {
+  const items = allItems(session.user.role);
+  sheet({
+    title: 'Menu',
+    content: html`<div class="grid-auto" style="--min:120px">
+      ${items.map((i) => html`<a class="card tight center" href="${i.href}" data-close style="display:flex;flex-direction:column;align-items:center;gap:8px"><span class="tile">${icon(i.icon, 20)}</span><span class="small" style="font-weight:600">${i.label}</span></a>`)}
+    </div>
+    <button class="btn btn-danger btn-block mt-24" data-signout>${icon('logout', 18)} Sign out</button>`,
+    onMount(root, close) {
+      root.querySelectorAll('a[data-close]').forEach((a) => a.addEventListener('click', () => close()));
+      root.querySelector('[data-signout]').addEventListener('click', () => {
+        close();
+        signOut();
+      });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- Command palette
+
+let toolsCache = null;
+async function openPalette() {
+  const actions = [
+    { label: 'Ask Campus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
+    { label: 'Ask Campus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
+    { label: 'New space', icon: 'plus', href: '/spaces?new=1', group: 'Actions' },
+    { label: 'Add to schedule', icon: 'calendar', href: '/schedule?new=1', group: 'Actions' },
+    { label: 'Post to campus feed', icon: 'message', href: '/campus?compose=1', group: 'Actions' },
+    { label: 'Switch to dark mode', icon: 'moon', run: () => setTheme('dark'), group: 'Actions' },
+    { label: 'Switch to light mode', icon: 'sun', run: () => setTheme('light'), group: 'Actions' },
+    { label: 'Sign out', icon: 'logout', run: signOut, group: 'Actions' },
+  ];
+  const pages = allItems(session.user.role).map((i) => ({ ...i, group: 'Go to' }));
+  if (!toolsCache) {
+    toolsCache = await fetch('/api/v1/capabilities').then((r) => r.json()).then((d) => d.groups.flatMap((g) => g.items.filter((i) => i.route).map((i) => ({ label: i.label, icon: 'layers', href: i.route, group: 'Features', hint: g.group })))).catch(() => []);
+  }
+  const all = [...pages, ...actions, ...toolsCache];
+
+  sheet({
+    className: 'palette',
+    content: html`<div class="search-input">${icon('search', 20)}<input class="input" placeholder="Search pages, features and actions" autofocus aria-label="Search"></div><div class="palette-results" role="listbox"></div>`,
+    onMount(root, close) {
+      const input = root.querySelector('input');
+      const list = root.querySelector('.palette-results');
+      let results = [];
+      let active = 0;
+      const draw = () => {
+        const q = input.value.trim().toLowerCase();
+        results = (q ? all.filter((i) => `${i.label} ${i.hint || ''}`.toLowerCase().includes(q)) : [...pages, ...actions]).slice(0, 30);
+        active = Math.min(active, Math.max(0, results.length - 1));
+        let lastGroup = null;
+        render(list, results.length ? html`${results.map((r, i) => {
+          const head = r.group !== lastGroup ? html`<div class="palette-group">${r.group}</div>` : '';
+          lastGroup = r.group;
+          return html`${head}<button class="palette-item ${i === active ? 'is-active' : ''}" data-i="${i}" role="option"><span class="tile">${icon(r.icon, 17)}</span>${r.label}${r.hint ? html`<small>${r.hint}</small>` : ''}</button>`;
+        })}` : html`<p class="muted center" style="padding:24px">No matches</p>`);
+      };
+      const choose = (i) => {
+        const r = results[i];
+        if (!r) return;
+        close();
+        if (r.run) r.run();
+        else navigate(r.href);
+      };
+      input.addEventListener('input', () => {
+        active = 0;
+        draw();
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { active = Math.min(results.length - 1, active + 1); draw(); e.preventDefault(); }
+        if (e.key === 'ArrowUp') { active = Math.max(0, active - 1); draw(); e.preventDefault(); }
+        if (e.key === 'Enter') { choose(active); e.preventDefault(); }
+      });
+      list.addEventListener('click', (e) => {
+        const b = e.target.closest('[data-i]');
+        if (b) choose(Number(b.dataset.i));
+      });
+      draw();
+    },
+  });
+}
