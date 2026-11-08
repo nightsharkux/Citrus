@@ -37,7 +37,7 @@ function isCrossSite(req, allowedOrigins = []) {
     try {
       const url = new URL(origin);
       if (url.host === req.headers.host) return false;
-      // Behind some proxies/tunnels the Host header is rewritten; PUBLIC_URL is the trusted origin.
+      // Behind some proxies/tunnels the Host header is rewritten; the configured address is the trusted origin.
       return !allowedOrigins.includes(url.origin);
     } catch {
       return true;

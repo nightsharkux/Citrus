@@ -22,12 +22,27 @@ function int(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+/**
+ * The address Campus OS is reached at. On Vercel it comes from the variables the
+ * platform sets itself: the production domain in production, the deployment's own
+ * address in previews. Anywhere else it is localhost, and links follow the address
+ * each visitor used (see `baseUrl` in src/app.js).
+ */
+function resolveAddress(env, port) {
+  const vercelEnv = env.VERCEL_ENV;
+  if (vercelEnv === 'production' || vercelEnv === 'preview') {
+    const domain = vercelEnv === 'production' ? env.VERCEL_PROJECT_PRODUCTION_URL || env.VERCEL_URL : env.VERCEL_URL;
+    if (domain) return { url: `https://${domain.replace(/^https?:\/\//, '').replace(/\/$/, '')}`, hosted: true };
+  }
+  return { url: `http://localhost:${port}`, hosted: false };
+}
+
 function loadConfig(env = process.env) {
   const dbPath = env.DB_PATH || path.join(ROOT, 'storage', 'campusos.db');
   const storageDir = env.CAMPUS_STORAGE_DIR || (env.DB_PATH ? path.dirname(dbPath) : path.join(ROOT, 'storage'));
   const port = int(env.PORT, 3100);
   const host = env.HOST || '127.0.0.1';
-  const publicUrl = (env.PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, '');
+  const { url: publicUrl, hosted } = resolveAddress(env, port);
 
   return {
     root: ROOT,
@@ -36,14 +51,14 @@ function loadConfig(env = process.env) {
     port,
     host,
     publicUrl,
-    // When PUBLIC_URL is not set, links (e.g. calendar feeds) follow the address each visitor used.
-    publicUrlExplicit: !!env.PUBLIC_URL,
+    // True on Vercel. Off Vercel, links (e.g. calendar feeds) follow the address each visitor used.
+    hosted,
     dbPath,
     storageDir,
     audioDir: path.join(storageDir, 'audio'),
     cookieSecure: bool(env.COOKIE_SECURE, publicUrl.startsWith('https://')),
-    // Set when Campus OS is only reachable through a reverse proxy (Caddy, nginx, a tunnel).
-    trustProxy: bool(env.TRUST_PROXY, false),
+    // Set when Campus OS is only reachable through a reverse proxy (Caddy, nginx, a tunnel). Vercel always is one.
+    trustProxy: bool(env.TRUST_PROXY, hosted),
     sessionDays: int(env.SESSION_DAYS, 7),
     logRequests: bool(env.LOG_REQUESTS, false),
 

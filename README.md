@@ -58,7 +58,7 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 
 - **AI:** add `AI_GATEWAY_API_KEY` to `.env` and restart. In Admin, open *AI & knowledge*, select *Vercel AI Gateway* and use *Test connection*. Configure `CAMPUS_AI_DEFAULT_MODEL` and `CAMPUS_AI_SUMMARY_MODEL` with `provider/model/reasoning` slugs (Terra `/medium`, Luna `/low` by default). See [docs/AI.md](docs/AI.md).
 - **University knowledge:** in the same screen, click *Import OTH public pack*. That adds 46 public, source-linked records the assistant can cite. You can also import your own `.jsonl`, `.md` or `.txt` files.
-- **Single sign-on:** set `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, then register `PUBLIC_URL/auth/sso/callback` with your identity provider.
+- **Single sign-on:** set `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, then register `<your address>/auth/sso/callback` with your identity provider (set `OIDC_REDIRECT_URI` unless you host on Vercel).
 - **Moodle:** set `MOODLE_URL`. Each user links their own account under Settings → Connections.
 - **Push notifications:** these work on `localhost` straight away. Everywhere else they need HTTPS.
 - **Classroom hardware:** see [docs/HARDWARE.md](docs/HARDWARE.md). To try it without any hardware, run `node hardware/simulator.js`.

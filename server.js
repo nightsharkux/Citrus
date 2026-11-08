@@ -33,7 +33,7 @@ if (require.main === module) {
     const others = networkUrls(config.host, config.port);
     if (others.length) others.forEach((url, i) => console.log(`  ${i ? '                    ' : 'On your network:    '}${url}`));
     else console.log('  Other devices:      set HOST=0.0.0.0 in .env to open Campus OS from phones on the same Wi-Fi');
-    if (config.publicUrlExplicit && config.publicUrl !== local) console.log(`  Public address:     ${config.publicUrl}`);
+    if (config.hosted) console.log(`  Public address:     ${config.publicUrl}`);
     console.log('\n  Keep this window open while people use Campus OS. Press Ctrl+C to stop.\n');
   });
   server.on('error', (error) => {

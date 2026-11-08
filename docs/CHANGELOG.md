@@ -3,6 +3,7 @@
 ## 1.1.0 (November 2026)
 
 ### Changed
+- **No `PUBLIC_URL`.** Campus OS reads its address from the `VERCEL_*` variables Vercel sets, defaults to localhost elsewhere, and links follow each visitor's address. `TRUST_PROXY` and `COOKIE_SECURE` default on in Vercel. Behind your own proxy set `COOKIE_SECURE=1` and, for single sign-on, `OIDC_REDIRECT_URI`.
 - **Name and brand.** The product is now **Campus OS** and the assistant is **Campus**. The new wordmark uses the edition's gradient ring as its O. The same ring is used for the favicon, the app icons (regenerated for both editions) and `/brand/mark.svg`.
 - The assistant name is now part of the product, so the per-user and per-space name settings are gone. Older saved values are ignored.
 

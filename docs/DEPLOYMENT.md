@@ -38,10 +38,10 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 |---|---|
 | `CAMPUS_ADMIN_EMAIL` | First administrator's email for a fresh database |
 | `CAMPUS_ADMIN_PASSWORD` | New password of 12+ characters; store as Secret. Existing accounts are unchanged. |
-| `PUBLIC_URL` | Final HTTPS address people use, e.g. `https://campus.example.edu` |
+| `VERCEL_ENV`, `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` | Set by Vercel itself. Campus OS builds its address from them (production domain in production, the deployment address in previews). Do not add them by hand; enable **Automatically expose System Environment Variables** in the project settings. |
 | `CAMPUS_EDITION` | `general` or `oth` |
-| `COOKIE_SECURE` | `1` for HTTPS; defaults on when unset and `PUBLIC_URL` is HTTPS |
-| `TRUST_PROXY` | `1` only when the app is behind your trusted reverse proxy |
+| `COOKIE_SECURE` | `1` for HTTPS. On by default on Vercel; set it yourself behind your own HTTPS proxy. |
+| `TRUST_PROXY` | `1` only when the app is behind your trusted reverse proxy. On by default on Vercel. |
 | `HOST`, `PORT` | Bind address and port required by the Node host; see VPS example below |
 | `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
 
@@ -71,7 +71,7 @@ With `HOST=0.0.0.0` in `.env` (the default), every device on the same Wi-Fi can 
 
 Admin → *Institution* → *Open on other devices* shows the same list with copy buttons. When Windows asks whether Node.js may communicate on private networks, allow it. If a phone can't connect, check that both are on the same network (guest Wi-Fi often isolates devices), and that the Windows network profile is *Private*.
 
-Leave `PUBLIC_URL` empty here. Links such as calendar feeds then use whichever address each visitor typed. Over plain `http://` on a network address, browsers turn off the microphone ("Hey Campus", dictation), push notifications and app install. Everything else works. For those features, use option B or a server with HTTPS.
+There is no address to configure here. Links such as calendar feeds use whichever address each visitor typed. Over plain `http://` on a network address, browsers turn off the microphone ("Hey Campus", dictation), push notifications and app install. Everything else works. For those features, use option B or a server with HTTPS.
 
 ---
 
@@ -133,10 +133,10 @@ Set at least:
 
 ```ini
 CAMPUS_EDITION=general
-PUBLIC_URL=https://campus.example.edu
 HOST=127.0.0.1
 PORT=3100
 TRUST_PROXY=1
+COOKIE_SECURE=1
 CAMPUS_ADMIN_EMAIL=you@example.edu
 CAMPUS_ADMIN_PASSWORD=<a new long password, not the one from your PC>
 # AI through Vercel AI Gateway
@@ -219,9 +219,9 @@ This gives you a temporary public `https://…trycloudflare.com` address that fo
 1. Install the tunnel once: `winget install --id Cloudflare.cloudflared`
 2. Close Campus OS if it is running, then double-click **`share-online.bat`** (or run `npm run share`).
 
-The script starts the tunnel, waits for the address, then starts Campus OS with that address as `PUBLIC_URL` and `TRUST_PROXY=1`. Your `.env` is not changed. Share the link it prints. Ctrl+C stops both. Because the link is HTTPS, voice, push notifications and app install work on phones too.
+The script starts the tunnel, waits for the address, then starts Campus OS with `COOKIE_SECURE=1` and `TRUST_PROXY=1`. Your `.env` is not changed. Share the link it prints. Ctrl+C stops both. Because the link is HTTPS, voice, push notifications and app install work on phones too.
 
-To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, then start Campus OS with `PUBLIC_URL` set to the printed address and `TRUST_PROXY=1`.
+To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, then start Campus OS with `COOKIE_SECURE=1` and `TRUST_PROXY=1`.
 
 ---
 
@@ -232,7 +232,7 @@ To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, th
 | Caddy shows a certificate error | DNS doesn't point at the server yet, or ports 80/443 are blocked. |
 | `502 Bad Gateway` | Campus OS isn't running. Check `systemctl status campusos` and `journalctl -u campusos -n 50`. |
 | Everything's locked after a few logins | `TRUST_PROXY=1` is missing, so all visitors share one IP. |
-| Buttons fail with "Cross-site request rejected" | `PUBLIC_URL` doesn't exactly match the address in the browser. |
+| Buttons fail with "Cross-site request rejected" | The proxy changes the `Host` header. Pass it through unchanged (`proxy_set_header Host $host` in nginx; Caddy does this by default). |
 | Live updates or AI answers arrive all at once | Your proxy buffers responses. Keep `flush_interval -1` in Caddy; in nginx use `proxy_buffering off`. |
 | `node:sqlite` errors on start | Node is older than 22.13. Check `node --version`. |
 | A phone on the same Wi-Fi can't connect | `HOST` isn't `0.0.0.0`, Windows Firewall blocked Node.js (allow it on private networks), or the Wi-Fi isolates devices (guest networks). |

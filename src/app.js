@@ -88,9 +88,9 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const statics = createStaticServer({ publicDir: config.publicDir, site });
   const allowedOrigins = [new URL(config.publicUrl).origin];
 
-  /** The address this visitor used (PUBLIC_URL wins when it is set explicitly). */
+  /** The address this visitor used (the Vercel address wins when hosted there). */
   function baseUrl(req) {
-    if (config.publicUrlExplicit) return config.publicUrl;
+    if (config.hosted) return config.publicUrl;
     const host = String(req.headers.host || '');
     if (!/^[\w.-]+(:\d+)?$|^\[[\da-f:]+\](:\d+)?$/i.test(host)) return config.publicUrl;
     const proto = config.trustProxy && req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';

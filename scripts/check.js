@@ -26,9 +26,8 @@ const providers = makeProviders();
 for (const p of providers.list().filter((x) => x.id !== 'off')) ok(p.ready, `AI provider ${p.label}${p.ready ? ` configured (${p.model}); connection untested` : `: ${p.missing}`}`, true);
 ok(!!config.oidc.issuer, `Single sign-on ${config.oidc.issuer ? `→ ${config.oidc.issuer}` : 'not configured (optional)'}`, true);
 ok(!!config.moodle.url, `Moodle ${config.moodle.url || 'not configured (optional)'}`, true);
-if (config.publicUrlExplicit) {
-  const https = config.publicUrl.startsWith('https://');
-  ok(https || !listensOnNetwork(config.host), `Public address ${config.publicUrl}${https ? '' : ' (put HTTPS in front before opening Campus OS to the internet)'}`);
+if (config.hosted) {
+  ok(true, `Hosted on Vercel at ${config.publicUrl}`);
 } else if (listensOnNetwork(config.host)) {
   const urls = networkUrls(config.host, config.port);
   ok(true, urls.length ? `Open on your network: ${urls.join(', ')} (links follow each visitor's address)` : 'Listening on all interfaces, but no network connection was found');

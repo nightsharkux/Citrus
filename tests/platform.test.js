@@ -78,19 +78,44 @@ test('security headers, CSRF protection, SPA routing and versioned API alias', a
   }
 });
 
+test('the address comes from Vercel variables, with localhost as the local default', () => {
+  const { loadConfig } = require('../src/config');
+  const local = loadConfig({ PORT: '4000' });
+  assert.equal(local.publicUrl, 'http://localhost:4000');
+  assert.equal(local.hosted, false);
+  assert.equal(local.trustProxy, false);
+  assert.equal(local.cookieSecure, false);
+
+  const production = loadConfig({ VERCEL_ENV: 'production', VERCEL_PROJECT_PRODUCTION_URL: 'campus.example.edu', VERCEL_URL: 'campus-abc.vercel.app' });
+  assert.equal(production.publicUrl, 'https://campus.example.edu', 'production uses the stable production domain');
+  assert.equal(production.hosted, true);
+  assert.equal(production.cookieSecure, true);
+  assert.equal(production.oidc.redirectUri, 'https://campus.example.edu/auth/sso/callback');
+
+  const preview = loadConfig({ VERCEL_ENV: 'preview', VERCEL_PROJECT_PRODUCTION_URL: 'campus.example.edu', VERCEL_URL: 'campus-abc.vercel.app' });
+  assert.equal(preview.publicUrl, 'https://campus-abc.vercel.app', 'previews use their own deployment address');
+
+  const dev = loadConfig({ VERCEL_ENV: 'development', VERCEL_URL: 'localhost:3000' });
+  assert.equal(dev.hosted, false, 'vercel dev behaves like a local run');
+  assert.equal(loadConfig({ VERCEL_ENV: 'production', VERCEL_URL: 'campus-abc.vercel.app' }).publicUrl, 'https://campus-abc.vercel.app');
+  assert.equal(loadConfig({ OIDC_REDIRECT_URI: 'https://sso.example.edu/cb' }).oidc.redirectUri, 'https://sso.example.edu/cb');
+});
+
 test('works behind a reverse proxy with an https public address', async () => {
   const { clientIp } = require('../src/http/security');
   const req = { headers: { 'x-forwarded-for': '198.51.100.7, 203.0.113.9' }, socket: { remoteAddress: '127.0.0.1' } };
   assert.equal(clientIp(req, true), '203.0.113.9', 'the hop added by our proxy, not a client-forged one');
   assert.equal(clientIp(req, false), '127.0.0.1', 'forwarded headers are ignored unless TRUST_PROXY is set');
 
-  const app = await startApp({ env: { PUBLIC_URL: 'https://campus.example.edu', TRUST_PROXY: '1' } });
+  const app = await startApp({ env: { VERCEL_ENV: 'production', VERCEL_PROJECT_PRODUCTION_URL: 'campus.example.edu', VERCEL_URL: 'campus-abc123.vercel.app' } });
   try {
+    assert.equal(app.config.publicUrl, 'https://campus.example.edu');
+    assert.equal(app.config.trustProxy, true, 'Vercel is always a proxy');
     const reg = await app.register('stu');
     assert.match(reg.headers.get('set-cookie'), /; Secure/, 'https deployments get Secure cookies');
     assert.match(reg.headers.get('strict-transport-security'), /max-age/);
     const viaProxy = await app.call('stu', 'POST', '/api/suggestions', { message: 'Sent through the proxy' }, { headers: { origin: 'https://campus.example.edu' } });
-    assert.equal(viaProxy.status, 201, 'PUBLIC_URL origin is accepted even if the proxy rewrites Host');
+    assert.equal(viaProxy.status, 201, 'the Vercel production origin is accepted even if the proxy rewrites Host');
     const forged = await app.call('stu', 'POST', '/api/suggestions', { message: 'From another site' }, { headers: { origin: 'https://evil.example' } });
     assert.equal(forged.status, 403);
   } finally {

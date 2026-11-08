@@ -6,7 +6,7 @@
  *   npm run share               (any OS)
  *
  * Starts a free Cloudflare quick tunnel, reads its https://….trycloudflare.com
- * address and starts Campus OS configured for it (PUBLIC_URL + TRUST_PROXY).
+ * address and starts Campus OS behind it (COOKIE_SECURE + TRUST_PROXY).
  * HTTPS means phones get the microphone, "Hey Campus", push and app install.
  * The address changes every time; it stops working when you close this window.
  */
@@ -59,7 +59,7 @@ function start(url) {
   server = spawn(process.execPath, ['server.js'], {
     cwd: ROOT,
     stdio: 'inherit',
-    env: { ...process.env, PUBLIC_URL: url, TRUST_PROXY: '1' },
+    env: { ...process.env, COOKIE_SECURE: '1', TRUST_PROXY: '1' },
   });
   server.on('exit', (code) => stop(code || 0));
   setTimeout(() => {
