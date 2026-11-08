@@ -20,6 +20,11 @@ const DAY_FULL = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Satur
 /** Short upper-case words that are not programme codes even if a programme uses them. */
 const NOT_CODES = new Set(['WS', 'SS', 'BA', 'MA', 'OK', 'EU', 'PDF', 'FAQ', 'AM', 'PM']);
 
+/** Lower-case codes that are ordinary words, so they only count when upper-case or introduced as a programme. */
+const WORDS_LIKE_CODES = new Set(['edu', 'ime', 'dib']);
+const SAID_BEFORE = /(?:\bi do|\bi am in|\bi'?m in|\bim in|\bi study|\bi'?m studying|\bstudying|\bstudent (?:of|in)|\benrolled in|\bich studiere|\bbin im|\bbin in|\bstudiere|\bim studiengang|\ban|\bthe|\bfor|\bof|\bvon|\bund|\band|\boder|\bor|\bvs|\bversus|\bim|\bfor an?)\s+$/i;
+const SAID_AFTER = /^\s*(?:students?|studiengang|programme|program|course|studium|semester|studenten|studentin|studierende|timetable|stundenplan|schedule)\b/i;
+
 const fold = (text) => String(text || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
 const minutes = (hhmm) => {
   const [h, m] = String(hhmm).split(':').map(Number);
@@ -48,14 +53,17 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
         if (!byCode.has(code)) byCode.set(code, { code, name: c.programmeName || code, level: c.level, classes: [], source: c.source });
         byCode.get(code).classes.push(c);
       }
-      // Programmes whose timetable is only a picture: known by name and link, with no readable classes.
-      for (const s of d.sources) {
-        const m = /\/Studiengaenge\/(?:Bachelor|Master)\/([A-Za-z0-9_-]+)\//.exec(s.url);
-        const code = m?.[1]?.toUpperCase();
-        if (code && !byCode.has(code) && /^(Stundenplan|Studienplan)/i.test(s.title)) {
-          byCode.set(code, { code, name: s.title.replace(/^(Stundenplan|Studienplan)\s+/i, '').split(' / ')[0], level: null, classes: [], source: s.url });
-        }
+      // Programmes with documents but no readable timetable: known by name and link, with the kind of file the university published.
+      for (const src of d.sources) {
+        const code = String(src.programme || '').toUpperCase();
+        if (!code) continue;
+        if (!byCode.has(code)) byCode.set(code, { code, name: src.title.replace(/^(Stundenplan|Studienplan|Timetable|Study plan)\s+/i, '').split(' / ')[0], level: null, classes: [], source: src.url, docs: [] });
+        const programme = byCode.get(code);
+        programme.docs ||= [];
+        programme.docs.push({ kind: src.kind, title: src.title, url: src.url, term: src.term });
+        if (!programme.classes.length && src.kind === 'timetable') programme.source = src.url;
       }
+      for (const programme of byCode.values()) programme.docs ||= [];
       d.index = byCode;
       d.names = [...byCode.values()].map((p) => ({ code: p.code, key: fold(p.name.replace(/^(Bachelor|Master|Bachelorstudiengang|Masterstudiengang)\s+/i, '')) })).filter((n) => n.key.length >= 6);
     }
@@ -64,17 +72,32 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
 
   const programmes = () => [...index().index.values()].map(({ code, name, level }) => ({ code, name, level }));
 
-  /** Programme codes a text refers to, by code ("DTM") or by name ("Digital Technology and Management"). */
+  /**
+   * Programme codes a text refers to, by code ("DTM", "dtm") or by name ("Digital Technology and Management"), the
+   * most recently mentioned first: in "What does an IB student have tomorrow? Oh, I do DTM" the answer is about DTM.
+   * Speech recognition writes lower case, so codes are accepted in any case; two-letter codes that are also words
+   * ("ib", "ei", "me") only count when the sentence says they are a programme ("I do IB", "an IB student").
+   */
   function mentioned(text) {
     const d = index();
-    const found = new Set();
-    for (const token of String(text || '').match(/\b[A-Z][A-Za-z0-9]{1,5}\b/g) || []) {
+    const raw = String(text || '');
+    const at = new Map();
+    const note = (code, position) => at.set(code, Math.max(at.get(code) ?? -1, position));
+    for (const m of raw.matchAll(/\b[A-Za-z][A-Za-z0-9]{1,5}\b/g)) {
+      const token = m[0];
       const code = token.toUpperCase();
-      if (token === code && !NOT_CODES.has(code) && d.index.has(code)) found.add(code);
+      if (NOT_CODES.has(code) || !d.index.has(code)) continue;
+      const before = raw.slice(Math.max(0, m.index - 30), m.index);
+      const after = raw.slice(m.index + token.length, m.index + token.length + 26);
+      const stated = SAID_BEFORE.test(before) || SAID_AFTER.test(after);
+      if (token === code || stated || (token.length >= 3 && !WORDS_LIKE_CODES.has(token.toLowerCase()))) note(code, m.index);
     }
-    const folded = ` ${fold(text)} `;
-    for (const { code, key } of d.names) if (folded.includes(` ${key} `)) found.add(code);
-    return [...found];
+    const folded = ` ${fold(raw)} `;
+    for (const { code, key } of d.names) {
+      const position = folded.lastIndexOf(` ${key} `);
+      if (position >= 0) note(code, position);
+    }
+    return [...at.entries()].sort((a, b) => b[1] - a[1]).map(([code]) => code);
   }
 
   /** A programme field from a profile ("DTM", "Digital Technology and Management"): code or name, any case. */
@@ -89,7 +112,9 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
 
   function semesterIn(text) {
     const t = String(text || '');
-    const m = /(?:semester|sem\.?)\s*(\d{1,2})\b/i.exec(t) || /\b(\d{1,2})\s*(?:st|nd|rd|th|\.)?\s*(?:semester|sem\b)/i.exec(t);
+    // The last one said wins: "I'm in semester 3... no, semester 5".
+    const hits = [...t.matchAll(/(?:semester|sem\.?)\s*(\d{1,2})\b/gi), ...t.matchAll(/\b(\d{1,2})\s*(?:st|nd|rd|th|\.)?\s*(?:semester|sem\b)/gi)].sort((a, b) => a.index - b.index);
+    const m = hits[hits.length - 1];
     const n = m ? Number(m[1]) : 0;
     return n >= 1 && n <= 12 ? n : null;
   }
@@ -106,10 +131,21 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
     return m ? new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00Z`) : null;
   };
 
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const short = (t, n = 96) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
+  const brief = (e) => `${e.start}–${e.end} ${short(e.text)}${e.format === 'in person' ? '' : ` [${e.format}]`}`;
+
+  /** The weekday (0 = Monday) and a label such as "Tue 10 Nov" for the day `offset` days from `now`. */
+  function dayInfo(now, offset) {
+    const p = zonedParts(new Date(now.getTime() + offset * DAY), timeZone);
+    const weekday = (new Date(Date.UTC(p.year, p.month - 1, p.day)).getUTCDay() + 6) % 7;
+    return { weekday, label: `${DAY_NAMES[weekday]} ${p.day} ${MONTHS[p.month - 1]}` };
+  }
+
   /**
    * Context lines for the assistant. `semester` narrows the programme to one class; without it every semester of
-   * the programme is listed for what is on right now, so the answer is usually direct and the model only asks
-   * "which semester?" when more than one class has something on.
+   * the programme is listed, so the answer is usually direct and the model only asks "which semester?" when the
+   * answer depends on it. Today, tomorrow and the day after are listed with dates, then the weekly pattern.
    */
   function describe({ codes, semester = null, now = new Date() }) {
     const d = index();
@@ -118,36 +154,44 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
     for (const code of codes.slice(0, 3)) {
       const programme = d.index.get(code);
       if (!programme) continue;
+      const links = (kind) => programme.docs.filter((x) => x.kind === kind);
       let classes = programme.classes;
       const exact = semester ? classes.filter((c) => c.semester === semester) : [];
       if (exact.length) classes = exact;
       if (!classes.length) {
-        out.push(`${programme.code} (${programme.name}): the university publishes this timetable only as a picture or PDF I cannot read: ${programme.source}`);
+        const handbook = links('module-handbook')[0];
+        const plan = links('timetable')[0] || links('study-plan')[0];
+        out.push(`${programme.code} (${programme.name}): the university does not publish a weekly timetable with times for this programme that I can read${handbook ? `; the file it links as the timetable is the module handbook (${handbook.url})` : plan ? `; its file is a picture or a format I cannot read (${plan.url})` : ''}. Say so plainly, give that link, and suggest the programme office or Moodle for the lesson times. Never invent lessons.`);
         continue;
       }
       const stand = classes.map((c) => c.stand).find(Boolean);
       const from = classes.map(validFrom).find(Boolean);
-      out.push(`Official timetable for ${programme.code} (${programme.name}), winter semester 2026/27${from ? `, valid from ${from.toISOString().slice(0, 10)}` : ''}${stand ? `, published ${stand}` : ''}. It is the weekly pattern; ${exact.length ? `semester ${semester}` : 'all semesters shown'}. Source: ${programme.source}`);
+      const term = classes.map((c) => c.term).find(Boolean) || 'WS 2026/27';
+      out.push(`Official timetable for ${programme.code} (${programme.name}), ${term}${from ? `, valid from ${from.toISOString().slice(0, 10)}` : ''}${stand ? `, published ${stand}` : ''}. It is the weekly pattern; ${exact.length ? `semester ${semester}` : 'all semesters shown'}. Source: ${programme.source}`);
+      const exams = links('exam-plan')[0];
+      if (exams) out.push(`${programme.code} exam plan (${exams.term || 'current'}): ${exams.url}`);
+
       const nowItems = [];
       const laterItems = [];
       for (const c of classes) {
         for (const e of c.events.filter((x) => x.day === day)) {
-          if (minute >= minutes(e.start) && minute < minutes(e.end)) nowItems.push(`${tag(c)}: ${line(e)}`);
-          else if (minutes(e.start) > minute) laterItems.push(`${tag(c)}: ${line(e)}`);
+          if (minute >= minutes(e.start) && minute < minutes(e.end)) nowItems.push(`${tag(c)}: ${brief(e)}`);
+          else if (minutes(e.start) > minute) laterItems.push(`${tag(c)}: ${brief(e)}`);
         }
       }
       out.push(`${programme.code} right now (${DAY_NAMES[day]} ${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}): ${nowItems.length ? nowItems.join(' | ') : 'no class is running'}`);
       out.push(`${programme.code} later today: ${laterItems.length ? laterItems.slice(0, 12).join(' | ') : 'nothing more'}`);
-      if (classes.length <= 3) {
-        for (const c of classes) {
-          const week = DAY_NAMES.map((name, i) => {
-            const events = c.events.filter((e) => e.day === i);
-            return events.length ? `${name}: ${events.map(line).join('; ')}` : '';
-          }).filter(Boolean);
-          out.push(`${programme.code} ${c.semester ? `semester ${c.semester}` : c.label} week: ${week.join(' || ')}`);
-        }
-      } else {
-        out.push(`${programme.code} has ${classes.length} classes (${classes.map((c) => c.semester && `sem ${c.semester}`).filter(Boolean).join(', ')}); ask which semester the student is in only when it changes the answer.`);
+      for (const [offset, name] of [[1, 'tomorrow'], [2, 'the day after tomorrow']]) {
+        const { weekday, label } = dayInfo(now, offset);
+        const items = classes.flatMap((c) => c.events.filter((e) => e.day === weekday).map((e) => `${tag(c)}: ${brief(e)}`));
+        out.push(`${programme.code} ${name} (${label}): ${items.length ? items.slice(0, 16).join(' | ') : 'no classes'}`);
+      }
+      for (const c of classes.slice(0, 8)) {
+        const week = DAY_NAMES.map((name, i) => {
+          const events = c.events.filter((e) => e.day === i);
+          return events.length ? `${name}: ${events.map(brief).join('; ')}` : '';
+        }).filter(Boolean);
+        out.push(`${programme.code} ${c.semester ? `semester ${c.semester}` : c.label} week: ${week.join(' || ')}`);
       }
     }
     return out;

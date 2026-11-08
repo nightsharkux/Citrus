@@ -63,6 +63,13 @@ export default {
   'Housing and learning partners': 'Wohnungen und Lernpartner',
   'Pilot (works, with limits)': 'Pilot (funktioniert mit Einschränkungen)',
 
+  // ---- links
+  'Opening the page': 'Seite wird geöffnet',
+  'Your browser blocked the new tab.': 'Dein Browser hat den neuen Tab blockiert.',
+  'Open the page': 'Seite öffnen',
+  'I can only open links to the university’s own pages.': 'Ich kann nur Links zu den eigenen Seiten der Hochschule öffnen.',
+  'That is not a link I can open.': 'Diesen Link kann ich nicht öffnen.',
+
   // ---- lessons on the map
   'to': 'bis',
   'official timetable': 'offizieller Stundenplan',

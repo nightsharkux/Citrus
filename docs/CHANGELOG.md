@@ -4,7 +4,9 @@
 
 ### Added
 - **University knowledge.** The assistant now reads about 3,000 passages from the public OTH Amberg-Weiden website in German and English, with contact details as the pages print them, and the text of the published exam plans. See *What it knows about the university* in [AI.md](AI.md).
-- **Official class timetables for every programme.** "I'm in DTM, what do I have right now?" is answered from the published timetable, computed for the current day and time. 133 class timetables across 50 programmes; programmes that publish only a picture are linked.
+- **Official class timetables.** "I'm in DTM, what do I have right now / tomorrow?" is answered from the published timetable, computed for the current day and time. 126 class timetables for 33 programmes. A programme that publishes only a picture, or a module handbook instead of a timetable (International Business), is said so and linked.
+- **Exam plans.** About 1,750 exam rows from 43 published plans: what is still to come, and what the last semester looked like. A document index lists all 1,769 PDFs the site links, with year and link, so older material can be pointed to.
+- **Open links on command.** Answers use short link titles instead of long addresses, and "open it" opens the page or document in a new tab (university domains only).
 - **German and English.** The interface, the assistant, voice commands and read-aloud work in both languages. The assistant understands sentences that mix them, misspellings and broken grammar. Voice input follows the language you speak; each language has its own voice.
 - **Rename the assistant.** Each account can call it what it likes (Claudia, Max...); "Hey Claudia" and every label follow. This replaces the product-wide name decision in 1.1.0.
 - **Settings by chat.** "Speak faster", "call yourself Nova", "stell auf Deutsch um", "turn off the animations". Changes show as a card and can be undone.
@@ -16,7 +18,7 @@
 - `Permissions-Policy` allows location for this site (the map asks first).
 
 ### Tests
-- 100 automated tests.
+- 103 automated tests.
 
 ## 1.1.0 (November 2026)
 

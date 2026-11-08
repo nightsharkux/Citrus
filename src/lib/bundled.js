@@ -15,6 +15,9 @@ const READERS = {
   'resources/OTH_Website_Knowledge.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Website_Knowledge.jsonl'), 'utf8'),
   'resources/OTH_Timetable_Documents.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Timetable_Documents.jsonl'), 'utf8'),
   'resources/oth-timetables.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-timetables.json'), 'utf8'),
+  'resources/OTH_Exams.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Exams.jsonl'), 'utf8'),
+  'resources/OTH_Document_Index.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Document_Index.jsonl'), 'utf8'),
+  'resources/oth-exams.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-exams.json'), 'utf8'),
   'resources/oth-campus-map.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-campus-map.json'), 'utf8'),
 };
 

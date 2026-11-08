@@ -157,7 +157,7 @@ function observe() {
 
 function schedule(node) {
   queue.add(node);
-  if (!frame) frame = requestAnimationFrame(flush);
+  if (!frame) frame = setTimeout(flush, 16);
 }
 
 /** Everything on the page again, from what the pages wrote (after the language or the name changed). */

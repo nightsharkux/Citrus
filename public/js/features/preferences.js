@@ -5,11 +5,34 @@
  * voice conversation, so "call yourself Claudia" and "sprich schneller" work the same in both.
  */
 import { session, setSession, assistantName } from '../core/store.js';
+import { toast } from '../core/ui.js';
 import { setTheme } from '../shell.js';
 import { wake } from './voice.js';
 import { PRESETS, getVoiceSettings, saveVoiceSettings } from './voices.js';
 
 const clamp = (n) => Math.min(2, Math.max(0.5, n));
+
+/**
+ * Open a link the assistant was asked to open. Browsers only allow a new tab straight after a click or key press;
+ * when it was a spoken request they refuse, so a toast with a button takes its place.
+ */
+export function openLink(url) {
+  let target;
+  try {
+    target = new URL(url);
+  } catch {
+    return;
+  }
+  if (target.protocol !== 'https:') return;
+  const tab = window.open(target.href, '_blank');
+  if (tab) {
+    try {
+      tab.opener = null;
+    } catch { /* cross-origin already */ }
+    return;
+  }
+  toast('Your browser blocked the new tab.', 'info', { duration: 9000, href: target.href, hrefLabel: 'Open the page' });
+}
 
 /** What the browser tells the assistant about this device, so "faster" and "what is my speed?" have an answer. */
 export function deviceSettings() {

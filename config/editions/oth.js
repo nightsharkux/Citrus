@@ -52,5 +52,7 @@ module.exports = {
     'resources/OTH_Public_Knowledge_2026-10-31.jsonl',
     'resources/OTH_Website_Knowledge.jsonl',
     'resources/OTH_Timetable_Documents.jsonl',
+    'resources/OTH_Exams.jsonl',
+    'resources/OTH_Document_Index.jsonl',
   ],
 };

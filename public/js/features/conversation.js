@@ -34,7 +34,7 @@ import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
 import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken } from './voice.js';
-import { applySettingsEffect, deviceSettings } from './preferences.js';
+import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words } from './turns.js';
 import { matchCommand } from './commands.js';
 
@@ -535,6 +535,7 @@ function createConversation({ threadId: startThread }) {
     effects = [];
     for (const effect of list) {
       if (effect.type === 'theme') setTheme(effect.mode === 'system' ? null : effect.mode);
+      else if (effect.type === 'open') openLink(effect.url);
       else if (effect.type === 'settings') {
         applySettingsEffect(effect);
         if (listener.running) listener.refresh();

@@ -17,7 +17,7 @@ import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.j
 import { inferVisual } from '../features/face-visuals.js';
 import { wake, dictate, speak, createSpeaker, primeSpeech, stopSpeaking, voiceProblem } from '../features/voice.js';
 import { getVoiceSettings } from '../features/voices.js';
-import { applySettingsEffect, deviceSettings } from '../features/preferences.js';
+import { applySettingsEffect, deviceSettings, openLink } from '../features/preferences.js';
 import { startConversation, conversationOpen, conversationProblem } from '../features/conversation.js';
 import { createAttachments, attachmentList, zoomPicture, watchDrops, pastedFiles, ACCEPT } from '../features/attach.js';
 
@@ -71,7 +71,7 @@ function actionCard(a, messageId, index) {
       ${a.ok && a.warning && !a.undone ? html`<em class="action-warn">${icon('alert', 13)} ${a.warning}</em>` : ''}
     </span>
     <span class="action-tools">
-      ${a.ok && a.link && !a.undone ? html`<a class="btn btn-sm" href="${a.link}">View</a>` : ''}
+      ${a.ok && a.link && !a.undone ? (/^https?:/.test(a.link) ? html`<a class="btn btn-sm" href="${a.link}" target="_blank" rel="noopener noreferrer">${icon('external', 14)} Open</a>` : html`<a class="btn btn-sm" href="${a.link}">View</a>`) : ''}
       ${a.undoable && messageId ? html`<button class="btn btn-sm btn-ghost" data-undo="${index}" data-message="${messageId}">${icon('undo', 14)} Undo</button>` : ''}
     </span>
   </div>`;
@@ -317,6 +317,7 @@ export default {
       if (effect.type === 'theme') setTheme(effect.mode === 'system' ? null : effect.mode);
       else if (effect.type === 'navigate') ctx.navigate(effect.path);
       else if (effect.type === 'settings') applySettingsEffect(effect);
+      else if (effect.type === 'open') openLink(effect.url);
     }
 
     /** `spoken`: the question was said, not typed; with the default read-aloud setting the answer is then spoken as it arrives. */

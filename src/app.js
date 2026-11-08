@@ -19,6 +19,7 @@ const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
 const { createProgrammeTimetables } = require('./ai/programme-timetables');
+const { createExams } = require('./ai/exams');
 const { readBundled } = require('./lib/bundled');
 const { createAccess } = require('./services/access');
 const { createAudit } = require('./services/audit');
@@ -81,7 +82,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
   const programmes = createProgrammeTimetables({ root: config.root, timeZone });
-  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes });
+  const exams = createExams({ root: config.root, timeZone });
+  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, exams });
   const maintenance = createMaintenance({ db, config, settings });
 
   const deps = {

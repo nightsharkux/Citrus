@@ -223,6 +223,33 @@ function createActionRunner({ db, config, access, timetable, audit }) {
       };
     },
 
+    /**
+     * Open one of the university's own pages or documents in a new tab. Only https links on the university's
+     * domain, and on the sites its edition lists (the application portal, Moodle), are accepted, so text in a
+     * document can never send someone anywhere else.
+     */
+    'link.open'(user, a) {
+      let url;
+      try {
+        url = new URL(String(a.url || '').trim());
+      } catch {
+        throw fail('That is not a link I can open.');
+      }
+      const host = url.hostname.toLowerCase();
+      const listed = (config.site.links || []).some((l) => {
+        try {
+          return new URL(l.url).hostname.toLowerCase() === host;
+        } catch {
+          return false;
+        }
+      });
+      if (url.protocol !== 'https:' || url.username || url.password || !(host === 'oth-aw.de' || host.endsWith('.oth-aw.de') || listed)) {
+        throw fail('I can only open links to the university’s own pages.');
+      }
+      const title = String(a.title || '').replace(/\s+/g, ' ').trim().slice(0, 100) || `${host}${url.pathname}`.slice(0, 100);
+      return { title: 'Opening the page', detail: title, link: url.toString(), client: { type: 'open', url: url.toString() } };
+    },
+
     'app.theme'(user, a) {
       const mode = String(a.mode || '').toLowerCase();
       if (!['light', 'dark', 'system'].includes(mode)) throw fail('Choose light, dark or system.');

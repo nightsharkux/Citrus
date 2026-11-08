@@ -8,7 +8,7 @@ import { icon } from './icons.js';
 // ---------------------------------------------------------------- Toasts
 
 let toastHost;
-export function toast(message, tone = 'info', { duration = 3200 } = {}) {
+export function toast(message, tone = 'info', { duration = 3200, href = '', hrefLabel = 'Open' } = {}) {
   if (!toastHost) {
     toastHost = document.createElement('div');
     toastHost.className = 'toasts';
@@ -19,7 +19,7 @@ export function toast(message, tone = 'info', { duration = 3200 } = {}) {
   const el = document.createElement('div');
   el.className = `toast ${tone}`;
   const glyph = tone === 'success' ? 'check-circle' : tone === 'error' ? 'alert' : 'info';
-  render(el, html`${icon(glyph, 18)}<span>${message}</span>`);
+  render(el, html`${icon(glyph, 18)}<span>${message}</span>${href ? html`<a class="btn btn-sm" href="${href}" target="_blank" rel="noopener noreferrer">${hrefLabel}</a>` : ''}`);
   toastHost.append(el);
   setTimeout(() => {
     el.classList.add('is-leaving');
