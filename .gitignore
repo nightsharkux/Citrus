@@ -22,3 +22,6 @@ campusos.tgz
 *.pem
 *.p12
 *.pfx
+
+# Vercel project link
+.vercel/

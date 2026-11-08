@@ -54,4 +54,6 @@ if (standalone) {
   process.on('SIGTERM', shutdown);
 }
 
-module.exports = { server, db, handler, app, config };
+// Vercel requires the default export to be the HTTP server (or a function), so the server is the
+// export and carries the pieces the tests use: const { server, db } = require('./server').
+module.exports = Object.assign(server, { server, db, handler, app, config });
