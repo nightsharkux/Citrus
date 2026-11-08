@@ -130,17 +130,19 @@ export function prompt({ title, label, placeholder = '', confirmLabel = 'Save', 
 // ---------------------------------------------------------------- Menus
 
 /** Small popover menu anchored to a button. items: [{ label, icon, onSelect, danger }] or 'divider'. */
-export function menu(anchor, items) {
+export function menu(anchor, items, { above = false, align = 'end' } = {}) {
   document.querySelectorAll('.menu').forEach((m) => m.remove());
   const el = document.createElement('div');
   el.className = 'menu';
   el.setAttribute('role', 'menu');
-  render(el, html`${items.map((item, i) => (item === 'divider' ? html`<hr>` : html`<button role="menuitem" data-i="${i}" class="${item.danger ? 'danger' : ''}">${item.icon ? icon(item.icon, 17) : ''}${item.label}</button>`))}`);
+  render(el, html`${items.map((item, i) => (item === 'divider' ? html`<hr>` : html`<button role="menuitem" data-i="${i}" class="${item.danger ? 'danger' : ''}">${item.icon ? icon(item.icon, 17) : ''}${item.hint ? html`<span class="menu-text">${item.label}<small>${item.hint}</small></span>` : item.label}</button>`))}`);
   document.body.append(el);
   const r = anchor.getBoundingClientRect();
   const width = el.offsetWidth;
-  el.style.top = `${window.scrollY + r.bottom + 6}px`;
-  el.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, window.scrollX + r.right - width))}px`;
+  const height = el.offsetHeight;
+  el.style.top = `${window.scrollY + (above ? Math.max(8, r.top - height - 8) : r.bottom + 6)}px`;
+  const left = align === 'start' ? r.left : r.right - width;
+  el.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, window.scrollX + left))}px`;
   const close = () => {
     el.remove();
     document.removeEventListener('mousedown', outside, true);

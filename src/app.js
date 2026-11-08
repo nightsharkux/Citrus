@@ -42,6 +42,7 @@ const MODULES = [
   require('./modules/timetable/routes'),
   require('./modules/assistant/routes'),
   require('./modules/workspaces/routes'),
+  require('./modules/insights/routes'),
   require('./modules/knowledge/routes'),
   require('./modules/connect/routes'),
   require('./modules/notifications/routes'),

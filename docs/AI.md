@@ -94,7 +94,7 @@ Gateway access is separate from website hosting. See [DEPLOYMENT.md](DEPLOYMENT.
 
 | Feature | Module | Prompt |
 |---|---|---|
-| Personal assistant (streamed, cited) | `modules/assistant` | `assistantPrompt` |
+| Personal assistant (streamed, cited, with pictures and documents) | `modules/assistant` | `assistantPrompt` |
 | Space assistant (teaching modes) | `modules/workspaces` | `workspacePrompt` |
 | Meeting minutes | `modules/workspaces` (`/analyze`) | `meetingPrompt`. Falls back to a labelled text extractor when AI is off |
 | Live-caption summary | `modules/workspaces` | `captionsSummaryPrompt` |
@@ -146,6 +146,14 @@ Small models often skip the cue. If no cue arrives, the front end makes a cautio
 ## Formatting and maths
 
 The assistant writes Markdown and LaTeX (`FORMAT_GUIDE` in `prompts.js`): formulas between `$…$` or on their own lines between `$$…$$`, numbered working, definition lists, tables and "> **Key idea:**" callouts. The browser draws them with no library: `public/js/core/markdown.js` handles the Markdown and `public/js/core/math.js` converts LaTeX to MathML, which every current browser renders natively with the system's maths font (Cambria Math, STIX Two Math, Latin Modern Math). Fractions stack, roots get a real radical, exponents sit where they belong. Supported: fractions, roots, scripts, Greek, relations and arrows, sums, integrals and limits, matrices, `cases`, `aligned`, accents, `\left…\right` and `\text`. An unknown command is shown as written instead of breaking the answer, and all text is escaped. Read-aloud turns formulas into words ("x squared plus 3") through `speakable()`.
+
+## Conversation and attachments
+
+`CONVERSATION` in `prompts.js` sets how the assistant talks: short natural replies to small talk, structure only for real explanations, memory of the whole thread (the last 24 messages go to the model), one clarifying question only when a request is truly ambiguous, and general help beyond university topics. `ATTACHMENT_GUIDE` is added when the thread has files.
+
+**What it already knows** (`src/ai/context.js`, built for every message from the user's own data only): the time and dates, role and programme, what is on right now and what comes next, enrolled courses with lecturer and next session, exams and deadlines for the next 60 days (a separate section so a busy week cannot push them out), the next 14 days of schedule, free time in the coming three days, topics the student marked as not understood, review items due, key points from recent lectures, spaces, unread notifications and recent conversation titles. Lecturers get how recent topics landed, as counts. `CONTEXT_GUIDE` tells the model to use all this instead of asking, to resolve "my exam" or "tonight" itself, and to say so when something is not in Campus OS. Assignments exist only as `deadline` and `exam` events in the schedule; there is no separate gradebook, and the assistant is told not to guess. `GET /api/assistant` also returns `starters`, conversation openers built from the user's next exam, class or hard topic.
+
+Pictures and documents (`modules/assistant/attachments.js`, UI in `public/js/features/attach.js`): the browser uploads each file as soon as it is added (button, paste or drop) to `POST /api/assistant/attachments` as base64 JSON, then sends the message with `attachments: [ids]`. Pictures are shrunk in the browser (longest side 1600 px, JPEG), checked by their bytes on the server and kept so follow-up questions can still look at them. They go to the model as `image_url` parts, so the selected model must accept images. Documents are read to text once on upload by `src/lib/extract-text.js` (text, Markdown, CSV, JSON, code, HTML, DOCX, PPTX, XLSX and text-based PDFs, with Node built-ins only) and reach the model as `ATTACHMENT` reference blocks, which the safety rules treat as untrusted. A scanned PDF has no text; the user is told to attach photos of the pages. Limits: 3 MB per file (Vercel caps request bodies at 4.5 MB), 6 files per message, 60,000 characters kept per document, the newest 4 pictures per request. Unsent uploads are removed after a day.
 
 ## Actions
 

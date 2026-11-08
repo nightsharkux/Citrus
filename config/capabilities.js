@@ -35,6 +35,7 @@ module.exports = Object.freeze([
     group: 'Assistant and collaboration',
     items: [
       item('assistant', 'Campus, the assistant', 'configuration', '/assistant', 'Conversations with your university context, in a window or full screen. Needs an AI provider.'),
+      item('attachments', 'Pictures and documents', 'limited', '/assistant', 'Attach, paste or drop a photo, screenshot, PDF, Word, PowerPoint, Excel or text file and ask about it. Reading pictures needs an AI model that can see images; scanned PDFs have no text, so attach photos of the pages instead.'),
       item('maths', 'Formulas and worked examples', 'limited', '/assistant', 'Answers are laid out like a textbook: stacked fractions, roots, steps, tables. Quality depends on the AI model.'),
       item('actions', 'Hands-free actions', 'available', '/assistant', 'Ask Campus to add, move or remove your own calendar events, open a page or change the theme. Every change can be undone.'),
       item('explainers', 'Animated explanations', 'limited', '/assistant', 'Campus’s eye turns into small animations — formulas, steps, figures — while it explains. Depends on the AI model.'),

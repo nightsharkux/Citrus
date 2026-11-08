@@ -19,12 +19,14 @@ const { notFound, unavailable } = require('../../http/errors');
 const { assistantPrompt } = require('../../ai/prompts');
 const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
+const { createAttachments } = require('./attachments');
 
 /** Long enough for worked examples with formulas; reasoning models also spend this budget thinking. */
 const ANSWER_TOKENS = 2600;
 
 function register(router, { db, ai, site, buildContext, config, access, timetable, audit }) {
   const runner = createActionRunner({ db, config, access, timetable, audit });
+  const attachments = createAttachments({ db });
   const isoNow = () => new Date().toISOString();
   const assistantName = site.assistant;
   const parseJson = (json, fallback = null) => {
@@ -41,8 +43,8 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
   /** What the model sees of its own earlier actions, so a follow-up like "make it an hour later" can refer to the event id. */
   const withActions = (m) => {
     const done = parseJson(m.actions, []).filter((r) => r.ok && r.eventId);
-    if (!done.length) return { role: m.role, content: m.content };
-    return { role: m.role, content: `${m.content}\n(The app ran: ${done.map((r) => `${r.name} on event id ${r.eventId}, ${r.detail}`).join('; ')}.)` };
+    if (!done.length) return { id: m.id, role: m.role, content: m.content };
+    return { id: m.id, role: m.role, content: `${m.content}\n(The app ran: ${done.map((r) => `${r.name} on event id ${r.eventId}, ${r.detail}`).join('; ')}.)` };
   };
 
   const threadFor = (user, threadId) => {
@@ -57,17 +59,47 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     user.id,
   ).map((t) => ({ ...t, last: t.last ? t.last.slice(0, 120) : '' }));
 
+  /**
+   * Conversation starters made from the user's own situation (their next exam, next class, a topic they
+   * found hard), so the first message needs no explaining. The client falls back to generic ones.
+   */
+  function starters(user) {
+    const clip = (t) => (t.length > 44 ? `${t.slice(0, 43)}…` : t);
+    const now = Date.now();
+    const events = timetable.upcoming(user, { days: 30, limit: 80 });
+    const due = events.find((e) => e.kind === 'exam' || e.kind === 'deadline');
+    const next = events.find((e) => Date.parse(e.starts) > now && Date.parse(e.starts) < now + 2 * 86_400_000 && e.kind !== 'exam' && e.kind !== 'deadline');
+    const out = [];
+    if (user.role === 'student') {
+      if (due) out.push(['target', `How do I get ready for “${clip(due.title)}”?`]);
+      if (next) out.push(['calendar', `What should I know before “${clip(next.title)}”?`]);
+      const hard = db.get(
+        `SELECT t.title FROM responses r JOIN topics t ON t.id = r.topic_id JOIN lectures l ON l.id = t.lecture_id JOIN courses c ON c.id = l.course_id
+         WHERE r.user_id = ? AND c.institution_id = ? AND r.level < 3 ORDER BY r.created DESC LIMIT 1`, user.id, user.institution_id,
+      );
+      if (hard) out.push(['bulb', `Explain “${clip(hard.title)}” again, simply`]);
+      if (events.length) out.push(['clock', 'Plan my study time this week']);
+    } else {
+      if (next) out.push(['presentation', `Help me prepare “${clip(next.title)}”`]);
+      if (due) out.push(['clipboard', `What is coming up with “${clip(due.title)}”?`]);
+      out.push(['bulb', 'Which topics should I revisit with my students?']);
+    }
+    return out.slice(0, 4);
+  }
+
   router.get('/api/assistant', (ctx) => ({
     status: ai.status(ctx.user),
     name: assistantName,
     threads: listThreads(ctx.user),
+    starters: starters(ctx.user),
   }));
 
   router.get('/api/assistant/threads/:id', (ctx) => {
     const t = threadFor(ctx.user, ctx.params.id);
     const messages = db.all('SELECT id, role, content, sources, visual, actions, created FROM assistant_messages WHERE thread_id = ? ORDER BY id', t.id)
       .map((m) => ({ ...m, sources: JSON.parse(m.sources || '[]'), visual: parseJson(m.visual), actions: parseJson(m.actions, []).map(runner.publicView) }));
-    return { thread: t, messages };
+    const files = attachments.forMessages(messages.map((m) => m.id));
+    return { thread: t, messages: messages.map((m) => ({ ...m, attachments: files.get(m.id) || [] })) };
   });
 
   router.patch('/api/assistant/threads/:id', async (ctx) => {
@@ -91,20 +123,24 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
   router.post('/api/assistant/messages', async (ctx) => {
     const user = ctx.user;
     const b = await ctx.json();
-    const prompt = text(b.prompt, { min: 1, max: 4000, label: 'Message' });
+    const files = attachments.claim(user, b.attachments);
+    const prompt = files.length ? text(b.prompt, { max: 4000, optional: true, label: 'Message' }) : text(b.prompt, { min: 1, max: 4000, label: 'Message' });
     if (!ai.status(user).aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
 
     const threadId = optionalId(b.thread_id, 'Conversation');
     const thread = threadId
       ? threadFor(user, threadId)
-      : db.get('SELECT * FROM assistant_threads WHERE id = ?', db.insert('INSERT INTO assistant_threads(user_id, title, created, updated) VALUES(?, ?, ?, ?)', user.id, prompt.replace(/\s+/g, ' ').slice(0, 60), isoNow(), isoNow()));
+      : db.get('SELECT * FROM assistant_threads WHERE id = ?', db.insert('INSERT INTO assistant_threads(user_id, title, created, updated) VALUES(?, ?, ?, ?)', user.id, (prompt || files[0].name).replace(/\s+/g, ' ').slice(0, 60), isoNow(), isoNow()));
 
-    const history = db.all('SELECT role, content, actions FROM assistant_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 12', thread.id).reverse().map(withActions);
-    db.run('INSERT INTO assistant_messages(thread_id, role, content, created) VALUES(?, ?, ?, ?)', thread.id, 'user', prompt, isoNow());
+    const history = attachments.decorate(db.all('SELECT id, role, content, actions FROM assistant_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 24', thread.id).reverse().map(withActions));
+    const userMessageId = db.insert('INSERT INTO assistant_messages(thread_id, role, content, created) VALUES(?, ?, ?, ?)', thread.id, 'user', prompt, isoNow());
+    attachments.link(files, userMessageId);
     db.run('UPDATE assistant_threads SET updated = ? WHERE id = ?', isoNow(), thread.id);
 
     const { sources, references } = ai.retrieveContext(user, [...history.slice(-2).filter((h) => h.role === 'user').map((h) => h.content), prompt].join(' '));
-    const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references });
+    const seen = attachments.forModel(files);
+    const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
+    const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")) });
 
     const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();
@@ -120,7 +156,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const wantsStream = String(ctx.req.headers.accept || '').includes('text/event-stream');
     if (!wantsStream) {
       const results = [];
-      const lead = extractLead(await ai.complete({ user, system, prompt, history, maxTokens: ANSWER_TOKENS }), (action) => results.push(runner.run(user, action)));
+      const lead = extractLead(await ai.complete({ user, system, prompt: turn, history, maxTokens: ANSWER_TOKENS }), (action) => results.push(runner.run(user, action)));
       const answer = lead.text.trim() || summarise(results);
       const { messageId, used } = save(answer, lead.visual, results);
       return { thread: { id: thread.id, title: thread.title }, message: { id: messageId, role: 'assistant', content: answer, sources: used, visual: lead.visual, actions: results.map(runner.publicView) } };
@@ -151,7 +187,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     };
     try {
       let announced = false;
-      for await (const delta of ai.stream({ user, system, prompt, history, signal: controller.signal, maxTokens: ANSWER_TOKENS })) {
+      for await (const delta of ai.stream({ user, system, prompt: turn, history, signal: controller.signal, maxTokens: ANSWER_TOKENS })) {
         emit(cues.push(delta));
         if (!announced && cues.visual) {
           announced = true;
@@ -172,6 +208,23 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     }
     res.off('close', abort);
     res.end();
+  });
+
+  // ---- Attachments: upload first, then send the message with the returned ids.
+  router.post('/api/assistant/attachments', async (ctx) => {
+    const b = await ctx.json(4_400_000);
+    return { attachment: attachments.add(ctx.user, b) };
+  }, { maxBody: 4_400_000 });
+
+  router.get('/api/assistant/attachments/:id/file', (ctx) => {
+    const f = attachments.file(ctx.user, id(ctx.params.id));
+    ctx.res.writeHead(200, { 'Content-Type': f.mime, 'Content-Length': f.bytes.length, 'Cache-Control': 'private, max-age=86400', 'X-Content-Type-Options': 'nosniff', 'Content-Disposition': 'inline' });
+    ctx.res.end(f.bytes);
+  });
+
+  router.delete('/api/assistant/attachments/:id', (ctx) => {
+    attachments.remove(ctx.user, id(ctx.params.id));
+    return { ok: true };
   });
 
   /** Undo something the assistant did. The server keeps the undo data; the client only says which result. */

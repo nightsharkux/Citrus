@@ -7,4 +7,6 @@ module.exports = [
   require('./004-assistant-visuals'),
   require('./005-app-keys'),
   require('./006-assistant-actions'),
+  require('./007-lecture-insights'),
+  require('./008-assistant-attachments'),
 ];

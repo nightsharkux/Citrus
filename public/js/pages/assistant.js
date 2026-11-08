@@ -15,6 +15,7 @@ import { setTheme } from '../shell.js';
 import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.js';
 import { inferVisual } from '../features/face-visuals.js';
 import { wake, dictate, speak, stopSpeaking, voiceProblem } from '../features/voice.js';
+import { createAttachments, attachmentList, zoomPicture, watchDrops, pastedFiles, ACCEPT } from '../features/attach.js';
 
 const SUGGESTIONS = {
   student: [
@@ -75,7 +76,7 @@ function actionCard(a, messageId, index) {
 const actionList = (actions, messageId) => (actions?.length ? html`<div class="actions">${actions.map((a, i) => actionCard(a, messageId, i))}</div>` : '');
 
 function messageView(m) {
-  if (m.role === 'user') return html`<div class="msg user"><div class="bubble">${m.content}</div></div>`;
+  if (m.role === 'user') return html`<div class="msg user"><div class="bubble-stack">${attachmentList(m.attachments)}${m.content ? html`<div class="bubble">${m.content}</div>` : ''}</div></div>`;
   const citations = new Set((m.sources || []).map((s) => s.n));
   return html`<div class="msg ai">
     <span class="msg-avatar">${faceMark()}</span>
@@ -92,13 +93,19 @@ function messageView(m) {
   </div>`;
 }
 
-function welcome() {
+/** Starters from the user's own situation first, then generic ones, four in all. */
+function startersFor(role, personal = []) {
+  const all = [...personal, ...(SUGGESTIONS[role] || SUGGESTIONS.student)];
+  return all.filter(([, text], i) => all.findIndex(([, t]) => t === text) === i).slice(0, 4);
+}
+
+function welcome(starters) {
   const role = session.user.role;
   return html`<div class="chat-welcome stagger">
     <span data-hero-face></span>
     <h1>Hi ${firstName()}, what can I help with?</h1>
     <p class="muted">Campus knows your courses, your schedule and your university’s approved information.</p>
-    <div class="suggestions">${(SUGGESTIONS[role] || SUGGESTIONS.student).map(([glyph, text]) => html`<button class="suggestion" data-suggest="${text}">${icon(glyph, 18)}<span>${text}</span></button>`)}</div>
+    <div class="suggestions">${startersFor(role, starters).map(([glyph, text]) => html`<button class="suggestion" data-suggest="${text}">${icon(glyph, 18)}<span>${text}</span></button>`)}</div>
   </div>`;
 }
 
@@ -129,6 +136,7 @@ export default {
           ${threadList(data.threads, active?.id)}
         </aside>
         <section class="chat-main">
+          <div class="drop-hint" aria-hidden="true">${icon('upload', 26)}<strong>Drop to attach</strong><span>Pictures, PDFs, Word, PowerPoint, Excel and text files</span></div>
           <header class="chat-head">
             <button class="btn btn-ghost btn-icon chat-history-btn" data-history aria-label="Conversations">${icon('history', 19)}</button>
             <span class="chat-face-slot" data-face-slot></span>
@@ -143,18 +151,19 @@ export default {
             </div>
           </header>
           <div class="chat-log" id="chat-log" aria-live="polite">
-            ${data.thread?.messages.length ? data.thread.messages.map(messageView) : welcome()}
+            ${data.thread?.messages.length ? data.thread.messages.map(messageView) : welcome(data.starters)}
           </div>
           <div class="composer-wrap">
             ${ready ? '' : html`<div class="notice warning" style="margin-bottom:10px">${icon('info', 18)}<span>${session.user.role === 'admin' ? html`Campus wakes up once you connect a model in <a href="/admin/ai">AI & knowledge</a>.` : 'Campus is asleep until your administrator connects an AI model.'}</span></div>`}
             <form class="composer" id="composer">
-              <textarea name="prompt" rows="1" placeholder="Message Campus…" aria-label="Message Campus" maxlength="4000" ${ready ? '' : 'disabled'}></textarea>
+              <div class="att-tray" hidden></div>
+              <button type="button" class="btn btn-ghost btn-icon composer-attach" data-attach aria-label="Attach a picture or file" title="Attach a picture or file" ${ready ? '' : 'disabled'}>${icon('plus', 20)}</button>
+              <textarea name="prompt" rows="1" placeholder="Message Campus, or paste a picture" aria-label="Message Campus" maxlength="4000" ${ready ? '' : 'disabled'}></textarea>
               <div class="composer-actions">
                 <button type="button" class="btn btn-ghost btn-icon" data-dictate aria-label="Dictate" title="Dictate" ${ready ? '' : 'disabled'}>${icon('mic', 19)}</button>
                 <button class="btn btn-primary btn-icon composer-send" aria-label="Send" ${ready ? '' : 'disabled'}>${icon('arrow-up', 19)}</button>
               </div>
             </form>
-            <p class="chat-foot">Campus can make mistakes. Check important details with the linked source.</p>
           </div>
         </section>
       </div>`;
@@ -169,6 +178,42 @@ export default {
     let controller = null;
     let hideTimer = 0;
     let dictation = null;
+    let preparing = false;
+
+    // ---- Pictures and documents: add by button, paste or drop. They upload as soon as they are added.
+    const sendButton = $('.composer-send', form);
+    const attach = createAttachments({
+      tray: $('.att-tray', form),
+      onChange: () => form.classList.toggle('has-files', attach.count > 0),
+      onError: (message) => toast(message, 'error'),
+    });
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.multiple = true;
+    picker.hidden = true;
+    form.append(picker);
+    picker.addEventListener('change', () => {
+      attach.add(picker.files);
+      picker.value = '';
+      if (matchMedia('(pointer: fine)').matches) field.focus();
+    });
+    const choose = (accept, capture) => {
+      picker.accept = accept;
+      if (capture) picker.setAttribute('capture', 'environment');
+      else picker.removeAttribute('capture');
+      picker.click();
+    };
+    const touch = matchMedia('(pointer: coarse)').matches;
+    const offDrops = watchDrops($('.chat-main', root), $('.drop-hint', root), (files) => ready && attach.add(files));
+    const onPaste = (e) => {
+      const files = pastedFiles(e);
+      if (!files.length || !ready) return;
+      const target = e.target;
+      if (target !== field && target.closest?.('input, textarea, [contenteditable]')) return;
+      e.preventDefault();
+      attach.add(files);
+    };
+    document.addEventListener('paste', onPaste);
 
     // ---- Faces: one in the header (grows into an illustration stage), one large on the welcome screen.
     const headFace = createFace({ size: 44, mood: ready ? 'idle' : 'asleep' });
@@ -205,10 +250,18 @@ export default {
       autosize();
       if (!controller && faces.showingVisual) faces.hideVisual();
     });
+    let lastQuestion = [...(data.thread?.messages || [])].reverse().find((m) => m.role === 'user' && m.content)?.content || '';
     field.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         form.requestSubmit();
+      } else if (e.key === 'ArrowUp' && !field.value && lastQuestion) {
+        // Like a terminal: Up brings back your last message to edit and send again.
+        e.preventDefault();
+        field.value = lastQuestion;
+        autosize();
+      } else if (e.key === 'Escape' && controller) {
+        controller.abort();
       }
     });
 
@@ -233,16 +286,26 @@ export default {
     }
 
     async function send(text) {
-      const question = text.trim();
-      if (!question || controller) return;
+      if (controller || preparing) return;
       if (!ready) {
         faces.react('confused', 1600);
         return;
       }
+      if (attach.uploading) {
+        preparing = true;
+        sendButton.classList.add('is-busy');
+        await attach.settled();
+        sendButton.classList.remove('is-busy');
+        preparing = false;
+      }
+      const question = text.trim();
+      const files = attach.ready();
+      if (!question && !files.length) return;
+      if (question) lastQuestion = question;
       $('.chat-welcome', log)?.remove();
       dropHero();
       faces.hideVisual({ immediate: true });
-      log.insertAdjacentHTML('beforeend', messageView({ role: 'user', content: question }).value);
+      log.insertAdjacentHTML('beforeend', messageView({ role: 'user', content: question, attachments: files }).value);
       const holder = document.createElement('div');
       holder.className = 'msg ai is-streaming';
       render(holder, html`<span class="msg-avatar">${faceMark()}</span><div class="msg-body"><div class="actions" hidden></div><div class="prose"><span class="typing"><i></i><i></i><i></i></span></div></div>`);
@@ -266,9 +329,10 @@ export default {
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
-        await stream('/assistant/messages', { prompt: question, thread_id: threadId }, {
+        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id) }, {
           signal: controller.signal,
           onEvent(type, payload) {
+            if (type === 'thread') attach.sent();
             if (type === 'thread' && !threadId) {
               threadId = payload.id;
               history.replaceState({}, '', `/assistant/${threadId}`);
@@ -403,6 +467,12 @@ export default {
 
     const offs = [
       on(root, 'click', '[data-suggest]', (e, b) => send(b.dataset.suggest)),
+      on(root, 'click', '[data-attach]', (e, b) => menu(b, [
+        { label: 'Upload a picture', hint: 'Photo, screenshot or diagram', icon: 'image', onSelect: () => choose(ACCEPT.picture) },
+        { label: 'Upload a document', hint: 'PDF, Word, PowerPoint, Excel, text', icon: 'file', onSelect: () => choose(ACCEPT.document) },
+        ...(touch ? [{ label: 'Take a photo', hint: 'Use the camera', icon: 'camera', onSelect: () => choose(ACCEPT.picture, true) }] : []),
+      ], { above: true, align: 'start' })),
+      on(root, 'click', '[data-zoom]', (e, b) => zoomPicture(b.dataset.zoom, b.dataset.name)),
       on(root, 'click', '[data-dictate]', (e, b) => {
         if (dictation) {
           dictation.stop();
@@ -520,6 +590,9 @@ export default {
       offWakeState();
       document.removeEventListener('campus:stop', onStop);
       dictation?.stop();
+      offDrops();
+      document.removeEventListener('paste', onPaste);
+      attach.clear();
       stopTyping();
       controller?.abort();
       clearTimeout(hideTimer);

@@ -38,13 +38,24 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     return [{ id: 'off', label: 'Off', location: null, ready: true, missing: null }, ...PROVIDERS.map((p) => ({ id: p.id, label: p.label, location: p.location, model: p.model(env), ready: !p.missing(env), missing: p.missing(env) }))];
   }
 
+  /**
+   * A message's content is plain text, or text plus pictures for the model to look at.
+   * `images` are data URLs that the server itself produced from validated uploads.
+   */
+  function content(text, images, limit) {
+    const body = String(text).slice(0, limit);
+    if (!images?.length) return body;
+    return [{ type: 'text', text: body }, ...images.slice(0, 4).map((url) => ({ type: 'image_url', image_url: { url } }))];
+  }
+
   function buildMessages(input, history) {
+    const turn = input && typeof input === 'object' ? input : { text: input };
     return [
       ...history
         .filter((h) => h && (h.role === 'user' || h.role === 'assistant'))
-        .slice(-10)
-        .map((h) => ({ role: h.role, content: String(h.content).slice(0, 4000) })),
-      { role: 'user', content: String(input).slice(0, 25_000) },
+        .slice(-24)
+        .map((h) => ({ role: h.role, content: content(h.content, h.images, 40_000) })),
+      { role: 'user', content: content(turn.text, turn.images, 90_000) },
     ];
   }
 
