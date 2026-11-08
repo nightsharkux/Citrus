@@ -25,3 +25,6 @@ campusos.tgz
 
 # Vercel project link
 .vercel/
+
+# Python bytecode from scripts/
+__pycache__/
