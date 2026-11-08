@@ -56,7 +56,7 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 
 ### Turn on the extras
 
-- **AI:** add `AI_GATEWAY_API_KEY` to `.env` and restart. In Admin, open *AI & knowledge*, select *Vercel AI Gateway* and use *Test connection*. Configure `CAMPUS_AI_DEFAULT_MODEL` and `CAMPUS_AI_SUMMARY_MODEL` to change models. See [docs/AI.md](docs/AI.md).
+- **AI:** add `AI_GATEWAY_API_KEY` to `.env` and restart. In Admin, open *AI & knowledge*, select *Vercel AI Gateway* and use *Test connection*. Configure `CAMPUS_AI_DEFAULT_MODEL` and `CAMPUS_AI_SUMMARY_MODEL` with `provider/model/reasoning` slugs (Terra `/medium`, Luna `/low` by default). See [docs/AI.md](docs/AI.md).
 - **University knowledge:** in the same screen, click *Import OTH public pack*. That adds 46 public, source-linked records the assistant can cite. You can also import your own `.jsonl`, `.md` or `.txt` files.
 - **Single sign-on:** set `OIDC_ISSUER`, `OIDC_CLIENT_ID` and `OIDC_CLIENT_SECRET`, then register `PUBLIC_URL/auth/sso/callback` with your identity provider.
 - **Moodle:** set `MOODLE_URL`. Each user links their own account under Settings → Connections.

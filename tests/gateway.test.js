@@ -20,8 +20,8 @@ test('gateway uses its own server key, task models and bounded output with confi
   assert.equal(requests[0].body.model, 'openai/gpt-6.1-terra');
   assert.equal(requests[1].body.model, 'openai/gpt-6-luna');
   assert.equal(requests[1].body.max_tokens, 800);
-  assert.deepEqual(requests[0].body.reasoning, { effort: 'none' });
-  assert.deepEqual(requests[1].body.reasoning, { effort: 'none' });
+  assert.deepEqual(requests[0].body.reasoning, { effort: 'medium' });
+  assert.deepEqual(requests[1].body.reasoning, { effort: 'low' });
   assert.deepEqual(requests[0].body.provider, { sort: 'cost' });
   assert.equal(requests[0].body.models, undefined, 'no automatic model escalation');
   assert.doesNotMatch(JSON.stringify(providers.list()) + JSON.stringify(providers.status('gateway')), /fixture-key/);
@@ -30,6 +30,58 @@ test('gateway uses its own server key, task models and bounded output with confi
   const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_DEFAULT_MODEL: 'other/model', CAMPUS_AI_SUMMARY_MODEL: 'other/summary' } });
   assert.equal(custom.status('gateway').model, 'other/model');
   assert.equal(custom.status('gateway').summaryModel, 'other/summary');
+});
+
+test('gateway separates reasoning suffixes from model IDs for complete and streamed requests', async () => {
+  const requests = [];
+  const providers = makeProviders({
+    env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_DEFAULT_MODEL: ' google/gemini-2.5-flash-lite/high ', CAMPUS_AI_SUMMARY_MODEL: 'openai/gpt-6-luna/none' },
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push(body);
+      return body.stream
+        ? new Response('data: {"choices":[{"delta":{"content":"A streamed reply."}}]}\n\ndata: [DONE]\n\n')
+        : Response.json({ choices: [{ message: { content: 'A reply.' } }] });
+    },
+  });
+  assert.equal(providers.status('gateway').model, 'google/gemini-2.5-flash-lite/high');
+  await providers.generate('gateway', 'Instructions', 'Question');
+  assert.equal(requests.at(-1).model, 'google/gemini-2.5-flash-lite');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'high' });
+  await providers.generate('gateway', 'Instructions', 'Notes', [], { task: 'summary' });
+  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'none' });
+  let reply = '';
+  for await (const delta of providers.stream('gateway', 'Instructions', 'Question')) reply += delta;
+  assert.equal(reply, 'A streamed reply.');
+  assert.equal(requests.at(-1).model, 'google/gemini-2.5-flash-lite');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'high' });
+
+  const bare = makeProviders({
+    env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_DEFAULT_MODEL: 'openai/gpt-6.1-terra', CAMPUS_AI_SUMMARY_MODEL: 'other/summary' },
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      assert.equal(body.reasoning, undefined, 'a bare model uses the provider default');
+      assert.ok(['openai/gpt-6.1-terra', 'other/summary'].includes(body.model));
+      return Response.json({ choices: [{ message: { content: 'A reply.' } }] });
+    },
+  });
+  await bare.generate('gateway', 'Instructions', 'Question');
+  await bare.generate('gateway', 'Instructions', 'Notes', [], { task: 'summary' });
+});
+
+test('invalid model slugs disable AI and never make a gateway request', async () => {
+  for (const setting of ['CAMPUS_AI_DEFAULT_MODEL', 'CAMPUS_AI_SUMMARY_MODEL']) {
+    for (const value of ['openai', '/model/low', 'openai//low', 'openai/model/', 'openai/model/medum', 'openai/model/low/extra', 'openai/a model/low']) {
+      const providers = makeProviders({
+        env: { AI_GATEWAY_API_KEY: 'key', [setting]: value },
+        fetchImpl: async () => { assert.fail('invalid configuration must not reach the gateway'); },
+      });
+      assert.equal(providers.status('gateway').aiEnabled, false, setting + '=' + value);
+      assert.match(providers.status('gateway').description, /model settings|reasoning level/);
+      await assert.rejects(providers.generate('gateway', 'Instructions', 'Question'), /not configured/);
+    }
+  }
 });
 
 test('gateway streams only visible text and fails without trying another provider', async () => {
@@ -80,7 +132,7 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   }
   const selected = await app.call('admin', 'PATCH', '/api/ai/settings', { provider: 'gateway' });
   assert.equal(selected.status, 200);
-  assert.equal(selected.body.summaryModel, 'openai/gpt-6-luna');
+  assert.equal(selected.body.summaryModel, 'openai/gpt-6-luna/low');
   assert.doesNotMatch(JSON.stringify(selected.body), /gateway-fixture-secret/);
   assert.equal((await app.call('admin', 'GET', '/api/ai/settings')).body.provider, 'gateway');
   assert.equal((await app.call('outsider', 'GET', '/api/assistant')).body.status.provider, 'off');
@@ -88,20 +140,24 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra');
   assert.equal((await app.call('student', 'POST', '/api/assistant/messages', { prompt: 'Explain a linear algorithm.', task: 'summary', model: 'expensive/model' })).status, 200);
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra', 'clients cannot override server routing');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'medium' });
 
   const space = (await app.call('admin', 'POST', '/api/workspaces', { title: 'Gateway fixture meeting', kind: 'meeting' })).body;
   const base = `/api/workspaces/${space.id}`;
   assert.equal((await app.call('admin', 'POST', `${base}/notes`, { category: 'note', content: 'We agreed to review the draft tomorrow.' })).status, 201);
   assert.equal((await app.call('admin', 'POST', `${base}/analyze`, {})).status, 200);
   assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
   await app.call('admin', 'POST', `${base}/live`, { active: true });
   await app.call('admin', 'POST', `${base}/captions`, { text: 'We will review the draft tomorrow, agree changes, then send the final copy.' });
   assert.equal((await app.call('admin', 'POST', `${base}/captions/summary`, {})).status, 200);
   assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
   await app.call('student', 'POST', '/api/suggestions', { message: 'Improve the search filters.' });
   await app.call('student', 'POST', '/api/suggestions', { message: 'Make search results easier to scan.' });
   assert.equal((await app.call('admin', 'POST', '/api/admin/suggestions/summary')).status, 200);
   assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
 
   await app.call('student', 'POST', '/api/courses/1/enroll');
   reply = JSON.stringify([{ question: 'Which growth rate is linear?', options: ['O(n)', 'O(log n)', 'O(n²)', 'O(1)'], answer: 0, explanation: 'Work grows with input size.' }]);

@@ -35,8 +35,8 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra
-   CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna
+   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra/medium
+   CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
    ```
 
 3. Restart with `npm start`. In **Admin → AI & knowledge**, select **Vercel AI Gateway**, save and use **Test connection**. The institution's saved Gateway/Off choice takes precedence over `CAMPUS_AI_PROVIDER`. With no saved choice, Gateway is the default; a missing key leaves it inactive.
@@ -46,14 +46,18 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_AI_DEFAULT_MODEL` |
-| Meeting minutes, live-caption summaries and feedback themes | `openai/gpt-6-luna` | `CAMPUS_AI_SUMMARY_MODEL` |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra/medium` | `CAMPUS_AI_DEFAULT_MODEL` |
+| Meeting minutes, live-caption summaries and feedback themes | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
 
 Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
 The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists GPT-6.1 Terra at $1.00 input / $5.00 output and GPT-6 Luna at $0.10 / $0.50 per million text tokens at standard global rates for contexts below 272,001 tokens. At 3,000 input and 500 output tokens, 1,000 requests would cost about $5.50 and $0.55 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
 
-The adapter disables thinking for these two default models, preserves each feature's output limit, and asks the gateway to sort providers by cost for the selected model. Other model overrides use that model's default reasoning behavior. No fallback model or automatic premium-model escalation is configured. Evaluate Terra against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
+Model settings accept `provider/model/reasoning`: the default uses medium reasoning and summaries use low. The adapter removes the final segment from the model ID and sends it as `reasoning.effort` to the [gateway reasoning API](https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/reasoning). No separate reasoning environment variable is needed.
+
+Omit the segment to use the model's own default, or use `/none` to disable reasoning where supported. Gateway effort names are `none`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`; only use a level supported by the selected model. The gateway validates model-specific support and translates the setting to the serving provider's controls. Malformed slugs and unknown effort names disable AI configuration before a request is sent.
+
+The adapter preserves each feature's output token limit and asks the gateway to sort providers by cost for the selected model. Reasoning tokens can consume the output budget and are billable; the price examples above exclude additional reasoning tokens. No fallback model or automatic premium-model escalation is configured. Evaluate Terra against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
 
 Terra supports the current text Chat Completions requests. Future tool calling with Terra requires the Responses API.
 

@@ -23,10 +23,12 @@ For the existing code, run `npm start` on a persistent Node server using the VPS
 | Variable | Value | Required? |
 |---|---|---|
 | `AI_GATEWAY_API_KEY` | Your Vercel AI Gateway key | Required for AI; store as Secret |
-| `CAMPUS_AI_DEFAULT_MODEL` | `openai/gpt-6.1-terra` | Optional; shown default |
-| `CAMPUS_AI_SUMMARY_MODEL` | `openai/gpt-6-luna` | Optional; shown default |
+| `CAMPUS_AI_DEFAULT_MODEL` | `openai/gpt-6.1-terra/medium` | Optional; shown default |
+| `CAMPUS_AI_SUMMARY_MODEL` | `openai/gpt-6-luna/low` | Optional; shown default |
 | `CAMPUS_AI_PROVIDER` | `gateway` | Optional; `gateway` or `off`; saved Admin choice wins |
 | `CAMPUS_AI_RATE_PER_MINUTE` | `12` | Optional; per-user request quota, not a spending cap |
+
+Model values use `provider/model/reasoning`. Campus OS sends the model ID and reasoning effort separately to the gateway. Omit the reasoning segment to use the model default; use only a level supported by that model.
 
 These are the only AI environment variables. Do not add direct-provider keys or local model URLs. Complete Vercel AI Gateway billing setup before testing requests; configure any spending budget in the gateway dashboard.
 
@@ -139,8 +141,8 @@ CAMPUS_ADMIN_EMAIL=you@example.edu
 CAMPUS_ADMIN_PASSWORD=<a new long password, not the one from your PC>
 # AI through Vercel AI Gateway
 AI_GATEWAY_API_KEY=<your gateway key>
-CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra
-CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna
+CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra/medium
+CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
 ```
 
 `HOST=127.0.0.1` keeps Campus OS reachable only through Caddy. `TRUST_PROXY=1` lets rate limits see real visitor addresses.
