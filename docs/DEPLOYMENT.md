@@ -1,6 +1,6 @@
 # Putting Campus OS online
 
-Campus OS needs a machine that runs Node.js continuously and keeps its `storage/` folder (a SQLite database plus key files). That rules out serverless hosts (Vercel, Netlify), static hosting, and ordinary PHP web space.
+Campus OS runs on a machine that keeps its `storage/` folder (a SQLite database plus key files), or on Vercel with a hosted Turso database (see below). Static hosting and ordinary PHP web space cannot run it.
 
 | Option | Good for | Effort |
 |---|---|---|
@@ -14,9 +14,28 @@ Campus OS needs a machine that runs Node.js continuously and keeps its `storage/
 
 ## Vercel hosting and environment variables
 
-**The current backend needs a persistent disk and a long-running Node process. It is not ready for Vercel Functions.** SQLite, meeting audio, the connector encryption key, the NFC HMAC key and Web Push keys live on disk. Vercel Functions have ephemeral storage that is not shared across instances ([Vercel's SQLite guidance](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel)). Moving `DB_PATH` to `/tmp` does not provide durability. There is no `DATABASE_URL` integration in this app.
+Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Campus OS at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/campusos.db` as before.
 
-For the existing code, run `npm start` on a persistent Node server using the VPS steps below. Vercel AI Gateway works from that server. Hosting the backend on Vercel requires separate work: an external durable database, object storage, persistent secret handling, and changes to background maintenance, rate limits and real-time delivery. Deploying just `public/` also omits the server APIs and server-rendered configuration.
+**Set up the database**
+
+1. In the Vercel Marketplace, search for **Turso Cloud**, create a database and connect it to the project. Vercel then adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for you. Without the integration, create a database at turso.tech and add both variables by hand (`TURSO_DATABASE_URL` looks like `libsql://name-org.turso.io`; store the token as a Secret).
+2. Pick the database region closest to your Vercel function region. Every query is a network round trip.
+3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Campus OS creates its tables and the administrator. Deploying again never repeats this.
+4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Campus OS generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
+
+Check the connection from your machine with `TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run check`.
+
+**How it works.** Queries are sent to Turso over HTTPS by a worker thread while the main thread waits, so the existing synchronous code runs unchanged (`src/db/remote.js`). While a query is in flight that instance handles nothing else, which is fine for a pilot with the database in the same region. Scaling to many users calls for making the data layer asynchronous.
+
+**What does not work on Vercel yet**
+
+- **Meeting recordings.** Audio is stored as files. Uploads return a clear error until object storage is added.
+- **Live updates and device long-polling** are held in memory per instance, so a visitor can miss an update that happened on another instance.
+- **Rate limits** are per instance.
+- **Background clean-up** (expired sessions, recording retention) runs hourly only while an instance is warm.
+- **Backups.** `npm run backup` copies a local file. For Turso use `turso db shell <name> .dump` or its point-in-time restore.
+
+Run the tests against the hosted-database code path with `CAMPUS_TEST_DB=turso npm test` (PowerShell: `$env:CAMPUS_TEST_DB='turso'; npm test`). They use a local stand-in for Turso, not a real account.
 
 ### AI variables
 
@@ -32,7 +51,7 @@ Model values use `provider/model/reasoning`. Campus OS sends the model ID and re
 
 These are the only AI environment variables. Do not add direct-provider keys or local model URLs. Complete Vercel AI Gateway billing setup before testing requests; configure any spending budget in the gateway dashboard.
 
-### App variables on the backend host
+### App variables
 
 | Variable | Value / purpose |
 |---|---|
@@ -43,13 +62,13 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 | `COOKIE_SECURE` | `1` for HTTPS. On by default on Vercel; set it yourself behind your own HTTPS proxy. |
 | `TRUST_PROXY` | `1` only when the app is behind your trusted reverse proxy. On by default on Vercel. |
 | `HOST`, `PORT` | Bind address and port required by the Node host; see VPS example below |
+| `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Hosted database. Required on Vercel; when the URL is set, `DB_PATH` is ignored |
+| `CAMPUS_MASTER_KEY`, `CAMPUS_NFC_KEY` | Optional 32-byte keys (64 hex characters or base64). Default: files in `storage/`, or the `app_keys` table on a hosted database |
 | `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
 
 When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/campusos` and `/var/lib/campusos/campusos.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
 
 ### Entering variables in Vercel
-
-These steps configure a Vercel project; they do not resolve the backend hosting requirements above.
 
 1. Open the project, then **Settings > Environment Variables**.
 2. Add each variable using its exact name and its raw value. Choose **Secret** for the gateway key and administrator password, and **Config** for model IDs and other non-sensitive settings. Older dashboards may call the secret option **Sensitive** ([Vercel reference](https://vercel.com/docs/environment-variables/sensitive-environment-variables)).

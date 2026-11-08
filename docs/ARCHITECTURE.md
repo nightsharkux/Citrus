@@ -26,7 +26,7 @@ Errors: throw HttpError (src/http/errors.js) → { error } JSON with that status
 | `src/config.js` | **Every** environment variable the server reads, with its default. AI keys are the exception: providers read them lazily. |
 | `src/app.js` | The composition root. It builds shared services once, puts them in `deps`, and calls `register(router, deps)` on each module in `MODULES`. |
 | `src/http/` | Router, body parsing, errors, security headers, rate limiting, static serving. |
-| `src/db/` | `database.js` (helpers `get/all/run/insert/transaction`), `migrate.js`, `migrations/NNN-*.js`, `seed.js`. |
+| `src/db/` | `database.js` (helpers `get/all/run/insert/transaction`, local SQLite file), `remote.js` (the same API against hosted Turso), `migrate.js`, `migrations/NNN-*.js`, `seed.js`. |
 | `src/services/` | Cross-cutting services: `access` (all permission checks), `audit`, `settings`, `rooms`, `maintenance`. |
 | `src/modules/<area>/` | One folder per feature. `routes.js` exports `register(router, deps)`. Stateful logic lives in `service.js`. |
 | `src/ai/` | Providers, prompts, retrieval, personal context, and `service.js` (the single AI entry point). See [AI.md](AI.md). |
@@ -52,6 +52,8 @@ A module takes only what it needs: `register(router, { db, access, notifier })`.
 - **Schema changes:** add `src/db/migrations/NNN-name.js` and register it in `migrations/index.js`. Keep migrations additive. Never edit one that has shipped.
 
 ### Storage (back up as one unit)
+
+With `TURSO_DATABASE_URL` set, the database and the three key entries live in Turso (`app_keys`) and only audio recordings need a disk. The rest of this section describes the default local setup.
 
 `storage/campusos.db` (plus `-wal`/`-shm`), `storage/audio/`, `storage/master.key`, `storage/nfc-hmac.key` and `storage/vapid.json`. Losing `master.key` makes device secrets and Moodle tokens unreadable. Losing `nfc-hmac.key` unlinks every card.
 
@@ -113,5 +115,6 @@ The brand is the wordmark "Campus OS", whose O is the gradient ring (`wordmark()
 
 - Single process with an in-memory rate limiter, SSE bus and long-poll waiters. Scaling out needs Redis or Postgres for those three.
 - SQLite with WAL is fine for one faculty. For a whole university, plan a move to PostgreSQL. The query helpers are isolated in `src/db/database.js`.
+- The hosted database driver (`src/db/remote.js`) keeps the synchronous API by blocking the calling thread during each query. Fine for a pilot with the database near the server; a larger deployment should make the data layer asynchronous.
 - Browser speech recognition (dictation, wake word, captions) depends on the browser vendor's service.
 - Native store apps, BLE proximity and vendor equipment control are not built. They're marked *In development*.

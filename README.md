@@ -65,7 +65,7 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 
 `npm run check` prints what's configured. `npm test` runs the automated tests.
 
-**Vercel hosting:** the current backend needs persistent disk storage and cannot run reliably on Vercel Functions as-is. AI Gateway works independently of where the app is hosted. See the Vercel section in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#vercel-hosting-and-environment-variables).
+**Vercel hosting:** set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to use a hosted Turso database instead of the local file. Recordings, live updates across instances and a few other features still need a persistent server. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#vercel-hosting-and-environment-variables).
 
 **Putting it online:** see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). It covers your own network, a temporary HTTPS link from your PC (`share-online.bat`), and a Linux server with automatic HTTPS.
 

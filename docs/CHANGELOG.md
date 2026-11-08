@@ -2,6 +2,9 @@
 
 ## 1.1.0 (November 2026)
 
+### Added
+- **Hosted database.** Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` and Campus OS stores everything in Turso instead of `storage/campusos.db`, so it can run on Vercel (`src/db/remote.js`, no new dependencies). Keys that normally live in `storage/` move to the `app_keys` table (migration `005`), or come from `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY`. The server now listens when Vercel loads it. Recordings are unavailable without a disk.
+
 ### Changed
 - **No `PUBLIC_URL`.** Campus OS reads its address from the `VERCEL_*` variables Vercel sets, defaults to localhost elsewhere, and links follow each visitor's address. `TRUST_PROXY` and `COOKIE_SECURE` default on in Vercel. Behind your own proxy set `COOKIE_SECURE=1` and, for single sign-on, `OIDC_REDIRECT_URI`.
 - **Name and brand.** The product is now **Campus OS** and the assistant is **Campus**. The new wordmark uses the edition's gradient ring as its O. The same ring is used for the favicon, the app icons (regenerated for both editions) and `/brand/mark.svg`.
@@ -20,7 +23,8 @@
 - `npm run check` and `npm run backup` now read `.env`.
 
 ### Tests
-- 33 automated tests: visual cues under any stream chunking, the brand mark and manifest per edition, and migration 004.
+- 51 automated tests, including the hosted-database driver against a protocol stand-in. `CAMPUS_TEST_DB=turso npm test` runs the whole suite that way.
+- Visual cues under any stream chunking, the brand mark and manifest per edition, and migration 004.
 
 ## 1.0.0 (November 2026)
 
