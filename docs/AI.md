@@ -24,6 +24,8 @@ Every call is attributed to a user. Their institution's provider setting is appl
 | `src/ai/context.js` | The user's own data for the personal assistant (courses, schedule, difficulties, review) |
 | `src/ai/service.js` | Provider selection per institution, quota, `complete`, `stream`, `retrieve` |
 | `src/ai/visuals.js` | Parses the optional `[visual: …]` cue at the start of an answer (see below) |
+| `src/ai/actions.js` | Finds the `[action: …]` lines at the start of an answer, in any chunking (see *Actions*) |
+| `src/modules/assistant/actions.js` | The actions themselves: what they may touch, how they are validated, how they are undone |
 
 ## Vercel AI Gateway setup
 
@@ -141,12 +143,45 @@ Small models often skip the cue. If no cue arrives, the front end makes a cautio
 
 **Adding a kind:** add the name to `KINDS` in `src/ai/visuals.js`, describe it in `VISUAL_CUES`, and add an entry to `VISUALS` in `face-visuals.js` with `label(content)`, `draw(content)` returning SVG markup in a 100×100 box centred on 0,0, and an optional `start(layer)` that animates it and returns a stop function. Keep it to a few shapes, use the `fv-*` classes in `public/css/face.css` for colour, and give it a still final frame for reduced motion.
 
+## Formatting and maths
+
+The assistant writes Markdown and LaTeX (`FORMAT_GUIDE` in `prompts.js`): formulas between `$…$` or on their own lines between `$$…$$`, numbered working, definition lists, tables and "> **Key idea:**" callouts. The browser draws them with no library: `public/js/core/markdown.js` handles the Markdown and `public/js/core/math.js` converts LaTeX to MathML, which every current browser renders natively with the system's maths font (Cambria Math, STIX Two Math, Latin Modern Math). Fractions stack, roots get a real radical, exponents sit where they belong. Supported: fractions, roots, scripts, Greek, relations and arrows, sums, integrals and limits, matrices, `cases`, `aligned`, accents, `\left…\right` and `\text`. An unknown command is shown as written instead of breaking the answer, and all text is escaped. Read-aloud turns formulas into words ("x squared plus 3") through `speakable()`.
+
+## Actions
+
+Campus can change things for the signed-in user, hands-free. The text-only chat API has no tool calling, so the model starts its answer with one line per action:
+
+```text
+[action: calendar.add | {"title":"Study session","start":"2026-11-10T16:00","duration_minutes":90}]
+
+Adding a study session for tomorrow at 4 pm.
+```
+
+`src/ai/actions.js` removes these lines from the text (only at the very start, so nothing in the middle of an answer is ever run) and calls `src/modules/assistant/actions.js` as soon as each is complete, while the prose is still streaming. Each result is sent as an SSE `action` event, repeated in `done`, and stored in `assistant_messages.actions`. The page shows it as a card with *View* and *Undo*.
+
+| Action | What it does |
+|---|---|
+| `calendar.add` / `calendar.update` / `calendar.delete` | The user's **own** personal events. Times are local (`YYYY-MM-DDTHH:mm`) in the institution's time zone. Overlaps are reported. Recurring events can change title or place, not time. |
+| `app.navigate` | Opens a page (limited to the pages the user's role has) or one of their courses. Carried out by the browser. |
+| `app.theme` | Light, dark or system. Carried out by the browser. |
+
+Safety rules, all enforced on the server:
+
+- Actions run as the user through the same rules as the rest of the app, scoped to `user.institution_id`. Course and university-wide events, other people's events, posting and messaging are out of reach.
+- Every change except navigation is audited (`assistant_action`) and can be undone once (`POST /api/assistant/messages/:id/actions/:index/undo`). The undo data never leaves the server.
+- Text in notes, knowledge sources and transcripts cannot trigger actions: the prompt says so, and only the answer's leading lines are parsed. At most six actions run per answer.
+- The model sees the schedule for 14 days with an `[id N]` on events it may change, plus a table of dates, and its own earlier actions in the history, so "move it an hour later" works.
+
+**Adding an action:** add a function to `ACTIONS` in `src/modules/assistant/actions.js` returning `{ title, detail?, warning?, link?, client?, undo? }`, describe it in `ACTION_GUIDE` in `prompts.js`, and add a test with an access-denied case.
+
 ## Voice
 
 The browser handles voice (`public/js/features/voice.js`):
 
-- `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Campus"*, it listens on every page for "Hey Campus, …" or "Campus, …" (also "hi", "hallo", "ok"). The words after the name are the command. Hearing the name alone arms it for 8 seconds, so the next sentence counts. The open page can handle commands with `wake.onCommand(fn)`. Otherwise the shell opens the assistant. Dictation pauses it automatically.
-- `dictate`, `speak`/`stopSpeaking` (read-aloud) and `createCaptioner` (live captions in spaces).
+- `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Campus"*, one microphone session stays open on every page and reads phrases as they are spoken (interim results, so there is no wait). "Hey Campus, …" works anywhere in a phrase; a bare "Campus, …" only at its start, so "the campus library" never wakes it. Common mishearings (Compass, Campos, Kampus) are accepted. On hearing it, a chime plays, a "Listening" pill shows the words live, and after a short pause the command is sent. Saying the name alone waits about nine seconds for the command. While Campus talks, it ignores what it hears except "Campus, stop".
+- The command goes first to `wake.setInterceptor` (the shell's local commands in `features/commands.js`: "open schedule", "dark mode", "new chat", "stop", "stop listening". They run instantly, even with AI off, and only match whole short sentences), then to the page that registered `wake.onCommand(fn)`, otherwise to the assistant.
+- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `speak`/`stopSpeaking` (read-aloud, in sentence-sized pieces with the best installed voice) and `createCaptioner` (live captions in spaces).
+- Errors are explicit: a blocked microphone, no microphone, or a browser whose speech service cannot be reached (some privacy browsers and embedded webviews) turn the wake word off with a message instead of failing silently.
 - `voiceProblem()` explains why voice is unavailable: unsupported browser, or a page not served over HTTPS or localhost.
 
 To use an on-device engine (Whisper.cpp, Vosk) instead, replace `Recognition` in that file. Hardware pucks do their own speech-to-text and send text as `voice.query` events (see [HARDWARE.md](HARDWARE.md)).

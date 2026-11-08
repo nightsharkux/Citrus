@@ -66,9 +66,11 @@ public/js/shell.js         sidebar, top bar, mobile tab bar, command palette (Ct
 public/js/nav.js           navigation per role (edit here to change menus)
 public/js/routes.js        URL → page module (lazy-loaded)
 public/js/core/            dom (safe html``), api (+SSE stream), router, store, live (SSE), ui (toasts, sheets,
-                           confirm, menus, onSubmit), components, icons, brand (wordmark, ring), format, markdown
+                           confirm, menus, onSubmit), components, icons, brand (wordmark, ring), format,
+                           markdown + math (Markdown and LaTeX → HTML/MathML for answers)
 public/js/features/        face (Campus's animated eye), face-visuals (its illustrations), voice (dictation,
-                           "Hey Campus" wake word, read-aloud, captions), recorder, push, print
+                           "Hey Campus" wake word, read-aloud, captions), commands (spoken commands
+                           that need no AI), recorder, push, print
 public/js/pages/           one module per screen; admin/ for admin screens
 public/css/                tokens.css → base.css → components.css → layout.css → pages.css, plus face.css
                            (wordmark, the face and its illustrations, full-screen chat)

@@ -51,7 +51,9 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 
 - **Ask Campus** is in the menu on every screen, or press Ctrl/⌘K and type a question.
 - **Full screen:** the expand button in the assistant header, or Ctrl/⌘K → *Ask Campus in full screen*. Esc leaves it.
-- **Hey Campus:** turn on *Listen for "Hey Campus"* in Settings → Assistant (or the microphone button in the assistant header). Then say "Hey Campus, …" or just "Campus, …" on any page. Saying only "Campus" opens the assistant and waits for your question. This uses the browser's speech service (Chrome, Edge and Safari) and needs HTTPS or localhost.
+- **Hey Campus:** turn on *Listen for "Hey Campus"* in Settings → Assistant (or the microphone button in the assistant header). Then say "Hey Campus, …" or just "Campus, …" on any page. A chime and a "Listening" pill show it heard you; saying only "Campus" waits for your command. Short commands run instantly ("open schedule", "dark mode", "new chat", "stop"); anything else goes to the assistant, and answers are read aloud. This uses the browser's speech service (Chrome, Edge and Safari) and needs HTTPS or localhost.
+- **Hands-free changes:** ask Campus to "add a study session tomorrow at 4 pm", "move it an hour later" or "open my schedule". It changes your own calendar, opens pages and switches the theme, shows what it did, and every change has an *Undo*. See [docs/AI.md](docs/AI.md#actions).
+- **Textbook explanations:** formulas, worked examples, tables and key ideas are laid out like a textbook, with real fractions, roots and exponents.
 - **Animated explanations:** when a picture helps, Campus's eye turns into a small animation, such as a formula, bars, steps or stick figures. You can turn this off in Settings → Assistant, and replay an illustration from the answer it belongs to.
 
 ### Turn on the extras
