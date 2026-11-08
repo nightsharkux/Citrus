@@ -95,6 +95,7 @@ Gateway access is separate from website hosting. See [DEPLOYMENT.md](DEPLOYMENT.
 | Feature | Module | Prompt |
 |---|---|---|
 | Personal assistant (streamed, cited, with pictures and documents) | `modules/assistant` | `assistantPrompt` |
+| Voice conversation (`mode: 'voice'`) | `modules/assistant` | `assistantPrompt` with `VOICE_GUIDE` instead of `FORMAT_GUIDE` |
 | Space assistant (teaching modes) | `modules/workspaces` | `workspacePrompt` |
 | Meeting minutes | `modules/workspaces` (`/analyze`) | `meetingPrompt`. Falls back to a labelled text extractor when AI is off |
 | Live-caption summary | `modules/workspaces` | `captionsSummaryPrompt` |
@@ -188,7 +189,23 @@ The browser handles voice (`public/js/features/voice.js`):
 
 - `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Campus"*, one microphone session stays open on every page and reads phrases as they are spoken (interim results, so there is no wait). "Hey Campus, …" works anywhere in a phrase; a bare "Campus, …" only at its start, so "the campus library" never wakes it. Common mishearings (Compass, Campos, Kampus) are accepted. On hearing it, a chime plays, a "Listening" pill shows the words live, and after a short pause the command is sent. Saying the name alone waits about nine seconds for the command. While Campus talks, it ignores what it hears except "Campus, stop".
 - The command goes first to `wake.setInterceptor` (the shell's local commands in `features/commands.js`: "open schedule", "dark mode", "new chat", "stop", "stop listening". They run instantly, even with AI off, and only match whole short sentences), then to the page that registered `wake.onCommand(fn)`, otherwise to the assistant.
-- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `speak`/`stopSpeaking` (read-aloud, in sentence-sized pieces with the best installed voice) and `createCaptioner` (live captions in spaces).
+- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `speak`/`stopSpeaking` (read-aloud, in sentence-sized pieces), `createSpeaker` (speaks an answer while it streams in) and `createCaptioner` (live captions in spaces).
+- Read-aloud follows Settings → Assistant → *Read answers aloud*: when the question was spoken (the default), every answer, or never. The voice, a style (speed and pitch) and that choice are stored per device in `features/voices.js`, because voices belong to the browser and system.
+- Speech is reliable by construction: queued utterances are kept in memory (Chrome drops the `end` event of one that is garbage-collected), and a watchdog ends speech the engine silently dropped, so nothing waits forever.
+
+### Voice conversation
+
+`features/conversation.js` is a hands-free conversation, like a phone call. It opens from the waveform button in the message box (shown while the box is empty), Ctrl/⌘K → *Talk to Campus*, or "Hey Campus, let's talk". It is an overlay on top of the app, so it survives page changes: the arrow button, or Campus opening a page, shrinks it to a pill.
+
+```text
+listening → hearing (live words) → thinking → speaking → listening …
+```
+
+- **Answers for the ear.** Questions go to `POST /api/assistant/messages` with `mode: 'voice'`, which swaps `FORMAT_GUIDE` for `VOICE_GUIDE`: one to three spoken sentences, no Markdown, lists or LaTeX, numbers as they are said, at most one question. Speech starts with the first sentence of the stream. Actions, citations and illustrations still work; everything is saved in the open thread (or a new one), and the assistant shows it when the conversation ends.
+- **Turn-taking** (`features/turns.js`, tested in `tests/voice-conversation.test.js`). A turn ends after a pause: about a second once the speech service closes the phrase, longer when the sentence ends on "and", "because", "um" or "the", shorter for "yes" or "thanks". Tapping the eye (or Space) sends at once.
+- **Interrupting.** On computers the microphone stays open while Campus talks. What it hears is compared with what Campus is saying: its own voice is ignored, and a stop word ("wait", "stop") or a few new words cut Campus off and become the next question. Phones send speech to the earpiece while the microphone is open, so there the microphone pauses while Campus talks and a tap interrupts. Speaking while Campus is still thinking replaces the question.
+- **Spoken controls.** "Goodbye", "that's all" or "stop listening" end it; "stop" or "never mind" just quiets Campus. The local commands from `features/commands.js` work too ("open schedule", "dark mode", "new chat").
+- **Microphone.** `createListener` in `voice.js` keeps one continuous recognition session and reopens it whenever the browser ends it, with back-off. It gives up only with a reason (blocked, no microphone, speech service unreachable, unsupported language, keeps stopping), shown with a *Try again* button. Words heard across a reopened session are kept, and Android's repeated phrases are merged. After two quiet minutes the microphone turns itself off. "Hey Campus" pauses during a conversation and resumes afterwards.
 - Errors are explicit: a blocked microphone, no microphone, or a browser whose speech service cannot be reached (some privacy browsers and embedded webviews) turn the wake word off with a message instead of failing silently.
 - `voiceProblem()` explains why voice is unavailable: unsupported browser, or a page not served over HTTPS or localhost.
 

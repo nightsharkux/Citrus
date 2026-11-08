@@ -69,11 +69,13 @@ public/js/core/            dom (safe html``), api (+SSE stream), router, store, 
                            confirm, menus, onSubmit), components, icons, brand (wordmark, ring), format,
                            markdown + math (Markdown and LaTeX → HTML/MathML for answers)
 public/js/features/        face (Campus's animated eye), face-visuals (its illustrations), voice (dictation,
-                           "Hey Campus" wake word, read-aloud, captions), commands (spoken commands
+                           "Hey Campus" wake word, read-aloud, captions, conversation microphone),
+                           voices (voice choice), conversation (hands-free voice conversation),
+                           turns (its turn-taking rules, tested in Node), commands (spoken commands
                            that need no AI), recorder, push, print
 public/js/pages/           one module per screen; admin/ for admin screens
 public/css/                tokens.css → base.css → components.css → layout.css → pages.css, plus face.css
-                           (wordmark, the face and its illustrations, full-screen chat)
+                           (wordmark, the face and its illustrations, full-screen chat, voice conversation)
 public/sw.js               offline shell + Web Push; never caches /api/
 ```
 
@@ -118,5 +120,5 @@ The brand is the wordmark "Campus OS", whose O is the gradient ring (`wordmark()
 - Single process with an in-memory rate limiter, SSE bus and long-poll waiters. Scaling out needs Redis or Postgres for those three.
 - SQLite with WAL is fine for one faculty. For a whole university, plan a move to PostgreSQL. The query helpers are isolated in `src/db/database.js`.
 - The hosted database driver (`src/db/remote.js`) keeps the synchronous API by blocking the calling thread during each query. Fine for a pilot with the database near the server; a larger deployment should make the data layer asynchronous.
-- Browser speech recognition (dictation, wake word, captions) depends on the browser vendor's service.
+- Browser speech recognition (dictation, wake word, captions, voice conversation) depends on the browser vendor's service. Telling Campus's own voice from the user's is a word-overlap heuristic; on phones the microphone pauses while Campus speaks, so interrupting there takes a tap.
 - Native store apps, BLE proximity and vendor equipment control are not built. They're marked *In development*.

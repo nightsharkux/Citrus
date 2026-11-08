@@ -34,6 +34,16 @@ Recordings are the only files the app writes, and they need a disk. On Vercel, u
 
 If NFC readers and classroom pucks matter soon, the VPS option in `DEPLOYMENT.md` avoids most of this table.
 
+## Voice conversation
+
+The turn-taking rules have automated tests. The browser parts (microphone, speech, echo) can only be checked by hand.
+
+| Item | What to do |
+|---|---|
+| Real devices | Hold a conversation in Chrome or Edge on Windows through laptop speakers (not headphones), in Safari on an iPhone and in Chrome on Android. Check that Campus does not cut itself off, that a spoken "wait" stops it, and that a question asked right after it stops is heard. |
+| Echo through loud speakers | If Campus still interrupts itself, raise the thresholds in `isInterruption` (`public/js/features/turns.js`). Headphones avoid echo entirely. |
+| On-device speech | Chrome and Edge send audio to their speech service. For a privacy-first deployment, replace `Recognition` in `voice.js` with an on-device engine. |
+
 ## Planned features
 
 Each is marked `planned` in `config/capabilities.js` and shows as *In development*.
