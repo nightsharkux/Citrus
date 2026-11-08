@@ -6,11 +6,19 @@
  */
 function createContextBuilder({ db, timetable, timeZone }) {
   const fmt = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone, ...opts }).format(new Date(iso));
+  const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 
   const SECTIONS = [
     function clock() {
       const now = new Date().toISOString();
-      return `Now: ${fmt(now, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${fmt(now, { hour: '2-digit', minute: '2-digit' })} (${timeZone})`;
+      const days = Array.from({ length: 14 }, (_, i) => {
+        const d = new Date(Date.now() + i * 86_400_000);
+        return `${fmt(d, { weekday: 'short' })} ${ymd(d)}${i === 0 ? ' (today)' : ''}`;
+      });
+      return [
+        `Now: ${fmt(now, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}, ${fmt(now, { hour: '2-digit', minute: '2-digit' })} (${timeZone})`,
+        `Dates (${timeZone}): ${days.join(', ')}`,
+      ].join('\n');
     },
 
     function profile(user) {
@@ -44,9 +52,11 @@ function createContextBuilder({ db, timetable, timeZone }) {
     },
 
     function schedule(user) {
-      const events = timetable.upcoming(user, { days: 7, limit: 8 });
-      if (!events.length) return 'Upcoming schedule (7 days): nothing in Campus OS';
-      return `Upcoming schedule (7 days):\n${events.map((e) => `- ${fmt(e.starts, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}–${fmt(e.ends, { hour: '2-digit', minute: '2-digit' })} ${e.title}${e.location ? ` @ ${e.location}` : ''}`).join('\n')}`;
+      const events = timetable.upcoming(user, { days: 14, limit: 16 });
+      if (!events.length) return 'Upcoming schedule (14 days): nothing in Campus OS';
+      // Only the user's own events carry an id: those are the ones the assistant may change.
+      const line = (e) => `- ${e.scope === 'personal' ? `[id ${e.id}] ` : ''}${fmt(e.starts, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}–${fmt(e.ends, { hour: '2-digit', minute: '2-digit' })} ${e.title}${e.location ? ` @ ${e.location}` : ''}${e.recurring ? ' (repeats weekly)' : ''}`;
+      return `Upcoming schedule (14 days):\n${events.map(line).join('\n')}`;
     },
   ];
 

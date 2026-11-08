@@ -6,4 +6,5 @@ module.exports = [
   require('./003-ai-and-desk'),
   require('./004-assistant-visuals'),
   require('./005-app-keys'),
+  require('./006-assistant-actions'),
 ];

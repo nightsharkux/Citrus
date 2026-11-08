@@ -7,25 +7,42 @@
  *   event: thread   { id, title }
  *   event: sources  { sources: [...] }     numbered citations from the knowledge library
  *   event: visual   { kind, content }      optional illustration cue (see src/ai/visuals.js)
+ *   event: action   { name, ok, title, detail?, warning?, link?, client?, error?, undoable }
+ *                                          something the assistant did for the user (see ./actions.js)
  *   event: delta    { text }               incremental answer text
- *   event: done     { messageId }
+ *   event: done     { messageId, sources, visual, actions }
  *   event: error    { message }
  * Without that header it returns the whole answer as JSON.
  */
 const { text, id, optionalId } = require('../../lib/validate');
 const { notFound, unavailable } = require('../../http/errors');
 const { assistantPrompt } = require('../../ai/prompts');
-const { extractVisual, createVisualExtractor } = require('../../ai/visuals');
+const { extractLead, createLeadExtractor } = require('../../ai/actions');
+const { createActionRunner } = require('./actions');
 
-function register(router, { db, ai, site, buildContext }) {
+/** Long enough for worked examples with formulas; reasoning models also spend this budget thinking. */
+const ANSWER_TOKENS = 2600;
+
+function register(router, { db, ai, site, buildContext, config, access, timetable, audit }) {
+  const runner = createActionRunner({ db, config, access, timetable, audit });
   const isoNow = () => new Date().toISOString();
   const assistantName = site.assistant;
-  const parseVisual = (json) => {
+  const parseJson = (json, fallback = null) => {
     try {
-      return json ? JSON.parse(json) : null;
+      return json ? JSON.parse(json) : fallback;
     } catch {
-      return null;
+      return fallback;
     }
+  };
+
+  /** Plain sentence for an answer that was only actions, so the thread (and the model's history) still reads naturally. */
+  const summarise = (results) => results.map((r) => (r.ok ? `${r.title}${r.detail ? `: ${r.detail}` : ''}.` : r.error)).join(' ');
+
+  /** What the model sees of its own earlier actions, so a follow-up like "make it an hour later" can refer to the event id. */
+  const withActions = (m) => {
+    const done = parseJson(m.actions, []).filter((r) => r.ok && r.eventId);
+    if (!done.length) return { role: m.role, content: m.content };
+    return { role: m.role, content: `${m.content}\n(The app ran: ${done.map((r) => `${r.name} on event id ${r.eventId}, ${r.detail}`).join('; ')}.)` };
   };
 
   const threadFor = (user, threadId) => {
@@ -48,8 +65,8 @@ function register(router, { db, ai, site, buildContext }) {
 
   router.get('/api/assistant/threads/:id', (ctx) => {
     const t = threadFor(ctx.user, ctx.params.id);
-    const messages = db.all('SELECT id, role, content, sources, visual, created FROM assistant_messages WHERE thread_id = ? ORDER BY id', t.id)
-      .map((m) => ({ ...m, sources: JSON.parse(m.sources || '[]'), visual: parseVisual(m.visual) }));
+    const messages = db.all('SELECT id, role, content, sources, visual, actions, created FROM assistant_messages WHERE thread_id = ? ORDER BY id', t.id)
+      .map((m) => ({ ...m, sources: JSON.parse(m.sources || '[]'), visual: parseJson(m.visual), actions: parseJson(m.actions, []).map(runner.publicView) }));
     return { thread: t, messages };
   });
 
@@ -82,19 +99,19 @@ function register(router, { db, ai, site, buildContext }) {
       ? threadFor(user, threadId)
       : db.get('SELECT * FROM assistant_threads WHERE id = ?', db.insert('INSERT INTO assistant_threads(user_id, title, created, updated) VALUES(?, ?, ?, ?)', user.id, prompt.replace(/\s+/g, ' ').slice(0, 60), isoNow(), isoNow()));
 
-    const history = db.all('SELECT role, content FROM assistant_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 12', thread.id).reverse();
+    const history = db.all('SELECT role, content, actions FROM assistant_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 12', thread.id).reverse().map(withActions);
     db.run('INSERT INTO assistant_messages(thread_id, role, content, created) VALUES(?, ?, ?, ?)', thread.id, 'user', prompt, isoNow());
     db.run('UPDATE assistant_threads SET updated = ? WHERE id = ?', isoNow(), thread.id);
 
     const { sources, references } = ai.retrieveContext(user, [...history.slice(-2).filter((h) => h.role === 'user').map((h) => h.content), prompt].join(' '));
     const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references });
 
-    const save = (raw, visual = null) => {
+    const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();
       const used = sources.filter((s) => answer.includes(`[${s.n}]`));
       const messageId = db.insert(
-        'INSERT INTO assistant_messages(thread_id, role, content, sources, visual, created) VALUES(?, ?, ?, ?, ?, ?)',
-        thread.id, 'assistant', answer, JSON.stringify(used), visual ? JSON.stringify(visual) : null, isoNow(),
+        'INSERT INTO assistant_messages(thread_id, role, content, sources, visual, actions, created) VALUES(?, ?, ?, ?, ?, ?, ?)',
+        thread.id, 'assistant', answer, JSON.stringify(used), visual ? JSON.stringify(visual) : null, results.length ? JSON.stringify(results) : null, isoNow(),
       );
       db.run('UPDATE assistant_threads SET updated = ? WHERE id = ?', isoNow(), thread.id);
       return { messageId, used };
@@ -102,9 +119,11 @@ function register(router, { db, ai, site, buildContext }) {
 
     const wantsStream = String(ctx.req.headers.accept || '').includes('text/event-stream');
     if (!wantsStream) {
-      const { visual, text: answer } = extractVisual(await ai.complete({ user, system, prompt, history }));
-      const { messageId, used } = save(answer, visual);
-      return { thread: { id: thread.id, title: thread.title }, message: { id: messageId, role: 'assistant', content: answer.trim(), sources: used, visual } };
+      const results = [];
+      const lead = extractLead(await ai.complete({ user, system, prompt, history, maxTokens: ANSWER_TOKENS }), (action) => results.push(runner.run(user, action)));
+      const answer = lead.text.trim() || summarise(results);
+      const { messageId, used } = save(answer, lead.visual, results);
+      return { thread: { id: thread.id, title: thread.title }, message: { id: messageId, role: 'assistant', content: answer, sources: used, visual: lead.visual, actions: results.map(runner.publicView) } };
     }
 
     const res = ctx.res;
@@ -117,7 +136,14 @@ function register(router, { db, ai, site, buildContext }) {
     send('thread', { id: thread.id, title: thread.title });
     send('sources', { sources });
     let answer = '';
-    const cues = createVisualExtractor();
+    const results = [];
+    const cues = createLeadExtractor({
+      onAction(action) {
+        const result = runner.run(user, action);
+        results.push(result);
+        send('action', runner.publicView(result));
+      },
+    });
     const emit = (piece) => {
       if (!piece) return;
       answer += piece;
@@ -125,7 +151,7 @@ function register(router, { db, ai, site, buildContext }) {
     };
     try {
       let announced = false;
-      for await (const delta of ai.stream({ user, system, prompt, history, signal: controller.signal })) {
+      for await (const delta of ai.stream({ user, system, prompt, history, signal: controller.signal, maxTokens: ANSWER_TOKENS })) {
         emit(cues.push(delta));
         if (!announced && cues.visual) {
           announced = true;
@@ -133,18 +159,34 @@ function register(router, { db, ai, site, buildContext }) {
         }
       }
       emit(cues.end());
+      if (!answer.trim() && results.length) emit(summarise(results));
       if (answer.trim()) {
-        const { messageId, used } = save(answer, cues.visual);
-        send('done', { messageId, sources: used, visual: cues.visual });
+        const { messageId, used } = save(answer, cues.visual, results);
+        send('done', { messageId, sources: used, visual: cues.visual, actions: results.map(runner.publicView) });
       } else if (!controller.signal.aborted) {
         send('error', { message: 'The assistant returned an empty answer. Please try again.' });
       }
     } catch (error) {
-      if (answer.trim()) save(answer, cues.visual);
+      if (answer.trim() || results.length) save(answer.trim() ? answer : summarise(results), cues.visual, results);
       if (!controller.signal.aborted) send('error', { message: error.status ? error.message : 'The assistant could not finish this answer.' });
     }
     res.off('close', abort);
     res.end();
+  });
+
+  /** Undo something the assistant did. The server keeps the undo data; the client only says which result. */
+  router.post('/api/assistant/messages/:id/actions/:index/undo', (ctx) => {
+    const message = db.get(
+      `SELECT m.id, m.actions FROM assistant_messages m JOIN assistant_threads t ON t.id = m.thread_id
+       WHERE m.id = ? AND t.user_id = ?`, id(ctx.params.id), ctx.user.id,
+    );
+    if (!message) throw notFound('Message not found');
+    const results = parseJson(message.actions, []);
+    const index = Number(ctx.params.index);
+    if (!Number.isInteger(index) || !results[index]) throw notFound('Action not found');
+    results[index] = runner.undo(ctx.user, results[index]);
+    db.run('UPDATE assistant_messages SET actions = ? WHERE id = ?', JSON.stringify(results), message.id);
+    return { action: runner.publicView(results[index]) };
   });
 
   /** Knowledge search for everyone (Campus guide search box). */

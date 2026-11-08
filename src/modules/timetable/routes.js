@@ -1,12 +1,12 @@
 'use strict';
 /** Schedule API, ICS import and a private calendar subscription feed. */
-const { text, oneOf, id, optionalId, isoDate, integer } = require('../../lib/validate');
+const { oneOf, id, optionalId, isoDate } = require('../../lib/validate');
+const { KINDS } = require('./service');
 const { badRequest, forbidden, notFound } = require('../../http/errors');
 const { parseIcs, toIcs } = require('../../lib/ics');
 const { randomToken, sha256 } = require('../../lib/crypto');
 const { DAY } = require('../../lib/time');
 
-const KINDS = ['lecture', 'exam', 'seminar', 'lab', 'event', 'deadline', 'personal'];
 const SCOPES = ['personal', 'course', 'institution'];
 
 function register(router, { db, config, access, timetable, notifier, audit }) {
@@ -24,24 +24,6 @@ function register(router, { db, config, access, timetable, notifier, audit }) {
     return { courseId, ownerId: null };
   }
 
-  function readEvent(b) {
-    const starts = isoDate(b.starts, 'Start');
-    const ends = isoDate(b.ends, 'End');
-    if (new Date(ends) <= new Date(starts)) throw badRequest('The event must end after it starts');
-    if (new Date(ends) - new Date(starts) > 14 * DAY) throw badRequest('Events can be at most two weeks long');
-    const repeatWeeks = b.repeat_weeks ? integer(b.repeat_weeks, { min: 0, max: 4, label: 'Repeat' }) : 0;
-    return {
-      title: text(b.title, { min: 2, max: 120, label: 'Title' }),
-      kind: oneOf(b.kind || 'lecture', KINDS, 'Type'),
-      location: text(b.location, { max: 120, optional: true }),
-      notes: text(b.notes, { max: 1000, optional: true }),
-      starts,
-      ends,
-      repeatWeeks,
-      until: repeatWeeks && b.until ? isoDate(b.until, 'Repeat until') : null,
-    };
-  }
-
   router.get('/api/timetable', (ctx) => {
     const from = ctx.query.get('from') ? isoDate(ctx.query.get('from'), 'From') : new Date(Date.now() - DAY).toISOString();
     const to = ctx.query.get('to') ? isoDate(ctx.query.get('to'), 'To') : new Date(Date.now() + 14 * DAY).toISOString();
@@ -56,12 +38,8 @@ function register(router, { db, config, access, timetable, notifier, audit }) {
     const b = await ctx.json();
     const scope = oneOf(b.scope || 'personal', SCOPES, 'Scope');
     const { courseId, ownerId } = ownership(ctx.user, scope, b.course_id);
-    const e = readEvent(b);
-    const eventId = db.insert(
-      `INSERT INTO timetable_events(institution_id, course_id, owner_id, title, kind, location, notes, starts, ends, repeat_weeks, until, created_by, created)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ctx.user.institution_id, courseId, ownerId, e.title, e.kind, e.location, e.notes, e.starts, e.ends, e.repeatWeeks, e.until, ctx.user.id, isoNow(),
-    );
+    const e = timetable.readEvent(b);
+    const eventId = timetable.insert(ctx.user, { courseId, ownerId }, e);
     if (courseId) {
       const course = db.get('SELECT code FROM courses WHERE id = ?', courseId);
       const students = db.all('SELECT user_id FROM enrollments WHERE course_id = ?', courseId).map((r) => r.user_id);
@@ -81,7 +59,7 @@ function register(router, { db, config, access, timetable, notifier, audit }) {
 
   router.patch('/api/timetable/:id', async (ctx) => {
     const existing = editable(ctx.user, ctx.params.id);
-    const e = readEvent({ ...existing, repeat_weeks: existing.repeat_weeks, ...(await ctx.json()) });
+    const e = timetable.readEvent({ ...existing, repeat_weeks: existing.repeat_weeks, ...(await ctx.json()) });
     db.run(
       'UPDATE timetable_events SET title = ?, kind = ?, location = ?, notes = ?, starts = ?, ends = ?, repeat_weeks = ?, until = ? WHERE id = ?',
       e.title, e.kind, e.location, e.notes, e.starts, e.ends, e.repeatWeeks, e.until, existing.id,

@@ -7,6 +7,10 @@
  * at 10:00 after the clocks change.
  */
 const { addLocalDays, DAY } = require('../../lib/time');
+const { text, oneOf, isoDate, integer } = require('../../lib/validate');
+const { badRequest } = require('../../http/errors');
+
+const KINDS = ['lecture', 'exam', 'seminar', 'lab', 'event', 'deadline', 'personal'];
 
 const MAX_OCCURRENCES = 1000;
 
@@ -82,7 +86,34 @@ function createTimetable({ db, timeZone }) {
     return between(user, new Date(now).toISOString(), new Date(now + days * DAY).toISOString()).filter((e) => new Date(e.ends).getTime() > now).slice(0, limit);
   }
 
-  return { between, upcoming, canEdit, expand, visibleRows };
+  /** Validate event fields from a request body. Shared by the schedule API and the assistant. */
+  function readEvent(b) {
+    const starts = isoDate(b.starts, 'Start');
+    const ends = isoDate(b.ends, 'End');
+    if (new Date(ends) <= new Date(starts)) throw badRequest('The event must end after it starts');
+    if (new Date(ends) - new Date(starts) > 14 * DAY) throw badRequest('Events can be at most two weeks long');
+    const repeatWeeks = b.repeat_weeks ? integer(b.repeat_weeks, { min: 0, max: 4, label: 'Repeat' }) : 0;
+    return {
+      title: text(b.title, { min: 2, max: 120, label: 'Title' }),
+      kind: oneOf(b.kind || 'lecture', KINDS, 'Type'),
+      location: text(b.location, { max: 120, optional: true }),
+      notes: text(b.notes, { max: 1000, optional: true }),
+      starts,
+      ends,
+      repeatWeeks,
+      until: repeatWeeks && b.until ? isoDate(b.until, 'Repeat until') : null,
+    };
+  }
+
+  function insert(user, { courseId = null, ownerId = null }, e) {
+    return db.insert(
+      `INSERT INTO timetable_events(institution_id, course_id, owner_id, title, kind, location, notes, starts, ends, repeat_weeks, until, created_by, created)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      user.institution_id, courseId, ownerId, e.title, e.kind, e.location, e.notes, e.starts, e.ends, e.repeatWeeks, e.until, user.id, new Date().toISOString(),
+    );
+  }
+
+  return { between, upcoming, canEdit, expand, visibleRows, readEvent, insert };
 }
 
-module.exports = { createTimetable };
+module.exports = { createTimetable, KINDS };
