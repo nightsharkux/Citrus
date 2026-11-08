@@ -15,11 +15,13 @@ import { toast, toastError, menu, prompt, confirm, sheet, copyText } from '../co
 import { setTheme } from '../shell.js';
 import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.js';
 import { inferVisual } from '../features/face-visuals.js';
-import { wake, dictate, speak, createSpeaker, primeSpeech, stopSpeaking, voiceProblem } from '../features/voice.js';
+import { wake, dictate, speak, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, recognitionLanguage } from '../features/voice.js';
+import { detectLanguage } from '../features/turns.js';
 import { getVoiceSettings } from '../features/voices.js';
 import { applySettingsEffect, deviceSettings, openLink } from '../features/preferences.js';
 import { startConversation, conversationOpen, conversationProblem } from '../features/conversation.js';
 import { createAttachments, attachmentList, zoomPicture, watchDrops, pastedFiles, ACCEPT } from '../features/attach.js';
+import { showTranslation } from '../features/translate.js';
 
 const SUGGESTIONS = {
   student: [
@@ -91,6 +93,7 @@ function messageView(m) {
       <div class="msg-tools">
         <button class="btn btn-ghost btn-sm" data-copy aria-label="Copy answer" title="Copy">${icon('copy', 15)}</button>
         <button class="btn btn-ghost btn-sm" data-speak aria-label="Read aloud" title="Read aloud">${icon('volume', 15)}</button>
+        ${m.id ? html`<button class="btn btn-ghost btn-sm" data-translate="${m.id}" data-no-translate>Deutsch</button><button class="btn btn-ghost btn-sm" data-translate="${m.id}" data-target="en" data-no-translate>English</button>` : ''}
         ${m.visual ? html`<button class="btn btn-ghost btn-sm" data-replay="${JSON.stringify(m.visual)}" title="Show the illustration again">${icon('play', 14)} Illustration</button>` : ''}
       </div>
     </div>
@@ -380,7 +383,7 @@ export default {
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
-        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), device: deviceSettings() }, {
+        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), device: deviceSettings(), ...(spoken ? { heard: detectLanguage(question), recogniser: recognitionLanguage(), spoken: true } : {}) }, {
           signal: controller.signal,
           onEvent(type, payload) {
             if (type === 'thread') attach.sent();
@@ -617,6 +620,7 @@ export default {
         }
       }),
       on(root, 'click', '[data-copy]', (e, b) => copyText(b.closest('.msg-body').dataset.raw || b.closest('.msg-body').querySelector('.prose').innerText, 'Answer copied')),
+      on(root, 'click', '[data-translate]', (e, b) => showTranslation({ messageId: Number(b.dataset.translate), target: b.dataset.target || 'de' })),
       on(root, 'click', '[data-speak]', (e, b) => {
         faces.setMood('speaking');
         speak(b.closest('.msg-body').dataset.raw || b.closest('.msg-body').querySelector('.prose').innerText, { onEnd: () => faces.setMood('idle') });

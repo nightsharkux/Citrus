@@ -17,6 +17,7 @@ test('German and English are told apart, including mixed sentences and misspelli
   assert.equal(detectLanguage('Schirmitzer Weg'), null, 'a street name alone says nothing about the language');
   assert.equal(detectLanguage(''), null);
   assert.equal(detectLanguage('Klausur am Montag gibts'), 'de');
+  assert.equal(detectLanguage("can't do Deutsch broken"), 'en', 'a German word does not switch an English remark about difficulty to German');
 });
 
 test('turn-taking understands German stop and goodbye phrases, and waits less than before', async () => {
@@ -82,6 +83,9 @@ test('the interface switches to German, keeps names and Campus OS, and uses the 
   assert.equal(de('Message Claudia, or paste a picture', 'Claudia'), 'Schreib Claudia – oder füge ein Bild ein');
   assert.equal(de('Campus is listening for “Hey Campus”. Click to stop.', 'Max'), 'Max hört auf „Hey Max“. Klicken zum Beenden.');
   assert.equal(de('Tomorrow'), 'Morgen');
+  assert.equal(de('Answer language'), 'Antwortsprache');
+  assert.equal(de('Follow my language'), 'Meiner Sprache folgen');
+  assert.equal(de('Translate page to English'), 'Seite ins Englische übersetzen');
 });
 
 test('every German entry is a real translation, not a copy with a typo', async () => {

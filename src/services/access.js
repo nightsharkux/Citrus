@@ -7,6 +7,13 @@
 function createAccess(db) {
   const isStaff = (user) => user.role === 'lecturer' || user.role === 'admin';
 
+  /** A saved assistant answer belongs only to its authoring account and institution. */
+  function assistantMessage(user, messageId) {
+    return db.get(`SELECT m.content FROM assistant_messages m
+      JOIN assistant_threads t ON t.id = m.thread_id JOIN users u ON u.id = t.user_id
+      WHERE m.id = ? AND m.role = 'assistant' AND t.user_id = ? AND u.institution_id = ?`, Number(messageId), user.id, user.institution_id) || null;
+  }
+
   /** Any course in the user's institution that they teach, administer or are enrolled in. */
   function course(user, courseId) {
     const c = db.get('SELECT * FROM courses WHERE id = ? AND institution_id = ?', Number(courseId), user.institution_id);
@@ -84,7 +91,7 @@ function createAccess(db) {
     }
   }
 
-  return { isStaff, course, teachingCourse, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
+  return { isStaff, assistantMessage, course, teachingCourse, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
 }
 
 module.exports = { createAccess };

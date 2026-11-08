@@ -18,12 +18,19 @@
  * conversation) asks for short answers written to be read aloud; default 'text'.
  */
 const { text, id, optionalId, oneOf } = require('../../lib/validate');
-const { notFound, unavailable } = require('../../http/errors');
-const { assistantPrompt } = require('../../ai/prompts');
+const { notFound, unavailable, badRequest } = require('../../http/errors');
+const { assistantPrompt, translationPrompt, referenceBlock } = require('../../ai/prompts');
 const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
 const { createAttachments } = require('./attachments');
 const { assistantNameFor } = require('../account/preferences');
+
+/** What the browser heard in the latest message: its language (as the browser judged it) and the recogniser's. */
+function readHeard(b) {
+  const heard = ['de', 'en'].includes(b.heard) ? b.heard : null;
+  const recogniser = /^[a-z]{2}-[A-Z]{2}$/.test(String(b.recogniser || '')) ? b.recogniser : null;
+  return { heard, recogniser, spoken: b.mode === 'voice' || b.spoken === true };
+}
 
 /** The few device settings the browser reports with a message, so the assistant knows what "faster" is relative to. */
 function readDevice(input) {
@@ -44,6 +51,23 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
   const runner = createActionRunner({ db, config, access, timetable, audit });
   const attachments = createAttachments({ db });
   const isoNow = () => new Date().toISOString();
+  router.post('/api/assistant/translate', async (ctx) => {
+    const b = await ctx.json();
+    const target = oneOf(b.target, ['de', 'en'], 'Language');
+    let content;
+    if (b.message_id !== undefined) {
+      const message = access.assistantMessage(ctx.user, id(b.message_id));
+      if (!message) throw notFound('Message not found');
+      content = message.content;
+    } else {
+      if (typeof b.text !== 'string' || b.text.length > 16000) throw badRequest('Text must contain at most 16000 characters');
+      content = text(b.text, { min: 1, max: 16000 });
+    }
+    if (!ai.status(ctx.user).aiEnabled) throw unavailable('The assistant is not connected yet. Your university administrator can enable it.');
+    const translated = await ai.complete({ user: ctx.user, system: translationPrompt(target),
+      prompt: referenceBlock('TRANSLATION', content), maxTokens: 6000, task: 'translation' });
+    return { text: translated, target };
+  });
   const parseJson = (json, fallback = null) => {
     try {
       return json ? JSON.parse(json) : fallback;
@@ -153,10 +177,10 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     attachments.link(files, userMessageId);
     db.run('UPDATE assistant_threads SET updated = ? WHERE id = ?', isoNow(), thread.id);
 
-    const { sources, references } = ai.retrieveContext(user, [...history.slice(-2).filter((h) => h.role === 'user').map((h) => h.content), prompt].join(' '));
+    const { sources, references } = ai.retrieveContext(user, [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'));
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice });
+    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match', ...readHeard(b) } });
 
     const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();

@@ -15,7 +15,6 @@ import { weekday, time as clock, shortDate } from '../core/format.js';
 import { t } from '../core/i18n.js';
 import { resolvePlace, distanceMetres, walkMinutes, distanceLabel, directionsLinks, nearestCampus, searchTerms } from './campus-places.js';
 
-const KEY = 'campus-map-classes';
 const MAJOR = new Set(['primary', 'secondary', 'tertiary', 'residential', 'unclassified', 'living_street']);
 const PATHS = new Set(['footway', 'path', 'pedestrian', 'cycleway', 'track']);
 const KIND_ICON = { building: 'door', food: 'bag', library: 'library', sport: 'activity', housing: 'home' };
@@ -107,13 +106,8 @@ export function mapTab(d) {
 
 function lessonsView(info, map, ref) {
   const classes = info.classes || [];
-  const picker = html`<form class="map-picker" data-picker>
-    <label class="field"><span>Programme</span><select class="select" name="programme"><option value="">Choose…</option>${(info.programmes || []).map((p) => html`<option value="${p.code}" ${p.code === info.programme ? 'selected' : ''}>${p.code} · ${p.name}</option>`)}</select></label>
-    <label class="field" style="max-width:130px"><span>Semester</span><select class="select" name="semester"><option value="">Any</option>${Array.from({ length: 8 }, (_, i) => i + 1).map((n) => html`<option value="${n}" ${n === Number(info.semester) ? 'selected' : ''}>${n}</option>`)}</select></label>
-    <button class="btn">Show lessons</button>
-  </form>`;
   return html`
-    <div class="spread"><div><h2>Your next lessons</h2><p class="small muted mt-8">${info.programme ? html`From your schedule and the official ${info.programme} timetable${info.semester ? `, semester ${info.semester}` : ''}.` : 'From your schedule. Choose a programme to add its official timetable.'}</p></div></div>
+    <div class="spread"><div><h2>Your next lessons</h2><p class="small muted mt-8">From your saved schedule. Ask the assistant about programme timetables.</p></div></div>
     ${classes.length ? html`<div class="list mt-16">${classes.map((c, i) => {
       const found = c.location ? resolvePlace(map, c.location, ref) : null;
       return html`<div class="list-row no-icon">
@@ -121,7 +115,7 @@ function lessonsView(info, map, ref) {
         <span class="trail">${found ? html`<button type="button" class="btn btn-sm" data-go="${i}">${icon('map-pin', 14)} Show</button>` : c.location ? html`<button type="button" class="btn btn-sm btn-ghost" data-go="${i}">${icon('info', 14)} Where</button>` : ''}</span>
       </div>`;
     })}</div>` : html`<p class="muted small mt-16">No lessons with a room found for the next week.</p>`}
-    <details class="mt-16" ${info.programme ? '' : 'open'}><summary class="small">${info.programme ? 'Change programme or semester' : 'Choose your programme'}</summary><div class="mt-8">${picker}</div></details>`;
+    <a class="btn btn-sm mt-16" href="/assistant">Ask about a programme timetable</a>`;
 }
 
 function arrivalView(campus) {
@@ -384,39 +378,11 @@ export function mountMapTab(root, d, ctx) {
       e.target.value = '';
     }
   });
-  listen(root, 'submit', async (e) => {
-    const form = e.target.closest('[data-picker]');
-    if (!form) return;
-    e.preventDefault();
-    const programme = form.programme.value;
-    const semester = form.semester.value;
-    try {
-      state.classes = await api.get(`/campus/map/classes?${new URLSearchParams({ programme, ...(semester ? { semester } : {}) })}`);
-      try {
-        localStorage.setItem(KEY, JSON.stringify({ programme, semester }));
-      } catch { /* private mode */ }
-      lessons.innerHTML = lessonsView(state.classes, map, state.campus.id).value;
-    } catch (error) {
-      toastError(error);
-    }
-  });
-
-  // First picture: the campus asked for in the link (?to=HSG), the saved programme, or the first campus.
+  // First picture: the campus asked for in the link (?to=HSG), or the first campus.
   const wanted = query.get('to');
   const first = wanted ? resolvePlace(map, wanted) : null;
   drawCampus(first?.campus || map.campuses[0]);
   if (first) showTarget(first);
-  if (!d.classes.programme) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
-      if (saved?.programme) {
-        api.get(`/campus/map/classes?${new URLSearchParams({ programme: saved.programme, ...(saved.semester ? { semester: saved.semester } : {}) })}`).then((info) => {
-          state.classes = info;
-          lessons.innerHTML = lessonsView(info, map, state.campus.id).value;
-        }).catch(() => {});
-      }
-    } catch { /* ignore */ }
-  }
 
   return () => {
     offs.forEach((off) => off());

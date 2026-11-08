@@ -8,6 +8,17 @@ import staff from './i18n-de-staff.js';
 import more from './i18n-de-more.js';
 
 export const DE = {
+  'From your saved schedule. Ask the assistant about programme timetables.': 'Aus deinem gespeicherten Stundenplan. Studiengangspläne findest du beim Assistenten.',
+  'Ask about a programme timetable': 'Nach einem Studiengangsplan fragen',
+  'Answer language': 'Antwortsprache',
+  'Follow my language': 'Meiner Sprache folgen',
+  'You can switch languages or mix German and English in any conversation.': 'Du kannst jederzeit die Sprache wechseln oder Deutsch und Englisch mischen.',
+  'Translate page to English': 'Seite ins Englische übersetzen',
+  'Translate page to German': 'Seite ins Deutsche übersetzen',
+  'Translating…': 'Wird übersetzt…',
+  'No text to translate': 'Kein Text zum Übersetzen vorhanden',
+  'Message not found': 'Nachricht nicht gefunden',
+  'The translation is too long. Select a shorter passage and try again.': 'Die Übersetzung ist zu lang. Wähle einen kürzeren Abschnitt und versuche es erneut.',
   ...staff,
   ...more,
   ...pages,
@@ -60,6 +71,7 @@ export const PATTERNS = [
   [/^Version (.+) · (.+)$/, (v, i) => `Version ${v} · ${i}`],
   [/^Name: (.+)$/, (v) => `Name: ${value(v)}`],
   [/^Language: (.+)$/, (v) => `Sprache: ${v}`],
+  [/^Answers in: (.+)$/, (v) => `Antwortsprache: ${v === 'the language you write' ? 'Meiner Sprache folgen' : v}`],
   [/^Speech recognition: (.+)$/, (v) => `Spracherkennung: ${value(v)}`],
   [/^Listening for the name: (.+)$/, (v) => `Auf den Namen hören: ${value(v)}`],
   [/^Animated explanations: (.+)$/, (v) => `Animierte Erklärungen: ${value(v)}`],

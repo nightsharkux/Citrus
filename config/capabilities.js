@@ -25,7 +25,7 @@ module.exports = Object.freeze([
       item('quizzes', 'Concept checks', 'available', '/courses', 'Short multiple-choice checks published during a lecture.'),
       item('review', 'Spaced review queue', 'available', '/learning', 'Revisit difficult topics and missed checks at the right time.'),
       item('revision', 'Revision packs', 'limited', '/learning/packs', 'Practice sets built from your course. AI-written questions should be double-checked.'),
-      item('programme-timetables', 'Official class timetables', 'limited', '/assistant', 'Ask what you have right now or next and Campus answers from the university’s published timetable for your programme. Read from the PDFs for 33 programmes; the others publish a picture or a handbook, which is linked instead. Exam plans, semester dates and older documents are searchable too.'),
+      item('programme-timetables', 'Academic schedules', 'limited', '/assistant', 'Search the supplied snapshot for timetable pages, exam plans, curricula and semester dates, with page citations. Unclear grids and OCR need verification. This is not a live personal calendar.'),
       item('timetable', 'Schedule and calendar sync', 'available', '/schedule', 'Lectures, exams and personal events, with ICS import and a subscribable feed.'),
       item('career', 'Career interest explorer', 'limited', '/career', 'A reflective interest activity. Not a validated psychometric test.'),
       item('captions', 'Live lecture captions', 'limited', '/spaces', 'Browser speech recognition streamed to everyone in the space.'),

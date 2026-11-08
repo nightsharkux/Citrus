@@ -125,12 +125,14 @@ function identityCard() {
   const name = assistantName();
   const language = prefs.language || document.documentElement.lang || 'en';
   const speech = prefs.speechLanguage || 'auto';
+  const answer = prefs.answerLanguage || 'match';
   const option = (value, label, current) => html`<option value="${value}" ${current === value ? 'selected' : ''}>${label}</option>`;
   return html`<section class="card"><h2>Name and language</h2>
     <p class="small muted mt-8">Call the assistant what you like and “Hey ${name}” follows. You can also just ask in chat: “call yourself Nova”, “nenn dich Max”, “speak faster”, “auf Deutsch umstellen”.</p>
     <form class="form mt-16" id="identity-form">
       <label class="field"><span>Assistant name</span><input class="input" name="assistantName" value="${prefs.assistantName || ''}" placeholder="Campus" maxlength="24" autocomplete="off" data-no-translate><span class="hint">Letters, up to 24. Leave it empty for the default name.</span></label>
       <label class="field"><span>Interface language</span><select class="select" name="language">${option('en', 'English', language)}${option('de', 'Deutsch', language)}</select></label>
+      <label class="field"><span>Answer language</span><select class="select" name="answerLanguage">${option('match', 'Follow my language', answer)}${option('de', 'Deutsch', answer)}${option('en', 'English', answer)}</select><span class="hint">You can switch languages or mix German and English in any conversation.</span></label>
       <label class="field"><span>Voice input language</span><select class="select" name="speechLanguage">${option('auto', 'Automatic (English and German)', speech)}${option('en', 'English', speech)}${option('de', 'Deutsch', speech)}</select>
         <span class="hint">Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.</span></label>
       <div class="form-actions"><button class="btn btn-primary">Save</button></div>
@@ -141,7 +143,7 @@ function mountIdentity(root) {
   const form = $('#identity-form', root);
   if (!form) return;
   onSubmit(form, async (v) => {
-    const r = await api.patch('/me', { preferences: { assistantName: v.assistantName, language: v.language, speechLanguage: v.speechLanguage } });
+    const r = await api.patch('/me', { preferences: { assistantName: v.assistantName, language: v.language, answerLanguage: v.answerLanguage, speechLanguage: v.speechLanguage } });
     applySettingsEffect({ prefs: r.user.preferences });
     return 'Saved';
   });

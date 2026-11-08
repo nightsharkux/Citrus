@@ -18,8 +18,7 @@ const { createSecretBox } = require('./lib/crypto');
 const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
-const { createProgrammeTimetables } = require('./ai/programme-timetables');
-const { createExams } = require('./ai/exams');
+const { createAcademicSnapshot } = require('./ai/academic-snapshot');
 const { readBundled } = require('./lib/bundled');
 const { createAccess } = require('./services/access');
 const { createAudit } = require('./services/audit');
@@ -70,7 +69,9 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const secretBox = createSecretBox(keys.master());
   const nfcKey = keys.nfc();
   const packs = env.CAMPUS_BUNDLED_KNOWLEDGE === 'off' ? [] : [].concat(site.knowledgePack || []);
-  const ai = createAiService({ db, env, fetchImpl, packs, readPack: (file) => readBundled(config.root, file) });
+  const programmes = site.academicSnapshot && env.CAMPUS_BUNDLED_KNOWLEDGE !== 'off'
+    ? createAcademicSnapshot({ root: config.root, file: site.academicSnapshot }) : null;
+  const ai = createAiService({ db, env, fetchImpl, packs, academic: programmes, readPack: (file) => readBundled(config.root, file) });
   const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
   const notifier = createNotifier({ db, bus, push, timeZone });
   const timetable = createTimetable({ db, timeZone });
@@ -81,9 +82,7 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const sessions = createSessions({ db, config });
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
-  const programmes = createProgrammeTimetables({ root: config.root, timeZone });
-  const exams = createExams({ root: config.root, timeZone });
-  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, exams });
+  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes });
   const maintenance = createMaintenance({ db, config, settings });
 
   const deps = {

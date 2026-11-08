@@ -167,6 +167,7 @@ function createActionRunner({ db, config, access, timetable, audit }) {
       const input = {};
       if (a.assistant_name !== undefined) input.assistantName = /^(reset|default|standard|campus)$/i.test(String(a.assistant_name).trim()) ? '' : a.assistant_name;
       if (a.language !== undefined) input.language = /^(de|deutsch|german|germany)/.test(word(a.language)) ? 'de' : /^(en|english|englisch)/.test(word(a.language)) ? 'en' : a.language;
+      if (a.answer_language !== undefined) input.answerLanguage = /^(de|deutsch|german)/.test(word(a.answer_language)) ? 'de' : /^(en|english|englisch)/.test(word(a.answer_language)) ? 'en' : /^(match|auto|both|same|beide)/.test(word(a.answer_language)) ? 'match' : a.answer_language;
       if (a.speech_language !== undefined) input.speechLanguage = /^(de|deutsch|german)/.test(word(a.speech_language)) ? 'de' : /^(en|english|englisch)/.test(word(a.speech_language)) ? 'en' : /^(auto|both|beide|automatic)/.test(word(a.speech_language)) ? 'auto' : a.speech_language;
       if (a.wake_word !== undefined) input.voiceWake = yes(a.wake_word);
       if (a.animations !== undefined) input.visuals = yes(a.animations);
@@ -206,6 +207,7 @@ function createActionRunner({ db, config, access, timetable, audit }) {
       const parts = [];
       if ('assistantName' in changes) parts.push(changes.assistantName ? `Name: ${changes.assistantName}` : 'Name: back to the default');
       if (changes.language) parts.push(`Language: ${changes.language === 'de' ? 'Deutsch' : 'English'}`);
+      if ('answerLanguage' in changes) parts.push(`Answers in: ${{ de: 'Deutsch', en: 'English' }[changes.answerLanguage] || 'the language you write'}`);
       if (changes.speechLanguage) parts.push(`Speech recognition: ${{ auto: 'automatic', en: 'English', de: 'Deutsch' }[changes.speechLanguage]}`);
       if ('voiceWake' in changes) parts.push(`Listening for the name: ${changes.voiceWake ? 'on' : 'off'}`);
       if ('visuals' in changes) parts.push(`Animated explanations: ${changes.visuals ? 'on' : 'off'}`);

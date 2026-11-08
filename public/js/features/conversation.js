@@ -33,9 +33,9 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage } from './voice.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
-import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words } from './turns.js';
+import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
 
 const QUIET_LIMIT = 120_000;
@@ -456,6 +456,7 @@ function createConversation({ threadId: startThread }) {
   async function ask(text) {
     const mine = ++turn;
     chime.done();
+    const recogniser = recognitionLanguage();
     // Follow the person from one language to the other: the microphone listens in the language they spoke last.
     if (noteSpoken(text) && listener.running) listener.refresh();
     showYou(text);
@@ -470,7 +471,7 @@ function createConversation({ threadId: startThread }) {
     const said = speaker;
     let failure = null;
     try {
-      await stream('/assistant/messages', { prompt: text, thread_id: threadId, mode: 'voice', device: deviceSettings() }, {
+      await stream('/assistant/messages', { prompt: text, thread_id: threadId, mode: 'voice', device: deviceSettings(), heard: detectLanguage(text), recogniser }, {
         signal: controller.signal,
         onEvent(type, payload) {
           if (mine !== turn) return;

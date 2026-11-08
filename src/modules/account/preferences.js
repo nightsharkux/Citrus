@@ -9,6 +9,8 @@ const { oneOf } = require('../../lib/validate');
 
 const LANGUAGES = ['en', 'de'];
 const SPEECH_LANGUAGES = ['auto', 'en', 'de'];
+/** What language answers come in: whatever the person wrote ('match'), or always German, or always English. */
+const ANSWER_LANGUAGES = ['match', 'de', 'en'];
 const THEMES = ['system', 'light', 'dark'];
 /** One to three words of letters, digits, apostrophes and hyphens. The name goes into the assistant's instructions, so nothing else is allowed. */
 const NAME = /^\p{L}[\p{L}\p{M}\p{N}'’-]*(?: [\p{L}\p{M}\p{N}'’-]+){0,2}$/u;
@@ -32,6 +34,7 @@ function readPreferences(input = {}) {
   if (input.visuals !== undefined) changes.visuals = !!input.visuals;
   if (input.matching !== undefined) changes.matching = !!input.matching;
   if (input.language !== undefined) changes.language = oneOf(input.language, LANGUAGES, 'Language');
+  if (input.answerLanguage !== undefined) changes.answerLanguage = input.answerLanguage === 'match' ? null : oneOf(input.answerLanguage, ANSWER_LANGUAGES, 'Answer language');
   if (input.speechLanguage !== undefined) changes.speechLanguage = oneOf(input.speechLanguage, SPEECH_LANGUAGES, 'Speech language');
   if (input.assistantName !== undefined) changes.assistantName = cleanAssistantName(input.assistantName) || null;
   return changes;
@@ -53,4 +56,4 @@ const assistantNameFor = (user, site) => {
   return typeof own === 'string' && own.length <= 24 && NAME.test(own) ? own : site.assistant || 'Campus';
 };
 
-module.exports = { readPreferences, applyPreferences, cleanAssistantName, assistantNameFor, LANGUAGES, SPEECH_LANGUAGES };
+module.exports = { readPreferences, applyPreferences, cleanAssistantName, assistantNameFor, LANGUAGES, SPEECH_LANGUAGES, ANSWER_LANGUAGES };

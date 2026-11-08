@@ -11,7 +11,6 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { startApp } = require('./helpers');
 const { buildIndex, search } = require('../src/lib/search');
-const { createProgrammeTimetables } = require('../src/ai/programme-timetables');
 const { createRetrieval } = require('../src/ai/retrieval');
 const { assistantPrompt } = require('../src/ai/prompts');
 
@@ -34,84 +33,10 @@ test('search finds German pages from English questions, and survives spelling mi
   assert.equal(top('Studiengangleiter'), 'Kontakt Studiengangsleiter', 'a missing letter in a long German word still matches');
 });
 
-test('the published class timetable answers "what do I have right now" for any programme named in the conversation', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-tt-'));
-  fs.writeFileSync(path.join(dir, 'tt.json'), JSON.stringify({
-    sources: [
-      { title: 'Stundenplan Bachelor Digital Technology and Management', url: 'https://example.invalid/DTM.pdf', kind: 'timetable', programme: 'DTM', timetables: 2 },
-      { title: 'Prüfungsplan Bachelor Digital Technology and Management', url: 'https://example.invalid/DTM-exams.pdf', kind: 'exam-plan', programme: 'DTM', term: 'SoSe 2026', timetables: 0 },
-      { title: 'Stundenplan Bachelor Elektro', url: 'https://example.invalid/Studiengaenge/Bachelor/EI/x.pdf', kind: 'timetable', programme: 'EI', timetables: 0 },
-      { title: 'Timetable Bachelor International Business', url: 'https://example.invalid/IB/Stundenplan_IB.pdf', kind: 'module-handbook', programme: 'IB', timetables: 0 },
-    ],
-    classes: [
-      { programme: 'DTM', programmeName: 'Bachelor Digital Technology and Management', level: 'BA', semester: 1, label: 'DTM 1', stand: '01.10.2026', validFrom: '01.10.2026', source: 'https://example.invalid/DTM.pdf', events: [
-        { day: 0, start: '08:15', end: '11:30', text: 'IoT Technology · HSG 001 · Dalm', lines: ['IoT Technology', 'HSG 001', 'Dalm'], format: 'in person' },
-        { day: 0, start: '12:15', end: '15:30', text: 'GE 1 · EH 4.4 · Prucha', lines: ['GE 1', 'EH 4.4', 'Prucha'], format: 'in person' },
-      ] },
-      { programme: 'DTM', programmeName: 'Bachelor Digital Technology and Management', level: 'BA', semester: 3, label: 'DTM 3', source: 'https://example.invalid/DTM.pdf', events: [
-        { day: 0, start: '08:15', end: '09:45', text: 'Sensors · WTC 1.25 · Erzberger', lines: ['Sensors', 'WTC 1.25', 'Erzberger'], format: 'in person' },
-      ] },
-    ],
-  }));
-  const t = createProgrammeTimetables({ root: dir, file: 'tt.json', timeZone: 'Europe/Berlin' });
-
-  assert.deepEqual(t.mentioned("I'm in DTM, was habe ich jetzt?"), ['DTM']);
-  assert.deepEqual(t.mentioned('Digital Technology and Management'), ['DTM'], 'a programme can be named in full');
-  assert.deepEqual(t.mentioned('ich habe ein ok von WS und SS'), [], 'level and term words are not programmes');
-  assert.deepEqual(t.fromProfile('dtm'), ['DTM']);
-  assert.equal(t.semesterIn('im 3. Semester'), 3);
-  assert.equal(t.semesterIn('semester 5'), 5);
-
-  const monday = new Date('2026-11-09T09:30:00+01:00');
-  const sem1 = t.describe({ codes: ['DTM'], semester: 1, now: monday }).join('\n');
-  assert.match(sem1, /DTM right now \(Mon 09:30\): DTM sem 1: 08:15–11:30 IoT Technology · HSG 001 · Dalm/);
-  assert.match(sem1, /later today: DTM sem 1: 12:15–15:30 GE 1/);
-  assert.ok(!/Sensors/.test(sem1), 'another semester is not shown once the semester is known');
-
-  const unknown = t.describe({ codes: ['DTM'], now: monday }).join('\n');
-  assert.match(unknown, /DTM sem 1: 08:15–11:30 IoT Technology/);
-  assert.match(unknown, /DTM sem 3: 08:15–09:45 Sensors/, 'without a semester every class with something on is listed');
-
-  const sunday = t.describe({ codes: ['DTM'], semester: 1, now: new Date('2026-11-08T14:00:00+01:00') }).join('\n');
-  assert.match(sunday, /no class is running/);
-
-  const picture = t.describe({ codes: ['EI'], now: monday }).join('\n');
-  assert.match(picture, /a picture or a format I cannot read \(https:\/\/example\.invalid\/Studiengaenge/, 'a programme that publishes an image says so and links it');
-
-  // "an IB student": the file the university links as IB's timetable is its module handbook, and the answer says so.
-  const ib = t.describe({ codes: ['IB'], now: monday }).join('\n');
-  assert.match(ib, /does not publish a weekly timetable/);
-  assert.match(ib, /module handbook \(https:\/\/example\.invalid\/IB\/Stundenplan_IB\.pdf\)/);
-  assert.match(ib, /Never invent lessons/);
-
-  // Tomorrow and the day after are listed with their dates; the exam plan link comes with the timetable.
-  assert.match(unknown, /DTM tomorrow \(Tue 10 Nov\): no classes/);
-  assert.match(unknown, /DTM the day after tomorrow \(Wed 11 Nov\): no classes/);
-  assert.match(unknown, /DTM exam plan \(SoSe 2026\): https:\/\/example\.invalid\/DTM-exams\.pdf/);
-  const friday = t.describe({ codes: ['DTM'], semester: 1, now: new Date('2026-11-12T18:00:00+01:00') }).join('\n');
-  assert.match(friday, /DTM tomorrow \(Fri 13 Nov\): no classes/);
-  const sundayNight = t.describe({ codes: ['DTM'], semester: 1, now: new Date('2026-11-08T21:00:00+01:00') }).join('\n');
-  assert.match(sundayNight, /DTM tomorrow \(Mon 9 Nov\): DTM sem 1: 08:15–11:30 IoT Technology/);
-  assert.match(sundayNight, /DTM sem 1 week:|DTM semester 1 week: Mon:/);
-
-  // Spoken forms: lower case, and the programme named last is the one meant.
-  assert.deepEqual(t.mentioned('what does an ib student have tomorrow? oh i do dtm. what do i have tomorrow?'), ['DTM', 'IB']);
-  assert.deepEqual(t.mentioned('i study dtm'), ['DTM']);
-  assert.deepEqual(t.mentioned('i am in ib'), ['IB']);
-  assert.deepEqual(t.mentioned('tell me about the mensa, it is in the new building'), [], 'ordinary words are not programmes');
-  assert.deepEqual(t.mentioned('ich bin im dtm'), ['DTM']);
-  assert.equal(t.semesterIn('semester 3... no wait, semester 5'), 5, 'the last one said wins');
-
-  const next = t.upcoming({ codes: ['DTM'], semester: 1, now: monday, days: 2 });
-  assert.equal(next[0].location, 'HSG 001');
-  assert.equal(next[0].source, 'official');
-  assert.ok(Date.parse(next[0].starts) < Date.parse(next[1].starts));
-});
-
 test('the assistant sees the timetable of the programme the user names, and only that programme', async () => {
   const seen = [];
   const app = await startApp({
-    env: { AI_GATEWAY_API_KEY: 'fixture-key' },
+    env: { AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_BUNDLED_KNOWLEDGE: 'on' },
     fetchImpl: async (url, options) => {
       seen.push(JSON.parse(options.body));
       return new Response(JSON.stringify({ choices: [{ message: { content: 'Okay.' } }] }));
@@ -124,18 +49,19 @@ test('the assistant sees the timetable of the programme the user names, and only
 
     await app.call('stu', 'POST', '/api/assistant/messages', { prompt: "I'm in DTM, welche Vorlesung habe ich gerade?" });
     const named = seen.at(-1).messages[0].content;
-    assert.match(named, /Official timetable for DTM/);
-    assert.match(named, /DTM right now/);
-    assert.ok(!/Official timetable for DHM/.test(named));
+    assert.ok(named.endsWith('</SOURCES>'), 'the provider receives complete reference boundaries, not a truncated page');
+    assert.match(named, /Programme: DTM/);
+    assert.match(named, /S077/);
+    assert.ok(!/Programme: DHM/.test(named));
 
     await app.call('stu', 'PUT', '/api/me/profile', { programme: 'Digital Healthcare Management', semester: 1, interests: [] });
     await app.call('stu', 'POST', '/api/assistant/messages', { prompt: 'what do I have today?' });
     const own = seen.at(-1).messages[0].content;
-    assert.match(own, /Official timetable for DHM/, 'the programme in the profile is used without being said');
+    assert.match(own, /Programme: DHM/, 'the programme in the profile is used without being said');
 
     await app.register('plain');
     await app.call('plain', 'POST', '/api/assistant/messages', { prompt: 'hello' });
-    assert.match(seen.at(-1).messages[0].content, /exist for these programme codes/, 'with no programme known it lists the codes so it can ask once');
+    assert.match(seen.at(-1).messages[0].content, /offline academic snapshot/, 'with no programme known it lists the codes so it can ask once');
   } finally {
     await app.close();
   }
@@ -163,7 +89,7 @@ test('bundled packs are searched together with the library, without importing an
 });
 
 test('the campus map is served to signed-in users and lists the upcoming lessons with rooms', async () => {
-  const app = await startApp();
+  const app = await startApp({ env: { CAMPUS_BUNDLED_KNOWLEDGE: 'on' } });
   try {
     await app.register('stu');
     assert.equal((await app.call('anon', 'GET', '/api/campus/map')).status, 401);
@@ -180,7 +106,7 @@ test('the campus map is served to signed-in users and lists the upcoming lessons
     await app.call('stu', 'POST', '/api/timetable', { title: 'Study group', kind: 'personal', location: 'WTC 1.25', starts: day.toISOString(), ends: end.toISOString() });
     const res = (await app.call('stu', 'GET', '/api/campus/map/classes?programme=DTM&semester=1')).body;
     assert.ok(res.classes.some((c) => c.source === 'schedule' && c.location === 'WTC 1.25'));
-    assert.ok(res.classes.some((c) => c.source === 'official' && c.programme === 'DTM'));
+    assert.ok(!res.classes.some((c) => c.source === 'official'), 'unverified layout data is never treated as calendar events');
     assert.ok(res.programmes.some((p) => p.code === 'DTM'));
     assert.equal((await app.call('stu', 'GET', '/api/campus')).body.hasMap, true);
     assert.equal((await app.call('anon', 'GET', '/api/bootstrap')).body.site.map, true);
@@ -221,48 +147,10 @@ test('a room finds its building on the map, and unknown buildings are said to be
   assert.equal(nearestCampus(map, { lat: 49.4449, lon: 11.8474 }).campus.id, 'amberg');
 });
 
-test('exam plans: what is still to come, and what the last semester looked like', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-ex-'));
-  const row = (date, term, module, extra = {}) => ({ programme: 'DTM', faculty: null, term, date, start: '09:00', end: '10:30', module, text: `${module} · Examiner · HS 140`, source: `https://example.invalid/${term.replace(' ', '')}.pdf`, label: 'Prüfungsplan DTM', ...extra });
-  fs.writeFileSync(path.join(dir, 'ex.json'), JSON.stringify({ exams: [
-    row('2026-07-03', 'SoSe 2026', 'Object-oriented Coding'),
-    row('2026-07-06', 'SoSe 2026', 'Business Processes'),
-    row(null, 'SoSe 2026', 'Robotik'),
-    row('2027-01-20', 'WS 2026/27', 'Mathematics'),
-    row('2027-01-25', 'WS 2026/27', 'IoT Technology'),
-    row('2026-07-10', 'SoSe 2026', 'Cooking', { programme: 'ZZ' }),
-  ] }));
-  const { createExams } = require('../src/ai/exams');
-  const exams = createExams({ root: dir, file: 'ex.json', timeZone: 'Europe/Berlin' });
-  const now = new Date('2026-11-09T10:00:00+01:00');
-
-  assert.equal(exams.wantsExams('when is my exam?'), true);
-  assert.equal(exams.wantsExams('wann ist die Klausur'), true);
-  assert.equal(exams.wantsExams('what lecture do I have'), false);
-  assert.equal(exams.wantsLast('what was the exam schedule like last semester?'), true);
-  assert.equal(exams.wantsLast('wie war der Prüfungsplan im letzten Semester'), true);
-
-  const ahead = exams.describe({ codes: ['DTM'], text: 'when are my exams', now }).join('\n');
-  assert.match(ahead, /exams still to come \(from 2026-11-09\)/);
-  assert.match(ahead, /2027-01-20 09:00–10:30 · Mathematics/);
-  assert.ok(ahead.indexOf('Mathematics') < ahead.indexOf('IoT Technology'), 'in date order');
-  assert.ok(!/Object-oriented Coding/.test(ahead), 'last semester is not listed unless asked for');
-  assert.ok(!/Cooking/.test(ahead), 'another programme\'s exams are not mixed in');
-
-  const last = exams.describe({ codes: ['DTM'], text: 'what was the exam schedule like last semester?', now }).join('\n');
-  assert.match(last, /exams of SoSe 2026 \(the last finished term\)/);
-  assert.match(last, /2026-07-03 09:00–10:30 · Object-oriented Coding/);
-  assert.match(last, /without a fixed date[^\n]*Robotik/);
-  assert.match(last, /terms covered: WS 2026\/27, SoSe 2026/);
-
-  const none = exams.describe({ codes: ['QQ'], text: 'exam', now }).join('\n');
-  assert.match(none, /no exam plan for this programme/);
-});
-
 test('the assistant can be asked to open one of the university\'s pages, and nothing else', async () => {
   let reply = '';
   const app = await startApp({
-    env: { AI_GATEWAY_API_KEY: 'fixture-key' },
+    env: { AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_BUNDLED_KNOWLEDGE: 'on' },
     fetchImpl: async () => new Response(JSON.stringify({ choices: [{ message: { content: reply } }] })),
   });
   try {
@@ -295,7 +183,7 @@ test('the assistant can be asked to open one of the university\'s pages, and not
 test('out of the blue: the utterance alone is enough to get the right programme, tomorrow, exams and the links', async () => {
   const seen = [];
   const app = await startApp({
-    env: { AI_GATEWAY_API_KEY: 'fixture-key' },
+    env: { AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_BUNDLED_KNOWLEDGE: 'on' },
     fetchImpl: async (url, options) => {
       seen.push(JSON.parse(options.body));
       return new Response(JSON.stringify({ choices: [{ message: { content: 'Okay.' } }] }));
@@ -311,17 +199,18 @@ test('out of the blue: the utterance alone is enough to get the right programme,
     };
 
     const first = await system('what is an ib student going to have tomorrow? oh i do dtm. what do i have tomorrow?');
-    assert.match(first, /DTM tomorrow \(\w{3} \d+ \w{3}\):/, 'DTM, said last, is the programme and tomorrow has a date');
-    assert.match(first, /IB \(.*does not publish a weekly timetable.*module handbook \(https:\/\/www\.oth-aw\.de\/files\//, 'IB has no timetable and the answer says so with the file it does have');
-    assert.ok(first.indexOf('Official timetable for DTM') < first.indexOf('IB ('), 'the programme named last comes first');
+    assert.match(first, /Programme: DTM, IB/);
+    assert.match(first, /S077/);
+    assert.doesNotMatch(first, /does not publish a weekly timetable/);
     assert.match(first, /LANGUAGE|Languages: this is a bilingual/);
     assert.match(first, /Links: never paste a long web address/);
     assert.match(first, /link\.open/);
 
     const exams = await system('what was the exam schedule like last semester? i do dtm');
-    assert.match(exams, /DTM exams of SoSe 2026 \(the last finished term\)/);
-    assert.match(exams, /Object-oriented Coding/);
-    assert.match(exams, /DTM exam plans in the data: SoSe 2026: https:\/\/www\.oth-aw\.de\/files\//);
+    assert.match(exams, /S078/);
+    assert.match(exams, /SS 2026/);
+    assert.match(exams, /Object.oriented Coding/);
+    assert.match(exams, /finaler_Pruefungsplan_Studiengang_DTM/);
 
     const plain = await system('i do dtm. what lecture do i have today?');
     assert.ok(!/exams of SoSe 2026/.test(plain), 'exam rows are only added when exams are asked about');

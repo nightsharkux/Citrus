@@ -15,6 +15,7 @@ import { wordmark } from './core/brand.js';
 import { wake, stopSpeaking, isSpeaking } from './features/voice.js';
 import { matchCommand } from './features/commands.js';
 import { setLanguage, getLanguage } from './core/i18n.js';
+import { showTranslation } from './features/translate.js';
 
 const app = () => document.getElementById('app');
 const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
@@ -267,6 +268,7 @@ function userMenu(button) {
   menu(button, [
     { label: 'Settings', icon: 'settings', onSelect: () => navigate('/settings') },
     { label: getLanguage() === 'de' ? 'English' : 'Deutsch', icon: 'globe', onSelect: toggleLanguage },
+    { label: getLanguage() === 'de' ? 'Translate page to English' : 'Translate page to German', icon: 'globe', onSelect: () => showTranslation({ text: document.querySelector('#view')?.innerText || '', target: getLanguage() === 'de' ? 'en' : 'de' }) },
     { label: 'Profile & interests', icon: 'user', onSelect: () => navigate('/settings/profile') },
     'divider',
     { label: `Light${current === 'light' ? ' ✓' : ''}`, icon: 'sun', onSelect: () => setTheme('light') },

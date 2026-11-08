@@ -16,9 +16,9 @@ const { createRetrieval, toSource } = require('./retrieval');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest } = require('../http/errors');
 
-function createAiService({ db, env = process.env, fetchImpl, packs = [], readPack }) {
+function createAiService({ db, env = process.env, fetchImpl, packs = [], readPack, academic = null }) {
   const providers = makeProviders({ env, ...(fetchImpl ? { fetchImpl } : {}) });
-  const retrieval = createRetrieval(db, { packs, read: readPack });
+  const retrieval = createRetrieval(db, { packs, read: readPack, academic });
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
@@ -60,10 +60,19 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
 
   /** Longer passages for the model; short citations remain suitable for the UI. */
   function retrieveContext(user, query, limit = 6) {
-    const hits = retrieval.find(user.institution_id, query, { limit });
+    const profile = academic ? db.get('SELECT p.programme, p.semester FROM user_profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND u.institution_id = ?', user.id, user.institution_id) : null;
+    const found = retrieval.find(user.institution_id, query, { limit, profile });
+    const hits = []; const references = []; let remaining = 28000;
+    for (const hit of found) {
+      const reference = { ...toSource(hit, hits.length + 1), excerpt: hit.academic ? hit.content : hit.content.slice(0, 3000),
+        ...(hit.academic ? { metadata: hit.header || '', pageHeading: hit.page_heading || '' } : {}) };
+      const size = JSON.stringify(reference).length;
+      if (size > remaining) continue; // Never chop a layout, OCR row or provenance in the middle.
+      remaining -= size; hits.push(hit); references.push(reference);
+    }
     return {
       sources: hits.map((hit, i) => toSource(hit, i + 1)),
-      references: hits.map((hit, i) => ({ ...toSource(hit, i + 1), excerpt: hit.content.slice(0, 3000) })),
+      references,
     };
   }
 

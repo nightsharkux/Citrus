@@ -62,7 +62,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
   async function call(mode, system, input, history, { stream, signal, maxTokens = 1200, task = 'chat' }) {
     const provider = BY_ID.get(providerName(mode));
     if (!provider || provider.missing(env)) throw new AiError(NOT_CONFIGURED);
-    const req = provider.request({ env, model: provider.model(env, task), system: String(system).slice(0, 26_000), messages: buildMessages(input, history), stream, maxTokens });
+    const req = provider.request({ env, model: provider.model(env, task), system: String(system).slice(0, 64_000), messages: buildMessages(input, history), stream, maxTokens });
     const timeout = AbortSignal.timeout(provider.timeoutMs);
     let response;
     try {
@@ -94,6 +94,11 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     }
     const text = provider.parse(json);
     if (typeof text !== 'string' || !text.trim()) throw new AiError('AI provider did not return a text response');
+    // A translation may expand relative to its input. Never silently return a cut-off translation.
+    if (options.task === 'translation') {
+      if (json.choices?.[0]?.finish_reason === 'length' || text.length > 32000) throw new AiError('The translation is too long. Select a shorter passage and try again.');
+      return text;
+    }
     return text.slice(0, 12_000);
   }
 

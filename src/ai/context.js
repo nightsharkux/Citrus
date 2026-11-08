@@ -14,7 +14,7 @@ const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 20;
 const MIN_FREE_MINUTES = 45;
 
-function createContextBuilder({ db, timetable, timeZone, programmes = null, exams = null }) {
+function createContextBuilder({ db, timetable, timeZone, programmes = null }) {
   const fmt = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone, ...opts }).format(new Date(iso));
   const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const hhmm = (iso) => fmt(iso, { hour: '2-digit', minute: '2-digit' });
@@ -70,13 +70,11 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null, exam
       const own = profile?.programme ? programmes.fromProfile(profile.programme) : [];
       if (!codes.length) codes = own;
       if (!codes.length) {
-        return `Official class timetables (from the university's PDFs) exist for these programme codes: ${programmes.programmes().map((p) => p.code).join(', ')}. When the user says which programme they study (or asks about their classes), their timetable appears here; if you do not know it yet, ask which programme in one short question, then use it.`;
+        return 'An offline academic snapshot is available. If a timetable question needs a programme, degree level, semester or entry cohort that is not known, ask for that detail. A programme listing does not guarantee a readable timetable.';
       }
       const semester = programmes.semesterIn(said) || (codes.some((c) => own.includes(c)) ? profile?.semester ?? null : null);
       const now = new Date();
       const lines = programmes.describe({ codes, semester, now });
-      // Exam dates only when the recent messages ask about exams, so ordinary questions stay short.
-      if (exams && exams.wantsExams(said.slice(-700))) lines.push(...exams.describe({ codes, text: said.slice(-700), now }));
       return lines.join('\n');
     },
 
@@ -211,6 +209,7 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null, exam
       const bits = [
         `assistant name "${shared.extras.assistantName || 'Campus'}"`,
         `interface language ${p.language === 'de' ? 'German' : p.language === 'en' ? 'English' : 'not chosen (follows the browser)'}`,
+        `answers in ${{ de: 'always German', en: 'always English' }[p.answerLanguage] || 'the language the person writes'}`,
         `speech recognition ${{ de: 'German', en: 'English' }[p.speechLanguage] || 'automatic (English or German)'}`,
         `listening for the assistant's name ${p.voiceWake ? 'on' : 'off'}`,
         `animated explanations ${p.visuals === false ? 'off' : 'on'}`,

@@ -48,11 +48,9 @@ module.exports = {
     { label: 'Marketplace', description: 'Housing and learning partners', url: 'https://www.oth-aw.de/en/studies/campus-life/marketplace/about-the-marketplace/', icon: 'bag' },
   ],
   campusMap: 'resources/oth-campus-map.json',
+  academicSnapshot: 'resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt',
   knowledgePack: [
     'resources/OTH_Public_Knowledge_2026-10-31.jsonl',
     'resources/OTH_Website_Knowledge.jsonl',
-    'resources/OTH_Timetable_Documents.jsonl',
-    'resources/OTH_Exams.jsonl',
-    'resources/OTH_Document_Index.jsonl',
   ],
 };

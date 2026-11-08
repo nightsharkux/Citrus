@@ -13,11 +13,7 @@ const path = require('node:path');
 const READERS = {
   'resources/OTH_Public_Knowledge_2026-10-31.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Public_Knowledge_2026-10-31.jsonl'), 'utf8'),
   'resources/OTH_Website_Knowledge.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Website_Knowledge.jsonl'), 'utf8'),
-  'resources/OTH_Timetable_Documents.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Timetable_Documents.jsonl'), 'utf8'),
-  'resources/oth-timetables.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-timetables.json'), 'utf8'),
-  'resources/OTH_Exams.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Exams.jsonl'), 'utf8'),
-  'resources/OTH_Document_Index.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Document_Index.jsonl'), 'utf8'),
-  'resources/oth-exams.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-exams.json'), 'utf8'),
+  'resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'CampusOS_OTH_AW_Academic_Data_2026-11-08.txt'), 'utf8'),
   'resources/oth-campus-map.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-campus-map.json'), 'utf8'),
 };
 

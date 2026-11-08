@@ -45,6 +45,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
+| POST | `/api/assistant/translate` | user | any |
 | GET | `/api/assistant` | user | any |
 | GET | `/api/assistant/threads/:id` | user | any |
 | PATCH | `/api/assistant/threads/:id` | user | any |

@@ -4,8 +4,8 @@
 
 ### Added
 - **University knowledge.** The assistant now reads about 3,000 passages from the public OTH Amberg-Weiden website in German and English, with contact details as the pages print them, and the text of the published exam plans. See *What it knows about the university* in [AI.md](AI.md).
-- **Official class timetables.** "I'm in DTM, what do I have right now / tomorrow?" is answered from the published timetable, computed for the current day and time. 126 class timetables for 33 programmes. A programme that publishes only a picture, or a module handbook instead of a timetable (International Business), is said so and linked.
-- **Exam plans.** About 1,750 exam rows from 43 published plans: what is still to come, and what the last semester looked like. A document index lists all 1,769 PDFs the site links, with year and link, so older material can be pointed to.
+- **Academic snapshot.** Timetables, exam plans, study plans and semester dates come from the supplied snapshot `resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt` (182 documents, 572 pages), searched by programme and semester and cited by page. It replaces the earlier extracted timetable and exam data.
+- **Answers and pages in German.** Choose *Follow my language*, German or English for answers, in Settings or by asking. Any answer or page can be translated without changing the original. Sudden language switches and remarks like "can't do Deutsch, broken" are handled without fuss, also when speech recognition was listening for the other language.
 - **Open links on command.** Answers use short link titles instead of long addresses, and "open it" opens the page or document in a new tab (university domains only).
 - **German and English.** The interface, the assistant, voice commands and read-aloud work in both languages. The assistant understands sentences that mix them, misspellings and broken grammar. Voice input follows the language you speak; each language has its own voice.
 - **Rename the assistant.** Each account can call it what it likes (Claudia, Max...); "Hey Claudia" and every label follow. This replaces the product-wide name decision in 1.1.0.
@@ -18,7 +18,7 @@
 - `Permissions-Policy` allows location for this site (the map asks first).
 
 ### Tests
-- 103 automated tests.
+- 107 automated tests.
 
 ## 1.1.0 (November 2026)
 
