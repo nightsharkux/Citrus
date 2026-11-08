@@ -12,7 +12,8 @@ import { toast, sheet, menu } from './core/ui.js';
 import { avatar } from './core/components.js';
 import { navFor, allItems, isActive } from './nav.js';
 import { wordmark } from './core/brand.js';
-import { wake } from './features/voice.js';
+import { wake, stopSpeaking, isSpeaking } from './features/voice.js';
+import { matchCommand } from './features/commands.js';
 
 const app = () => document.getElementById('app');
 const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
@@ -69,7 +70,12 @@ export function mountApp() {
       </header>
       <main id="view" class="view" tabindex="-1"></main>
     </div>
-    <nav class="tabbar" aria-label="Tabs">${nav.tabs.map((href) => tab(href, nav))}</nav>`);
+    <nav class="tabbar" aria-label="Tabs">${nav.tabs.map((href) => tab(href, nav))}</nav>
+    <div class="voice-pill" data-voice-pill hidden role="status" aria-live="polite">
+      <span class="voice-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      <span class="voice-text" data-voice-text>Listening</span>
+      <button class="voice-close" data-voice-cancel aria-label="Cancel">${icon('x', 16)}</button>
+    </div>`);
 
   wireShell();
   live.connect();
@@ -80,6 +86,57 @@ export function mountApp() {
 function syncWakeIndicator() {
   const el = $('[data-wake-indicator]');
   if (el) el.hidden = !wake.enabled;
+}
+
+/** The floating "Listening" pill: appears after "Hey Campus", shows the words as they are spoken, leaves when the command is sent. */
+let pillTimer = 0;
+function showPill(text, { final = false } = {}) {
+  const pill = $('[data-voice-pill]');
+  if (!pill) return;
+  clearTimeout(pillTimer);
+  pill.hidden = false;
+  pill.classList.toggle('has-words', !!text);
+  pill.classList.toggle('is-final', final);
+  const label = $('[data-voice-text]', pill);
+  if (label) label.textContent = text ? `“${text}”` : 'Listening';
+}
+function hidePill(delay = 0) {
+  clearTimeout(pillTimer);
+  pillTimer = setTimeout(() => {
+    const pill = $('[data-voice-pill]');
+    if (pill) pill.hidden = true;
+  }, delay);
+}
+function onWakeState(state) {
+  syncWakeIndicator();
+  $('[data-wake-indicator]')?.classList.toggle('is-hearing', state === 'heard' || state === 'armed');
+  if (state === 'heard' || state === 'armed') showPill('');
+  else if (state === 'sent') hidePill(450);
+  else hidePill();
+}
+
+async function turnOffWake() {
+  wake.stop();
+  const res = await api.patch('/me', { preferences: { voiceWake: false } }).catch(() => null);
+  if (res) setSession({ user: { ...session.user, preferences: res.user.preferences } });
+}
+
+/** Commands that need no AI ("open schedule", "dark mode", "stop"). Returns true when handled. */
+function handleVoiceCommand(text) {
+  const command = matchCommand(text, {
+    role: session.user.role,
+    navigate,
+    setTheme,
+    stop: () => {
+      stopSpeaking();
+      document.dispatchEvent(new CustomEvent('campus:stop'));
+    },
+    stopListening: () => turnOffWake(),
+  });
+  if (!command) return false;
+  toast(command.say, 'info', { duration: 1800 });
+  command.run();
+  return true;
 }
 
 function navLink(item) {
@@ -97,6 +154,7 @@ function tab(href, nav) {
 const roleLabel = (r) => ({ student: 'Student', lecturer: 'Lecturer', admin: 'Administrator' })[r] || r;
 
 let wired = false;
+let typingTimer = 0;
 function wireShell() {
   updateActive();
   if (wired) return;
@@ -120,15 +178,27 @@ function wireShell() {
       e.preventDefault();
       openPalette();
     }
+    if (e.key === 'Escape' && isSpeaking()) stopSpeaking();
+    if (e.target.matches?.('textarea, input')) {
+      document.body.classList.add('is-typing');
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => document.body.classList.remove('is-typing'), 1500);
+    }
   });
 
   // "Hey Campus" from any page: open the assistant (and ask, if a question followed).
-  wake.setFallback((text) => navigate(text ? `/assistant?q=${encodeURIComponent(text)}` : '/assistant'));
-  wake.onState(syncWakeIndicator);
+  wake.setFallback((text) => navigate(`/assistant?q=${encodeURIComponent(text)}`));
+  wake.setInterceptor(handleVoiceCommand);
+  wake.onState(onWakeState);
+  wake.onTranscript(({ text, final }) => {
+    if (wake.armed) showPill(text, { final });
+  });
+  on(document, 'click', '[data-voice-cancel]', () => {
+    wake.cancelCapture();
+    hidePill();
+  });
   on(document, 'click', '[data-wake-indicator]', async () => {
-    wake.stop();
-    const res = await api.patch('/me', { preferences: { voiceWake: false } }).catch(() => null);
-    if (res) setSession({ user: { ...session.user, preferences: res.user.preferences } });
+    await turnOffWake();
     toast('Campus stopped listening.', 'info');
   });
 

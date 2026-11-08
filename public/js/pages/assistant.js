@@ -1,7 +1,8 @@
 /**
- * Campus — the assistant. Threaded conversations with streamed answers, cited
- * sources, an animated face that reacts and illustrates, dictation, read-aloud,
- * app-wide "Hey Campus" and a full-screen mode.
+ * Campus — the assistant. Threaded conversations with streamed answers (written
+ * like a textbook: formulas, steps, tables), cited sources, an animated face that
+ * reacts and illustrates, things it does for you (calendar changes, opening pages)
+ * with undo, dictation, read-aloud, app-wide "Hey Campus" and a full-screen mode.
  */
 import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -10,6 +11,7 @@ import { session, firstName, assistantName, setSession } from '../core/store.js'
 import { markdown } from '../core/markdown.js';
 import { ago } from '../core/format.js';
 import { toast, toastError, menu, prompt, confirm, sheet, copyText } from '../core/ui.js';
+import { setTheme } from '../shell.js';
 import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.js';
 import { inferVisual } from '../features/face-visuals.js';
 import { wake, dictate, speak, stopSpeaking, voiceProblem } from '../features/voice.js';
@@ -18,20 +20,20 @@ const SUGGESTIONS = {
   student: [
     ['calendar', 'What’s on my schedule this week?'],
     ['graduation', 'Help me make a study plan for my courses'],
-    ['bulb', 'Explain the Pythagorean theorem step by step'],
-    ['compass', 'Where can I find the library opening hours?'],
+    ['bulb', 'Explain the quadratic formula step by step'],
+    ['plus', 'Add a study session to my calendar tomorrow at 4 pm'],
   ],
   lecturer: [
     ['clipboard', 'Draft three concept-check questions for my next lecture'],
     ['presentation', 'Help me structure a 90-minute lecture'],
     ['message', 'Turn my notes into a clear announcement'],
-    ['calendar', 'What do I teach this week?'],
+    ['plus', 'Block Friday 10:00 to 12:00 for office hours'],
   ],
   admin: [
     ['library', 'What should go into our knowledge library first?'],
     ['shield', 'Checklist for a safe pilot rollout'],
     ['users', 'How do I onboard lecturers smoothly?'],
-    ['compass', 'Summarise the semester dates'],
+    ['calendar', 'Open the schedule'],
   ],
 };
 const THANKS = /\b(thanks|thank you|thx|danke|cheers|great|perfect|awesome)\b/i;
@@ -50,12 +52,35 @@ function sourceList(sources) {
     : html`<span class="source" id="src-${s.n}"><b>${s.n}</b><span class="truncate">${s.title}</span>${s.checkLive ? html`<em>Check live</em>` : ''}</span>`))}</div>`;
 }
 
+const ACTION_ICON = { 'app.navigate': 'arrow-right', 'app.theme': 'moon' };
+
+/** One thing the assistant did (or could not do) for the user. */
+function actionCard(a, messageId, index) {
+  const glyph = !a.ok ? 'alert' : a.undone ? 'undo' : ACTION_ICON[a.name] || (a.name.startsWith('calendar.') ? 'calendar' : 'check-circle');
+  const state = !a.ok ? 'is-error' : a.undone ? 'is-undone' : '';
+  return html`<div class="action-card ${state}" data-action="${index}">
+    <span class="action-icon">${icon(glyph, 18)}</span>
+    <span class="action-body">
+      <strong>${!a.ok ? 'I could not do that' : a.undone ? 'Undone' : a.title}</strong>
+      ${a.ok ? (a.detail ? html`<span class="action-detail">${a.detail}</span>` : '') : html`<span class="action-detail">${a.error}</span>`}
+      ${a.ok && a.warning && !a.undone ? html`<em class="action-warn">${icon('alert', 13)} ${a.warning}</em>` : ''}
+    </span>
+    <span class="action-tools">
+      ${a.ok && a.link && !a.undone ? html`<a class="btn btn-sm" href="${a.link}">View</a>` : ''}
+      ${a.undoable && messageId ? html`<button class="btn btn-sm btn-ghost" data-undo="${index}" data-message="${messageId}">${icon('undo', 14)} Undo</button>` : ''}
+    </span>
+  </div>`;
+}
+
+const actionList = (actions, messageId) => (actions?.length ? html`<div class="actions">${actions.map((a, i) => actionCard(a, messageId, i))}</div>` : '');
+
 function messageView(m) {
   if (m.role === 'user') return html`<div class="msg user"><div class="bubble">${m.content}</div></div>`;
   const citations = new Set((m.sources || []).map((s) => s.n));
   return html`<div class="msg ai">
     <span class="msg-avatar">${faceMark()}</span>
-    <div class="msg-body">
+    <div class="msg-body" data-raw="${m.content}">
+      ${actionList(m.actions, m.id)}
       <div class="prose">${markdown(m.content, { citations })}</div>
       ${sourceList(m.sources)}
       <div class="msg-tools">
@@ -143,6 +168,7 @@ export default {
     let threadId = data.thread?.thread.id || null;
     let controller = null;
     let hideTimer = 0;
+    let dictation = null;
 
     // ---- Faces: one in the header (grows into an illustration stage), one large on the welcome screen.
     const headFace = createFace({ size: 44, mood: ready ? 'idle' : 'asleep' });
@@ -164,9 +190,16 @@ export default {
 
     const scrollDown = (smooth = true) => log.scrollTo({ top: log.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
     scrollDown(false);
+    // Newer browsers size the box themselves (css: field-sizing). Elsewhere, resize once per frame, not per key.
+    const nativeSizing = CSS.supports?.('field-sizing', 'content');
+    let sizeFrame = 0;
     const autosize = () => {
-      field.style.height = 'auto';
-      field.style.height = `${Math.min(field.scrollHeight, 200)}px`;
+      if (nativeSizing || sizeFrame) return;
+      sizeFrame = requestAnimationFrame(() => {
+        sizeFrame = 0;
+        field.style.height = 'auto';
+        field.style.height = `${Math.min(field.scrollHeight, 200)}px`;
+      });
     };
     field.addEventListener('input', () => {
       autosize();
@@ -193,6 +226,12 @@ export default {
       return true;
     };
 
+    /** Things the assistant asked the browser itself to do. The server has already checked them. */
+    function runClientEffect(effect) {
+      if (effect.type === 'theme') setTheme(effect.mode === 'system' ? null : effect.mode);
+      else if (effect.type === 'navigate') ctx.navigate(effect.path);
+    }
+
     async function send(text) {
       const question = text.trim();
       if (!question || controller) return;
@@ -206,7 +245,7 @@ export default {
       log.insertAdjacentHTML('beforeend', messageView({ role: 'user', content: question }).value);
       const holder = document.createElement('div');
       holder.className = 'msg ai is-streaming';
-      render(holder, html`<span class="msg-avatar">${faceMark()}</span><div class="msg-body"><div class="prose"><span class="typing"><i></i><i></i><i></i></span></div></div>`);
+      render(holder, html`<span class="msg-avatar">${faceMark()}</span><div class="msg-body"><div class="actions" hidden></div><div class="prose"><span class="typing"><i></i><i></i><i></i></span></div></div>`);
       log.append(holder);
       scrollDown();
       field.value = '';
@@ -220,9 +259,10 @@ export default {
       let answer = '';
       let visual = null;
       let frame = 0;
+      const results = [];
       const paint = () => {
         frame = 0;
-        render($('.prose', holder), html`${markdown(answer)}<span class="caret"></span>`);
+        render($('.prose', holder), html`${markdown(answer, { streaming: true })}<span class="caret"></span>`);
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
@@ -233,6 +273,15 @@ export default {
               threadId = payload.id;
               history.replaceState({}, '', `/assistant/${threadId}`);
               prependThread(payload);
+            } else if (type === 'action') {
+              results.push(payload);
+              const box = $('.actions', holder);
+              if (box) {
+                box.hidden = false;
+                box.insertAdjacentHTML('beforeend', actionCard(payload, null, results.length - 1).value);
+              }
+              faces.react(payload.ok ? 'happy' : 'confused', 1200);
+              scrollDown();
             } else if (type === 'visual') {
               visual = payload;
               illustrate(visual);
@@ -250,13 +299,17 @@ export default {
                 if (visual) illustrate(visual);
               }
               const finalVisual = payload.visual || visual || null;
-              holder.outerHTML = messageView({ role: 'assistant', content: answer, sources: payload.sources || [], visual: finalVisual }).value;
+              holder.outerHTML = messageView({ id: payload.messageId, role: 'assistant', content: answer, sources: payload.sources || [], visual: finalVisual, actions: payload.actions || results }).value;
               if (faces.showingVisual) hideTimer = setTimeout(() => faces.hideVisual(), 5200);
               faces.setMood('idle');
               faces.react('happy', THANKS.test(question) ? 2600 : 1400);
-              if (wake.enabled) {
+              const effects = (payload.actions || results).filter((a) => a.ok && a.client).map((a) => a.client);
+              const applyEffects = () => effects.forEach(runClientEffect);
+              if (wake.enabled && answer) {
                 faces.setMood('speaking');
-                speak(answer, { onEnd: () => faces.setMood('idle') });
+                speak(answer, { onEnd: () => { faces.setMood('idle'); applyEffects(); } });
+              } else if (effects.length) {
+                setTimeout(applyEffects, effects.some((e) => e.type === 'navigate') ? 1100 : 0);
               }
             } else if (type === 'error') {
               throw new Error(payload.message);
@@ -327,34 +380,71 @@ export default {
     if (ctx.query.get('full') === '1') setFull(true);
 
     // ---- Voice: app-wide wake word routes commands here while this page is open.
-    const offWake = wake.onCommand((text) => {
-      if (text) {
-        send(text);
-      } else {
-        faces.setMood('listening');
-        setTimeout(() => !controller && headFace.mood === 'listening' && faces.setMood('idle'), 8000);
-      }
-    });
+    const offWake = wake.onCommand((text) => send(text));
     const offWakeState = wake.onState((state) => {
       const b = $('[data-wake]', root);
-      if (!b) return;
-      const on_ = wake.enabled;
-      b.classList.toggle('btn-primary', on_);
-      b.setAttribute('aria-pressed', String(on_));
-      const label = b.querySelector('span');
-      if (label) label.textContent = on_ ? 'Listening' : 'Hey Campus';
-      if (state === 'armed') faces.setMood('listening');
+      if (b) {
+        const on_ = wake.enabled;
+        b.classList.toggle('btn-primary', on_);
+        b.setAttribute('aria-pressed', String(on_));
+        const label = b.querySelector('span');
+        if (label) label.textContent = on_ ? 'Listening' : 'Hey Campus';
+      }
+      if (controller) return;
+      if (state === 'heard' || state === 'armed') faces.setMood('listening');
+      else if (headFace.mood === 'listening') faces.setMood('idle');
     });
+    // "Stop" (spoken, or Esc while it talks) also ends a running answer.
+    const onStop = () => {
+      controller?.abort();
+      faces.setMood('idle');
+    };
+    document.addEventListener('campus:stop', onStop);
 
     const offs = [
       on(root, 'click', '[data-suggest]', (e, b) => send(b.dataset.suggest)),
-      on(root, 'click', '[data-dictate]', () => {
+      on(root, 'click', '[data-dictate]', (e, b) => {
+        if (dictation) {
+          dictation.stop();
+          return;
+        }
+        const before = field.value.trim();
+        const join = (t) => [before, t].filter(Boolean).join(' ');
         faces.setMood('listening');
-        dictate((text) => {
-          field.value = `${field.value} ${text}`.trim();
-          autosize();
-          field.focus();
-        }, () => faces.setMood('idle'));
+        b.classList.add('is-recording');
+        b.setAttribute('aria-pressed', 'true');
+        dictation = dictate({
+          // The words appear as you say them, so there is nothing to wait for.
+          onInterim: (t) => {
+            field.value = join(t);
+            autosize();
+          },
+          onFinal: (t) => {
+            field.value = join(t);
+            autosize();
+            // With "Hey Campus" on, speaking is hands-free: send it.
+            if (wake.enabled && t) send(field.value);
+            else field.focus();
+          },
+          onEnd: () => {
+            dictation = null;
+            b.classList.remove('is-recording');
+            b.setAttribute('aria-pressed', 'false');
+            if (!controller) faces.setMood('idle');
+          },
+        });
+      }),
+      on(root, 'click', '[data-undo]', async (e, b) => {
+        b.disabled = true;
+        try {
+          const res = await api.post(`/assistant/messages/${b.dataset.message}/actions/${b.dataset.undo}/undo`);
+          const card = b.closest('.action-card');
+          card.outerHTML = actionCard(res.action, null, Number(b.dataset.undo)).value;
+          toast('Undone', 'success', { duration: 1800 });
+        } catch (error) {
+          b.disabled = false;
+          toastError(error);
+        }
       }),
       on(root, 'click', '[data-wake]', async () => {
         const enable = !wake.enabled;
@@ -379,10 +469,10 @@ export default {
           /* malformed */
         }
       }),
-      on(root, 'click', '[data-copy]', (e, b) => copyText(b.closest('.msg-body').querySelector('.prose').innerText, 'Answer copied')),
+      on(root, 'click', '[data-copy]', (e, b) => copyText(b.closest('.msg-body').dataset.raw || b.closest('.msg-body').querySelector('.prose').innerText, 'Answer copied')),
       on(root, 'click', '[data-speak]', (e, b) => {
         faces.setMood('speaking');
-        speak(b.closest('.msg-body').querySelector('.prose').innerText, { onEnd: () => faces.setMood('idle') });
+        speak(b.closest('.msg-body').dataset.raw || b.closest('.msg-body').querySelector('.prose').innerText, { onEnd: () => faces.setMood('idle') });
       }),
       on(root, 'click', '.cite', (e, a) => {
         e.preventDefault();
@@ -428,6 +518,8 @@ export default {
       offs.forEach((off) => off());
       offWake();
       offWakeState();
+      document.removeEventListener('campus:stop', onStop);
+      dictation?.stop();
       stopTyping();
       controller?.abort();
       clearTimeout(hideTimer);

@@ -157,6 +157,9 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
     rect: null, rectAt: 0, visualStop: null, visualTimer: null, alive: true, last: performance.now(),
   };
   retainWorld();
+  // Nothing to animate while the face is scrolled out of view.
+  const watcher = typeof IntersectionObserver === 'function' ? new IntersectionObserver(([entry]) => { s.offscreen = !entry.isIntersecting; }) : null;
+  watcher?.observe(el);
 
   const current = () => (s.overlay && performance.now() < s.overlayUntil ? s.overlay : s.base);
 
@@ -222,9 +225,12 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
 
   function frame(now) {
     if (!s.alive) return;
+    if (document.hidden || s.offscreen) return void requestAnimationFrame(frame);
+    // A calm face (idle or asleep) moves slowly: 30 frames a second is plenty and leaves the main thread free for typing.
+    const calm = !s.visual && now >= s.typingUntil && (current() === 'idle' || current() === 'asleep');
+    if (calm && now - s.last < 30) return void requestAnimationFrame(frame);
     const dt = Math.min(0.04, (now - s.last) / 1000);
     s.last = now;
-    if (document.hidden) return void requestAnimationFrame(frame);
 
     let name = current();
     if (name === 'idle' && now - world.activeAt > 60_000 && !reduced()) name = 'drowsy';
@@ -401,6 +407,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
     destroy() {
       if (!s.alive) return;
       s.alive = false;
+      watcher?.disconnect();
       clearTimeout(s.visualTimer);
       s.visualStop?.();
       releaseWorld();
@@ -436,20 +443,28 @@ export function faceGroup(...faces) {
 export function watchTyping(field, face) {
   const mirror = document.createElement('div');
   mirror.setAttribute('aria-hidden', 'true');
-  Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', top: '0', left: '-9999px', overflow: 'hidden' });
+  Object.assign(mirror.style, { position: 'absolute', visibility: 'hidden', top: '0', left: '-9999px', overflow: 'hidden', overflowWrap: 'break-word' });
+  const marker = document.createElement('span');
+  marker.textContent = '​';
   document.body.append(mirror);
   const props = ['boxSizing', 'width', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth', 'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'textTransform', 'wordSpacing', 'textIndent', 'tabSize'];
   const isInput = field.tagName === 'INPUT';
+  mirror.style.whiteSpace = isInput ? 'pre' : 'pre-wrap';
 
-  function caretPoint() {
+  // The look of the field changes rarely (resize, focus), so copy its styles then, not on every key.
+  let styled = false;
+  const copyStyles = () => {
     const cs = getComputedStyle(field);
     for (const p of props) mirror.style[p] = cs[p];
-    mirror.style.whiteSpace = isInput ? 'pre' : 'pre-wrap';
-    mirror.style.overflowWrap = 'break-word';
     if (isInput) mirror.style.width = 'auto';
+    styled = true;
+  };
+  const resizes = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { styled = false; }) : null;
+  resizes?.observe(field);
+
+  function caretPoint() {
+    if (!styled) copyStyles();
     mirror.textContent = field.value.slice(0, field.selectionEnd ?? field.value.length);
-    const marker = document.createElement('span');
-    marker.textContent = '​';
     mirror.append(marker);
     const r = field.getBoundingClientRect();
     const x = r.left + marker.offsetLeft - (isInput ? field.scrollLeft : 0);
@@ -457,24 +472,35 @@ export function watchTyping(field, face) {
     return [clamp(x, r.left, r.right), clamp(y, r.top, r.bottom)];
   }
 
+  // At most one measurement per frame, however fast you type.
+  let frame = 0;
   const update = () => {
+    frame = 0;
     if (document.activeElement !== field) return;
     const [x, y] = caretPoint();
     face.typingAt(x, y);
   };
-  const keys = (e) => {
-    if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End') requestAnimationFrame(update);
+  const schedule = () => {
+    if (!frame) frame = requestAnimationFrame(update);
   };
-  field.addEventListener('input', update);
+  const keys = (e) => {
+    if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End') schedule();
+  };
+  const focus = () => { styled = false; };
+  field.addEventListener('input', schedule);
   field.addEventListener('keyup', keys);
-  field.addEventListener('click', update);
+  field.addEventListener('click', schedule);
+  field.addEventListener('focus', focus);
   const blur = () => face.stopTyping();
   field.addEventListener('blur', blur);
   return () => {
+    cancelAnimationFrame(frame);
+    resizes?.disconnect();
     field.removeEventListener('blur', blur);
-    field.removeEventListener('input', update);
+    field.removeEventListener('focus', focus);
+    field.removeEventListener('input', schedule);
     field.removeEventListener('keyup', keys);
-    field.removeEventListener('click', update);
+    field.removeEventListener('click', schedule);
     mirror.remove();
   };
 }

@@ -29,7 +29,6 @@ body {
   inset: -20vmax;
   z-index: -1;
   pointer-events: none;
-  filter: blur(70px) saturate(130%);
   opacity: 0.5;
 }
 .ambient span {
@@ -39,7 +38,10 @@ body {
   border-radius: 50%;
   opacity: 0.55;
   animation: drift 38s var(--ease) infinite alternate;
+  will-change: transform;
 }
+/* Frosted panels re-blur whatever moves behind them. While you type, the background holds still so keystrokes stay instant. */
+body.is-typing .ambient span { animation-play-state: paused; }
 .ambient span:nth-child(1) { background: radial-gradient(circle, var(--aurora-1), transparent 62%); top: 0; left: 5%; }
 .ambient span:nth-child(2) { background: radial-gradient(circle, var(--aurora-2), transparent 62%); top: 25%; right: -5%; animation-duration: 46s; animation-delay: -12s; }
 .ambient span:nth-child(3) { background: radial-gradient(circle, var(--aurora-3), transparent 62%); bottom: -10%; left: 30%; animation-duration: 52s; animation-delay: -24s; }

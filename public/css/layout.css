@@ -44,6 +44,23 @@
 .sidebar .brand { padding: 4px 12px 20px; }
 .wake-indicator { color: var(--accent); animation: wake-glow 1.8s ease-in-out infinite; }
 .wake-indicator[hidden] { display: none; }
+.wake-indicator.is-hearing { background: var(--accent); color: var(--accent-contrast); }
+
+/* "Listening" pill: appears after "Hey Campus" and shows the words as they are spoken. */
+.voice-pill { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 95; display: flex; align-items: center; gap: 12px; max-width: min(600px, calc(100vw - 32px)); padding: 9px 9px 9px 16px; border-radius: var(--radius-pill); background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-border); box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent); transform: translateX(-50%); animation: voice-in var(--dur) var(--ease-spring); }
+.voice-pill[hidden] { display: none; }
+.voice-bars { display: inline-flex; align-items: center; gap: 3px; height: 22px; flex: none; }
+.voice-bars i { width: 3px; height: 6px; border-radius: 2px; background: linear-gradient(var(--aurora-1), var(--aurora-3)); animation: voice-bar 0.9s ease-in-out infinite; }
+.voice-bars i:nth-child(2) { animation-delay: 0.12s; } .voice-bars i:nth-child(3) { animation-delay: 0.24s; } .voice-bars i:nth-child(4) { animation-delay: 0.36s; } .voice-bars i:nth-child(5) { animation-delay: 0.48s; }
+.voice-pill.is-final .voice-bars i { animation: none; height: 12px; }
+.voice-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; color: var(--text-2); }
+.voice-pill.has-words .voice-text { color: var(--text); font-weight: 500; }
+.voice-close { display: grid; place-items: center; flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--fill); color: var(--text-2); }
+.voice-close:hover { background: var(--fill-2); color: var(--text); }
+@keyframes voice-in { from { opacity: 0; transform: translate(-50%, 12px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+@keyframes voice-bar { 0%, 100% { height: 5px; } 50% { height: 20px; } }
+@media (max-width: 960px) { .voice-pill { bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { .voice-bars i { animation: none; height: 12px; } }
 @keyframes wake-glow { 0%, 100% { box-shadow: var(--shadow-sm), 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); } 50% { box-shadow: var(--shadow-sm), 0 0 0 6px transparent; } }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
