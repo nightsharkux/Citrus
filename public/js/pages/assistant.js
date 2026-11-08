@@ -2,7 +2,8 @@
  * Campus — the assistant. Threaded conversations with streamed answers (written
  * like a textbook: formulas, steps, tables), cited sources, an animated face that
  * reacts and illustrates, things it does for you (calendar changes, opening pages)
- * with undo, dictation, read-aloud, app-wide "Hey Campus" and a full-screen mode.
+ * with undo, dictation, read-aloud, app-wide "Hey Campus", a full-screen mode and
+ * a hands-free voice conversation (the send button while the box is empty).
  */
 import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -14,7 +15,9 @@ import { toast, toastError, menu, prompt, confirm, sheet, copyText } from '../co
 import { setTheme } from '../shell.js';
 import { createFace, faceGroup, watchTyping, faceMark } from '../features/face.js';
 import { inferVisual } from '../features/face-visuals.js';
-import { wake, dictate, speak, stopSpeaking, voiceProblem } from '../features/voice.js';
+import { wake, dictate, speak, createSpeaker, primeSpeech, stopSpeaking, voiceProblem } from '../features/voice.js';
+import { getVoiceSettings } from '../features/voices.js';
+import { startConversation, conversationOpen, conversationProblem } from '../features/conversation.js';
 import { createAttachments, attachmentList, zoomPicture, watchDrops, pastedFiles, ACCEPT } from '../features/attach.js';
 
 const SUGGESTIONS = {
@@ -179,14 +182,36 @@ export default {
     let hideTimer = 0;
     let dictation = null;
     let preparing = false;
+    let spokenDraft = false; // the text in the box was dictated, so the answer may be read aloud
 
     // ---- Pictures and documents: add by button, paste or drop. They upload as soon as they are added.
     const sendButton = $('.composer-send', form);
     const attach = createAttachments({
       tray: $('.att-tray', form),
-      onChange: () => form.classList.toggle('has-files', attach.count > 0),
+      onChange: () => {
+        form.classList.toggle('has-files', attach.count > 0);
+        syncSend();
+      },
       onError: (message) => toast(message, 'error'),
     });
+
+    // ---- The send button starts a voice conversation while there is nothing to send.
+    const canTalk = ready && !conversationProblem();
+    let talkMode = null;
+    function syncSend() {
+      if (controller) return;
+      const next = canTalk && !field.value.trim() && !attach.count;
+      if (next === talkMode) return;
+      talkMode = next;
+      render(sendButton, icon(next ? 'waveform' : 'arrow-up', 19));
+      sendButton.setAttribute('aria-label', next ? 'Talk to Campus' : 'Send');
+      sendButton.title = next ? 'Talk to Campus: a hands-free voice conversation' : 'Send';
+    }
+    const talk = () => {
+      dictation?.stop();
+      stopSpeaking();
+      startConversation({ threadId });
+    };
     const picker = document.createElement('input');
     picker.type = 'file';
     picker.multiple = true;
@@ -248,6 +273,8 @@ export default {
     };
     field.addEventListener('input', () => {
       autosize();
+      syncSend();
+      if (!field.value.trim()) spokenDraft = false;
       if (!controller && faces.showingVisual) faces.hideVisual();
     });
     let lastQuestion = [...(data.thread?.messages || [])].reverse().find((m) => m.role === 'user' && m.content)?.content || '';
@@ -266,10 +293,15 @@ export default {
     });
 
     const setSending = (sending) => {
-      const btn = $('.composer-send', form);
-      render(btn, sending ? icon('stop', 17) : icon('arrow-up', 19));
-      btn.setAttribute('aria-label', sending ? 'Stop' : 'Send');
-      btn.classList.toggle('is-stop', sending);
+      sendButton.classList.toggle('is-stop', sending);
+      talkMode = null;
+      if (!sending) {
+        syncSend();
+        return;
+      }
+      render(sendButton, icon('stop', 17));
+      sendButton.setAttribute('aria-label', 'Stop');
+      sendButton.title = 'Stop';
     };
 
     const illustrate = (visual, hold = 0) => {
@@ -285,7 +317,8 @@ export default {
       else if (effect.type === 'navigate') ctx.navigate(effect.path);
     }
 
-    async function send(text) {
+    /** `spoken`: the question was said, not typed; with the default read-aloud setting the answer is then spoken as it arrives. */
+    async function send(text, { spoken = false } = {}) {
       if (controller || preparing) return;
       if (!ready) {
         faces.react('confused', 1600);
@@ -312,6 +345,7 @@ export default {
       log.append(holder);
       scrollDown();
       field.value = '';
+      spokenDraft = false;
       autosize();
       field.blur();
       faces.stopTyping();
@@ -323,6 +357,20 @@ export default {
       let visual = null;
       let frame = 0;
       const results = [];
+      // Read aloud while the answer is being written: "When I speak to Campus" (default), "Every answer" or "Never".
+      const readAloud = getVoiceSettings().readAloud;
+      let afterSpeech = null;
+      const speaker = readAloud === 'always' || (readAloud === 'spoken' && spoken)
+        ? createSpeaker({
+          onStart: () => faces.setMood('speaking'),
+          onEnd: () => {
+            if (!controller) faces.setMood('idle');
+            const run = afterSpeech;
+            afterSpeech = null;
+            run?.();
+          },
+        })
+        : null;
       const paint = () => {
         frame = 0;
         render($('.prose', holder), html`${markdown(answer, { streaming: true })}<span class="caret"></span>`);
@@ -352,6 +400,7 @@ export default {
             } else if (type === 'delta') {
               if (!answer) faces.setMood('speaking');
               answer += payload.text;
+              speaker?.feed(payload.text);
               if (!visual && answer.length > 160) {
                 visual = inferVisual(question, answer) || false;
                 if (visual) illustrate(visual);
@@ -365,15 +414,16 @@ export default {
               const finalVisual = payload.visual || visual || null;
               holder.outerHTML = messageView({ id: payload.messageId, role: 'assistant', content: answer, sources: payload.sources || [], visual: finalVisual, actions: payload.actions || results }).value;
               if (faces.showingVisual) hideTimer = setTimeout(() => faces.hideVisual(), 5200);
-              faces.setMood('idle');
               faces.react('happy', THANKS.test(question) ? 2600 : 1400);
               const effects = (payload.actions || results).filter((a) => a.ok && a.client).map((a) => a.client);
               const applyEffects = () => effects.forEach(runClientEffect);
-              if (wake.enabled && answer) {
-                faces.setMood('speaking');
-                speak(answer, { onEnd: () => { faces.setMood('idle'); applyEffects(); } });
-              } else if (effects.length) {
-                setTimeout(applyEffects, effects.some((e) => e.type === 'navigate') ? 1100 : 0);
+              if (speaker?.active) {
+                // Open the page or switch the theme once Campus has finished saying so.
+                afterSpeech = applyEffects;
+                speaker.end();
+              } else {
+                faces.setMood('idle');
+                if (effects.length) setTimeout(applyEffects, effects.some((e) => e.type === 'navigate') ? 1100 : 0);
               }
             } else if (type === 'error') {
               throw new Error(payload.message);
@@ -381,6 +431,8 @@ export default {
           },
         });
       } catch (error) {
+        afterSpeech = null;
+        speaker?.cancel();
         faces.hideVisual();
         faces.setMood('idle');
         if (error.name === 'AbortError') {
@@ -394,6 +446,7 @@ export default {
           if (error.status === 503) setSession({ ai: { ...(session.ai || {}), aiEnabled: false } });
         }
       } finally {
+        speaker?.end(); // the stream ended without a `done` event: say what arrived
         cancelAnimationFrame(frame);
         controller = null;
         setSending(false);
@@ -415,10 +468,19 @@ export default {
       list.insertAdjacentHTML('afterbegin', html`<a class="list-row no-icon is-active" href="/assistant/${t.id}"><span class="body"><span class="title">${t.title}</span><span class="sub">just now</span></span></a>`.value);
     }
 
+    // Only a click on the button starts talking; Enter in an empty box does nothing.
+    sendButton.addEventListener('click', (e) => {
+      if (!talkMode || controller) return;
+      e.preventDefault();
+      talk();
+    });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       if (controller) controller.abort();
-      else send(field.value);
+      else {
+        if (spokenDraft) primeSpeech();
+        send(field.value, { spoken: spokenDraft });
+      }
     });
 
     // ---- Full screen
@@ -437,14 +499,22 @@ export default {
       if (!document.fullscreenElement && isFull()) setFull(false);
     };
     const onKey = (e) => {
-      if (e.key === 'Escape' && isFull() && !document.querySelector('.sheet-backdrop')) setFull(false);
+      if (e.key === 'Escape' && isFull() && !document.querySelector('.sheet-backdrop') && !conversationOpen()) setFull(false);
     };
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('keydown', onKey);
     if (ctx.query.get('full') === '1') setFull(true);
 
     // ---- Voice: app-wide wake word routes commands here while this page is open.
-    const offWake = wake.onCommand((text) => send(text));
+    const offWake = wake.onCommand((text) => send(text, { spoken: true }));
+    // A voice conversation saves into a thread; show it here once it ends (or after each answer while it is shrunk to a pill).
+    const onConversation = (e) => {
+      const { open, threadId: spokenIn, answered, minimized } = e.detail || {};
+      if (!spokenIn || (open && !(answered && minimized))) return;
+      if (location.pathname === `/assistant/${spokenIn}`) ctx.refresh();
+      else ctx.navigate(`/assistant/${spokenIn}`);
+    };
+    document.addEventListener('campus:conversation', onConversation);
     const offWakeState = wake.onState((state) => {
       const b = $('[data-wake]', root);
       if (b) {
@@ -488,12 +558,15 @@ export default {
           onInterim: (t) => {
             field.value = join(t);
             autosize();
+            syncSend();
           },
           onFinal: (t) => {
             field.value = join(t);
             autosize();
+            syncSend();
+            spokenDraft = !!t;
             // With "Hey Campus" on, speaking is hands-free: send it.
-            if (wake.enabled && t) send(field.value);
+            if (wake.enabled && t) send(field.value, { spoken: true });
             else field.focus();
           },
           onEnd: () => {
@@ -574,10 +647,11 @@ export default {
     const problem = voiceProblem();
     if (problem) $('[data-dictate]', root)?.setAttribute('title', problem);
 
+    syncSend();
     const initial = ctx.query.get('q');
     if (initial && ready) {
       history.replaceState({}, '', location.pathname);
-      send(initial);
+      send(initial, { spoken: ctx.query.get('spoken') === '1' });
     } else if (wake.armed && ready) {
       faces.setMood('listening');
     } else if (matchMedia('(pointer: fine)').matches) {
@@ -589,6 +663,7 @@ export default {
       offWake();
       offWakeState();
       document.removeEventListener('campus:stop', onStop);
+      document.removeEventListener('campus:conversation', onConversation);
       dictation?.stop();
       offDrops();
       document.removeEventListener('paste', onPaste);
@@ -596,7 +671,7 @@ export default {
       stopTyping();
       controller?.abort();
       clearTimeout(hideTimer);
-      stopSpeaking();
+      if (!conversationOpen()) stopSpeaking(); // a voice conversation outlives the page
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('keydown', onKey);
       if (isFull()) setFull(false);

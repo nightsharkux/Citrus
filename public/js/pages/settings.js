@@ -1,5 +1,5 @@
 /** Settings: profile, appearance, assistant, connections, security, privacy, feedback, about. */
-import { html, $, on } from '../core/dom.js';
+import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { session, setSession, assistantName } from '../core/store.js';
@@ -8,7 +8,8 @@ import { ago, humanize } from '../core/format.js';
 import { onSubmit, toast, toastError, confirm, busy } from '../core/ui.js';
 import { setTheme, signOut } from '../shell.js';
 import { createFace } from '../features/face.js';
-import { wake, voiceProblem } from '../features/voice.js';
+import { wake, voiceProblem, previewVoice } from '../features/voice.js';
+import { PRESETS, READ_ALOUD, QUALITY_LABEL, getVoiceSettings, saveVoiceSettings, voicesReady, listVoices } from '../features/voices.js';
 
 const SECTIONS = [
   ['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun'], ['assistant', 'Assistant', 'sparkle'], ['notifications', 'Notifications', 'bell'],
@@ -105,6 +106,7 @@ function assistant() {
         <span class="switch"><input type="checkbox" data-pref="visuals" ${prefs.visuals === false ? '' : 'checked'} aria-label="Animated explanations"><span></span></span></label>
     </div>
   </section>
+  ${voiceCard()}
   <section class="card"><h2>What Campus can see</h2>
     <ul class="small muted mt-8" style="padding-left:18px;line-height:1.8">
       <li>Your own courses, schedule, review queue and the topics you marked as difficult.</li>
@@ -115,7 +117,53 @@ function assistant() {
   </section>`;
 }
 
+/** How Campus sounds. Voices belong to the browser and system, so the choice is kept on this device (features/voices.js). */
+function voiceCard() {
+  if (!('speechSynthesis' in window)) return html`<section class="card"><h2>Voice</h2><p class="small muted mt-8">This browser can’t read answers aloud.</p></section>`;
+  const v = getVoiceSettings();
+  return html`<section class="card"><h2>Voice</h2>
+    <p class="small muted mt-8">How ${assistantName()} sounds on this device. Talk hands-free with the waveform button in the assistant, or say “Hey ${assistantName()}, let’s talk”.</p>
+    <form class="form mt-16" id="voice-form">
+      <label class="field"><span>Voice</span><select class="select" name="uri" data-voice-list><option value="">Automatic</option></select>
+        <span class="hint">Voices come from your browser and system. Natural voices sound most like a person; Edge and Safari have the most.</span></label>
+      <div class="field"><span>Style</span><div class="cluster">${PRESETS.map((p) => html`<label class="chip-radio"><input type="radio" name="preset" value="${p.id}" ${v.preset === p.id ? 'checked' : ''}><span>${p.label}</span></label>`)}</div></div>
+      <label class="field"><span>Read answers aloud</span><select class="select" name="readAloud">${READ_ALOUD.map(([value, label]) => html`<option value="${value}" ${v.readAloud === value ? 'selected' : ''}>${label}</option>`)}</select></label>
+      <div class="form-actions"><button type="button" class="btn" data-voice-preview>${icon('volume', 16)} Play a sample</button></div>
+    </form>
+  </section>`;
+}
+
+function mountVoice(root) {
+  const form = $('#voice-form', root);
+  if (!form) return () => {};
+  const list = $('[data-voice-list]', form);
+  const sample = () => previewVoice(`Hi, I’m ${assistantName()}. This is how I sound.`);
+  voicesReady().then(() => {
+    if (!list.isConnected) return;
+    const all = listVoices();
+    const code = (document.documentElement.lang || navigator.language || 'en').slice(0, 2).toLowerCase();
+    const mine = all.filter((x) => x.lang.toLowerCase().startsWith(code));
+    const shown = mine.length ? mine : all;
+    const saved = getVoiceSettings().uri;
+    const groups = ['natural', 'online', 'standard'].map((q) => [q, shown.filter((x) => x.quality === q)]).filter(([, items]) => items.length);
+    render(list, html`<option value="">Automatic</option>${groups.map(([q, items]) => html`<optgroup label="${QUALITY_LABEL[q]}">${items.map((x) => html`<option value="${x.uri}" ${x.uri === saved ? 'selected' : ''}>${x.name} · ${x.accent}${x.gender === 'other' ? '' : ` · ${x.gender === 'female' ? 'Female' : 'Male'}`}</option>`)}</optgroup>`)}`);
+  });
+  const offs = [
+    on(form, 'change', 'select, input', (e) => {
+      const { name, value } = e.target;
+      if (name === 'preset') {
+        const p = PRESETS.find((x) => x.id === value) || PRESETS[0];
+        saveVoiceSettings({ preset: p.id, rate: p.rate, pitch: p.pitch });
+      } else saveVoiceSettings({ [name]: value });
+      if (name !== 'readAloud') sample();
+    }),
+    on(form, 'click', '[data-voice-preview]', sample),
+  ];
+  return () => offs.forEach((off) => off());
+}
+
 function mountAssistant(root) {
+  const offVoice = mountVoice(root);
   const slot = $('[data-settings-face]', root);
   const face = createFace({ size: 64, mood: session.ai?.aiEnabled ? 'idle' : 'asleep' });
   slot?.replaceWith(face.el);
@@ -142,6 +190,7 @@ function mountAssistant(root) {
   });
   return () => {
     off();
+    offVoice();
     face.destroy();
   };
 }

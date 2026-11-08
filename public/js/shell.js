@@ -121,7 +121,12 @@ async function turnOffWake() {
   if (res) setSession({ user: { ...session.user, preferences: res.user.preferences } });
 }
 
-/** Commands that need no AI ("open schedule", "dark mode", "stop"). Returns true when handled. */
+/** The hands-free voice conversation, loaded the first time it is used. */
+export function talkToCampus(options) {
+  return import('./features/conversation.js').then((m) => m.startConversation(options));
+}
+
+/** Commands that need no AI ("open schedule", "dark mode", "stop", "let's talk"). Returns true when handled. */
 function handleVoiceCommand(text) {
   const command = matchCommand(text, {
     role: session.user.role,
@@ -132,6 +137,7 @@ function handleVoiceCommand(text) {
       document.dispatchEvent(new CustomEvent('campus:stop'));
     },
     stopListening: () => turnOffWake(),
+    talk: () => talkToCampus({ threadId: currentThreadId() }),
   });
   if (!command) return false;
   toast(command.say, 'info', { duration: 1800 });
@@ -152,6 +158,9 @@ function tab(href, nav) {
 }
 
 const roleLabel = (r) => ({ student: 'Student', lecturer: 'Lecturer', admin: 'Administrator' })[r] || r;
+
+/** The assistant thread on screen (/assistant/12), so a voice conversation started there continues it. */
+const currentThreadId = () => Number(/^\/assistant\/(\d+)/.exec(location.pathname)?.[1]) || null;
 
 let wired = false;
 let typingTimer = 0;
@@ -186,8 +195,8 @@ function wireShell() {
     }
   });
 
-  // "Hey Campus" from any page: open the assistant (and ask, if a question followed).
-  wake.setFallback((text) => navigate(`/assistant?q=${encodeURIComponent(text)}`));
+  // "Hey Campus" from any page: open the assistant (and ask, if a question followed). `spoken` lets it answer out loud.
+  wake.setFallback((text) => navigate(`/assistant?q=${encodeURIComponent(text)}&spoken=1`));
   wake.setInterceptor(handleVoiceCommand);
   wake.onState(onWakeState);
   wake.onTranscript(({ text, final }) => {
@@ -306,6 +315,7 @@ async function openPalette() {
   const actions = [
     { label: 'Ask Campus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
     { label: 'Ask Campus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
+    { label: 'Talk to Campus', hint: 'Voice conversation', icon: 'waveform', run: () => talkToCampus({ threadId: currentThreadId() }), group: 'Actions' },
     { label: 'New space', icon: 'plus', href: '/spaces?new=1', group: 'Actions' },
     { label: 'Add to schedule', icon: 'calendar', href: '/schedule?new=1', group: 'Actions' },
     { label: 'Post to campus feed', icon: 'message', href: '/campus?compose=1', group: 'Actions' },

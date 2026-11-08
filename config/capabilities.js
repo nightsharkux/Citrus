@@ -44,6 +44,7 @@ module.exports = Object.freeze([
       item('transcription', 'Audio transcription', 'planned', null, 'Automatic transcription of uploaded recordings.'),
       item('meetings', 'Meeting recording and minutes', 'limited', '/spaces', 'Record audio with consent, add a transcript, and draft minutes for review.'),
       item('guidance', 'Lecturer-defined AI guidance', 'available', '/spaces', 'Coach, Socratic, direct or assessment-safe assistant behaviour.'),
+      item('conversation', 'Voice conversation', 'limited', '/assistant', 'Talk with Campus hands-free: it listens, answers out loud, then listens again, and you can interrupt it. Start it with the waveform button in the assistant or “Hey Campus, let’s talk”. Uses your browser’s speech service; needs Chrome, Edge or Safari over HTTPS or on this computer.'),
       item('wake', 'Voice wake word', 'limited', '/settings/assistant', 'Say “Hey Campus” or “Campus” on any page, then a command: “open schedule”, “dark mode”, or anything you would ask Campus. Needs Chrome, Edge or Safari over HTTPS or on this computer.'),
       item('moodle', 'Moodle connection', 'configuration', '/settings/connections', 'Link your Moodle account with a personal token. Needs MOODLE_URL.'),
     ],

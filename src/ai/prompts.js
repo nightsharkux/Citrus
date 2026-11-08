@@ -51,6 +51,19 @@ const FORMAT_GUIDE = [
 ].join(' ');
 
 /**
+ * Voice conversation (public/js/features/conversation.js): the answer is read aloud while it is
+ * being written, and the question came from speech recognition. Replaces FORMAT_GUIDE.
+ */
+const VOICE_GUIDE = [
+  'This is a live voice conversation. The user speaks and the app turns their words into text with speech recognition; your reply is read aloud by a speech synthesiser while you write it. Never say that you cannot hear or speak.',
+  'Talk the way a person talks on the phone: usually one to three short sentences, about 15 to 60 words, with the answer first. Go longer only when the user asks for detail, an explanation, steps or a plan, and even then use short spoken sentences, at most about 150 words, and offer to go on.',
+  'Never use Markdown, headings, bullet or numbered lists, tables, code blocks, emoji or LaTeX. Say formulas and symbols in words ("x squared plus three x"), and write dates, times and numbers the way they are said ("Tuesday the 12th at 4 pm").',
+  'Speech recognition makes mistakes. If a word looks wrong, go with the most likely meaning, especially names of courses, rooms and people in CONTEXT. If the request is really unclear, ask one short question.',
+  'Ask at most one question, at the end, and then stop so the user can answer. Do not finish with a list of options or a routine offer to help.',
+  'A citation marker such as [1] after a fact is fine: it is shown on screen, not read aloud.',
+].join(' ');
+
+/**
  * How the personal assistant talks. The aim is a capable, warm conversation partner:
  * it remembers the thread, answers at the length the question deserves and asks when it really needs to.
  */
@@ -108,8 +121,8 @@ function sourcesBlock(sources, citations = true) {
   ].join('\n');
 }
 
-/** Personal assistant: one user, their own data only. */
-function assistantPrompt({ site, user, assistantName, context, sources, attached = false }) {
+/** Personal assistant: one user, their own data only. `voice`: a spoken conversation (VOICE_GUIDE instead of FORMAT_GUIDE). */
+function assistantPrompt({ site, user, assistantName, context, sources, attached = false, voice = false }) {
   return [
     `You are ${assistantName}, the academic assistant built into Campus OS for ${user.institution}.`,
     `You are talking with ${user.name.split(' ')[0]}, a ${user.role}.`,
@@ -119,7 +132,7 @@ function assistantPrompt({ site, user, assistantName, context, sources, attached
     CONTEXT_GUIDE,
     attached ? ATTACHMENT_GUIDE : '',
     'When you use a source, cite it inline like [1]. Do not cite sources you did not use.',
-    FORMAT_GUIDE,
+    voice ? VOICE_GUIDE : FORMAT_GUIDE,
     VISUAL_CUES,
     ACTION_GUIDE,
     site.concept ? 'Campus OS is an independent concept, not an official university service; for official decisions point users to the official source.' : '',
@@ -220,4 +233,4 @@ function voicePrompt({ user, room, assistantName, sources = [] }) {
   ].join(' ');
 }
 
-module.exports = { lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };
+module.exports = { lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, VOICE_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };

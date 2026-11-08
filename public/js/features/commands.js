@@ -2,6 +2,7 @@
  * Voice commands that need no AI: they run the moment they are heard.
  *
  *   "open schedule" · "go to my inbox" · "dark mode" · "new chat" · "stop" · "stop listening"
+ *   "let's talk" (opens a voice conversation, features/conversation.js)
  *
  * A command only matches when the *whole* sentence is one of these shapes, so a
  * question like "show me what's on my calendar tomorrow" still goes to the
@@ -40,11 +41,16 @@ function pageFor(target, role) {
 
 /**
  * Match a spoken sentence. Returns { say, run } or null.
- * `ctx` = { role, navigate, setTheme, stop, stopListening }.
+ * `ctx` = { role, navigate, setTheme, stop, stopListening, talk? }.
  */
 export function matchCommand(text, ctx) {
   const t = norm(text).replace(POLITE, '').trim();
   if (!t) return null;
+
+  // "open chat" still opens the assistant page (below); these start talking.
+  if (ctx.talk && /^(?:lets talk|let us talk|talk to me|start (?:a )?(?:voice )?conversation|start (?:a )?voice chat|(?:start |open |use )?voice (?:mode|conversation|chat)|conversation mode)$/.test(t)) {
+    return { say: 'I’m listening', run: () => ctx.talk() };
+  }
 
   if (/^(?:stop|cancel|be quiet|quiet|enough|shut up|never ?mind|thats enough)$/.test(t)) return { say: 'Stopped', run: () => ctx.stop() };
   if (/^(?:stop listening|go to sleep|sleep|turn off (?:hey )?campus|turn off listening|stop hey campus)$/.test(t)) return { say: 'Campus stopped listening', run: () => ctx.stopListening() };

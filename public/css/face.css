@@ -198,3 +198,54 @@ body.chat-fullscreen .chat-log { padding-top: 4px; }
   body.chat-fullscreen .chat-main { padding-left: 12px; padding-right: 12px; }
   body.chat-fullscreen .chat-head .face { --face-size: 88px !important; --stage-size: 120px; }
 }
+
+/* ---------- Voice conversation (features/conversation.js) ---------- */
+/* Above sheets (80), below toasts (100). */
+body.talk-open { overflow: hidden; }
+.talk { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto auto; justify-items: center; padding: max(12px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 90%, transparent); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); animation: talk-in var(--slow) var(--ease); }
+.talk[hidden] { display: none; }
+.talk-top { width: min(720px, 100%); display: flex; align-items: center; justify-content: space-between; }
+.talk-name { font-weight: 600; font-size: 15px; color: var(--text-2); }
+.talk-top-spacer { width: 40px; }
+.talk-stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; min-height: 0; }
+.talk-orb { position: relative; display: grid; place-items: center; padding: 30px; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.talk-orb:focus-visible { outline: none; box-shadow: var(--ring); }
+.talk-orb .face { position: relative; }
+.talk-halo { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; background: radial-gradient(closest-side, color-mix(in srgb, var(--aurora-1) 34%, transparent), color-mix(in srgb, var(--aurora-3) 16%, transparent) 64%, transparent); opacity: 0.5; transform: scale(0.9); transition: opacity var(--dur) var(--ease); }
+.talk[data-state="listening"] .talk-halo { animation: talk-breathe 3.2s ease-in-out infinite; }
+.talk[data-state="hearing"] .talk-halo { opacity: 0.95; animation: talk-pulse 0.9s ease-in-out infinite; }
+.talk[data-state="thinking"] .talk-halo { opacity: 0.7; animation: talk-breathe 1.4s ease-in-out infinite; }
+.talk[data-state="speaking"] .talk-halo { opacity: 0.9; animation: talk-pulse 1.3s ease-in-out infinite; }
+.talk[data-state="muted"] .talk-halo,
+.talk[data-state="error"] .talk-halo { opacity: 0.12; }
+.talk-status { margin: 0; min-height: 1.4em; max-width: 40ch; text-align: center; font-size: 15px; font-weight: 600; color: var(--text-2); }
+.talk[data-state="error"] .talk-status { color: var(--danger); font-weight: 500; }
+.talk-captions { width: min(640px, 100%); min-height: 132px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.talk-you { margin: 0; font-size: 15px; color: var(--text-3); overflow-wrap: anywhere; }
+.talk-reply { margin: 0; font-size: 18px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }
+.talk-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.talk-actions:empty { display: none; }
+.talk-retry[hidden] { display: none; }
+.talk-controls { display: flex; align-items: center; gap: 24px; padding: 18px 0 6px; }
+.talk-btn { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass-strong); color: var(--text); box-shadow: var(--shadow); cursor: pointer; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease); }
+.talk-btn:hover { background: var(--bg-solid); }
+.talk-btn:active { transform: scale(0.95); }
+.talk-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.talk-btn.is-off { background: var(--danger-soft); color: var(--danger); }
+.talk-end { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.talk-end:hover { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+.talk-hint { margin: 0; font-size: 12.5px; color: var(--text-3); }
+/* Shrunk to a pill while the user looks at another page. */
+.talk-pill { z-index: 96; }
+.talk-pill-open { flex: 1; min-width: 0; display: flex; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+@keyframes talk-in { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: none; } }
+@keyframes talk-breathe { 0%, 100% { transform: scale(0.9); } 50% { transform: scale(1.02); } }
+@keyframes talk-pulse { 0%, 100% { transform: scale(0.95); } 50% { transform: scale(1.12); } }
+@media (max-width: 640px) {
+  .talk-reply { font-size: 16.5px; }
+  .talk-btn { width: 58px; height: 58px; }
+  .talk-orb { padding: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .talk, .talk-halo { animation: none !important; }
+}

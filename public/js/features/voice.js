@@ -19,6 +19,8 @@
  */
 import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
+import { getVoiceSettings, chooseVoice, voiceTuning } from './voices.js';
+import { speakBoundary } from './turns.js';
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 const lang = () => (document.documentElement.lang === 'de' ? 'de-DE' : navigator.language || 'en-US');
@@ -439,18 +441,32 @@ export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () =
 
 let speakToken = 0;
 let currentEnd = null;
-let voiceChoice = null;
+let stopCurrent = null;
 
-/** A pleasant installed voice for the language: natural/online ones first. */
-function pickVoice() {
-  const voices = speechSynthesis.getVoices();
-  if (!voices.length) return null;
-  if (voiceChoice && voices.includes(voiceChoice)) return voiceChoice;
-  const code = lang().slice(0, 2).toLowerCase();
-  const matching = voices.filter((v) => v.lang.toLowerCase().startsWith(code));
-  const rank = (v) => (/natural|online/i.test(v.name) ? 3 : /google|samantha|ava|aria|jenny/i.test(v.name) ? 2 : v.localService ? 0 : 1);
-  voiceChoice = [...matching].sort((a, b) => rank(b) - rank(a))[0] || null;
-  return voiceChoice;
+// Chrome never fires `end` for an utterance that was garbage-collected while queued, which would
+// leave a conversation waiting forever. Queued utterances are kept here until they finish.
+const queuedUtterances = new Set();
+
+/** One utterance with the user's chosen voice, speed and pitch. */
+function utteranceFor(text) {
+  const settings = getVoiceSettings();
+  const utterance = new SpeechSynthesisUtterance(text);
+  queuedUtterances.add(utterance);
+  const release = () => queuedUtterances.delete(utterance);
+  utterance.addEventListener('end', release);
+  utterance.addEventListener('error', release);
+  const voice = chooseVoice(settings, lang());
+  if (voice) {
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
+  } else {
+    utterance.lang = lang();
+  }
+  const { rate, pitch, volume } = voiceTuning(settings);
+  utterance.rate = rate;
+  utterance.pitch = pitch;
+  utterance.volume = volume;
+  return utterance;
 }
 
 /** Sentences grouped into pieces the browser will read without stalling (long utterances stop after ~15 s in Chrome). */
@@ -476,7 +492,7 @@ export function speak(text, { onStart, onEnd } = {}) {
     return;
   }
   const clean = speakable(text).slice(0, 4000);
-  speechSynthesis.cancel();
+  stopSpeaking();
   const token = ++speakToken;
   const parts = pieces(clean);
   if (!parts.length) {
@@ -494,11 +510,7 @@ export function speak(text, { onStart, onEnd } = {}) {
     done?.();
   };
   parts.forEach((part, index) => {
-    const utterance = new SpeechSynthesisUtterance(part);
-    utterance.lang = lang();
-    const voice = pickVoice();
-    if (voice) utterance.voice = voice;
-    utterance.rate = 1.04;
+    const utterance = utteranceFor(part);
     if (index === 0) {
       utterance.onstart = () => {
         if (token !== speakToken) return;
@@ -510,6 +522,135 @@ export function speak(text, { onStart, onEnd } = {}) {
     utterance.onerror = finish;
     speechSynthesis.speak(utterance);
   });
+}
+
+/**
+ * Speak an answer while it is still being written. `feed(text)` with each piece
+ * that arrives, `end()` when the answer is complete. `onEnd(reason)` fires once,
+ * after the last word ('done'), on `cancel()` or `stopSpeaking()` ('cancelled'),
+ * or when the browser refused to speak ('blocked': no click on the page yet).
+ * A watchdog ends it if the browser's speech engine goes quiet without saying
+ * so, which some engines do. Returns { feed, end, cancel, active }.
+ */
+export function createSpeaker({ onStart, onEnd } = {}) {
+  if (!('speechSynthesis' in window)) return { feed() {}, end() { onEnd?.('blocked'); }, cancel() {}, get active() { return false; } };
+  stopSpeaking();
+  const token = ++speakToken;
+  let buffer = '';
+  let queued = 0;
+  let fed = false;
+  let begun = false;
+  let over = false;
+  let blocked = false;
+  let quietSince = 0;
+  let watchdog = 0;
+
+  const finish = (reason = 'done') => {
+    if (over) return;
+    over = true;
+    clearInterval(watchdog);
+    if (token === speakToken) {
+      speaking = false;
+      mutedUntil = Date.now() + 700;
+      ignoreBefore = resultCount;
+      stopCurrent = null;
+    }
+    onEnd?.(reason);
+  };
+  // Queued pieces but nothing playing or pending for two seconds: the engine dropped them.
+  const check = () => {
+    if (over) return;
+    if (speechSynthesis.speaking || speechSynthesis.pending || queued <= 0) {
+      quietSince = 0;
+      return;
+    }
+    quietSince ||= Date.now();
+    if (Date.now() - quietSince < 2000) return;
+    queued = 0;
+    quietSince = 0;
+    if (fed) finish(blocked ? 'blocked' : 'done');
+  };
+  const say = (text) => {
+    const clean = speakable(text).trim();
+    if (!clean || over) return;
+    queued += 1;
+    const utterance = utteranceFor(clean);
+    utterance.onstart = () => {
+      if (token !== speakToken || begun) return;
+      begun = true;
+      speaking = true;
+      onStart?.();
+    };
+    let counted = false;
+    const done = (e) => {
+      if (counted) return;
+      counted = true;
+      if (e?.error === 'not-allowed') blocked = true;
+      queued -= 1;
+      if (fed && queued <= 0) finish(blocked && !begun ? 'blocked' : 'done');
+    };
+    utterance.onend = done;
+    utterance.onerror = done;
+    speechSynthesis.speak(utterance);
+    // Chrome sometimes leaves the queue paused after a cancel(); resuming is harmless otherwise.
+    speechSynthesis.resume();
+    watchdog ||= setInterval(check, 500);
+  };
+  const drain = (final) => {
+    for (;;) {
+      const at = speakBoundary(buffer, final);
+      if (at <= 0) break;
+      say(buffer.slice(0, at));
+      buffer = buffer.slice(at);
+      if (!buffer.trim()) break;
+    }
+  };
+  stopCurrent = () => {
+    if (over) return;
+    queued = 0;
+    finish('cancelled');
+  };
+  return {
+    feed(text) {
+      if (over) return;
+      buffer += text;
+      drain(false);
+    },
+    end() {
+      if (over) return;
+      fed = true;
+      drain(true);
+      if (queued <= 0) finish();
+    },
+    cancel() {
+      if (token === speakToken) stopSpeaking();
+      else if (!over) finish();
+    },
+    get active() {
+      return !over;
+    },
+  };
+}
+
+/**
+ * Call from a click or tap that will lead to speech later (an answer that takes a few seconds).
+ * Safari only lets a page speak after it has spoken once inside a user gesture; a silent
+ * utterance now unlocks the voice for the rest of the visit.
+ */
+export function primeSpeech() {
+  if (!('speechSynthesis' in window) || speaking) return;
+  try {
+    const silent = new SpeechSynthesisUtterance(' ');
+    silent.volume = 0;
+    speechSynthesis.speak(silent);
+  } catch {
+    /* nothing to unlock */
+  }
+}
+
+/** Say a short sample (the voice picker). */
+export function previewVoice(text = 'Hi, I’m Campus. This is how I sound.') {
+  speak(text);
 }
 
 export function stopSpeaking() {
@@ -525,9 +666,125 @@ export function stopSpeaking() {
   const done = currentEnd;
   currentEnd = null;
   done?.();
+  const stop = stopCurrent;
+  stopCurrent = null;
+  stop?.();
 }
 
 export const isSpeaking = () => speaking;
+
+// ------------------------------------------------------------------ conversation microphone
+
+/**
+ * The microphone for a spoken conversation (features/conversation.js): one
+ * continuous session with live (interim) results. Browsers end sessions on
+ * their own (silence, about a minute, a network hiccup), so it reopens at once,
+ * backs off when it keeps failing, and gives up only with a reason.
+ *
+ *   onResult(results)      the session's SpeechRecognitionResultList, after every change
+ *   onSession()            a new session opened: result numbering starts again at 0
+ *   onRecovering(flag)     true while it reconnects after network errors, false once heard again
+ *   onTrouble(kind)        it stopped for good: blocked · no-microphone · network · unsupported · unstable
+ *
+ * Returns { start(), stop(), get running }. start() is safe to call while running.
+ */
+export function createListener({ onResult, onSession, onRecovering, onTrouble } = {}) {
+  let rec = null;
+  let wanted = false;
+  let startedAt = 0;
+  let quickEnds = 0;
+  let networkErrors = 0;
+  let retry = 0;
+
+  const fail = (kind) => {
+    wanted = false;
+    halt();
+    onTrouble?.(kind);
+  };
+  const halt = () => {
+    clearTimeout(retry);
+    retry = 0;
+    const current = rec;
+    rec = null;
+    try {
+      current?.abort();
+    } catch {
+      /* already stopped */
+    }
+  };
+  const open = () => {
+    retry = 0;
+    if (!wanted || rec || !Recognition) return;
+    const r = new Recognition();
+    rec = r;
+    r.lang = lang();
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+    r.onstart = () => {
+      if (rec === r) onSession?.();
+    };
+    r.onresult = (e) => {
+      if (rec !== r) return;
+      quickEnds = 0;
+      if (networkErrors) {
+        networkErrors = 0;
+        onRecovering?.(false);
+      }
+      onResult?.(e.results);
+    };
+    r.onerror = (e) => {
+      if (rec !== r) return;
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') fail('blocked');
+      else if (e.error === 'audio-capture') fail('no-microphone');
+      else if (e.error === 'language-not-supported') fail('unsupported');
+      else if (e.error === 'network') {
+        networkErrors += 1;
+        if (networkErrors >= 6) fail('network');
+        else onRecovering?.(true);
+      }
+      // 'no-speech' and 'aborted' are routine: the session ends and reopens below.
+    };
+    r.onend = () => {
+      if (rec !== r) return;
+      rec = null;
+      if (!wanted) return;
+      quickEnds = Date.now() - startedAt < 1200 ? quickEnds + 1 : 0;
+      if (quickEnds >= 10) {
+        fail('unstable');
+        return;
+      }
+      const wait = networkErrors ? Math.min(8000, 400 * 2 ** networkErrors) : quickEnds > 2 ? Math.min(4000, 150 * 2 ** quickEnds) : 40;
+      retry = setTimeout(open, wait);
+    };
+    startedAt = Date.now();
+    try {
+      r.start();
+    } catch {
+      // Another session (the wake word, dictation) has not released the microphone yet.
+      rec = null;
+      quickEnds += 1;
+      if (quickEnds >= 10) fail('unstable');
+      else retry = setTimeout(open, 250);
+    }
+  };
+  return {
+    start() {
+      if (wanted && (rec || retry)) return;
+      wanted = true;
+      quickEnds = 0;
+      networkErrors = 0;
+      open();
+    },
+    stop() {
+      wanted = false;
+      halt();
+    },
+    get running() {
+      return wanted;
+    },
+  };
+}
 
 // ------------------------------------------------------------------ live captions
 

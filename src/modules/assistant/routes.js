@@ -13,8 +13,11 @@
  *   event: done     { messageId, sources, visual, actions }
  *   event: error    { message }
  * Without that header it returns the whole answer as JSON.
+ *
+ * Body: { prompt, thread_id?, attachments?, mode? }. mode 'voice' (the spoken
+ * conversation) asks for short answers written to be read aloud; default 'text'.
  */
-const { text, id, optionalId } = require('../../lib/validate');
+const { text, id, optionalId, oneOf } = require('../../lib/validate');
 const { notFound, unavailable } = require('../../http/errors');
 const { assistantPrompt } = require('../../ai/prompts');
 const { extractLead, createLeadExtractor } = require('../../ai/actions');
@@ -125,6 +128,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const b = await ctx.json();
     const files = attachments.claim(user, b.attachments);
     const prompt = files.length ? text(b.prompt, { max: 4000, optional: true, label: 'Message' }) : text(b.prompt, { min: 1, max: 4000, label: 'Message' });
+    const voice = oneOf(b.mode ?? 'text', ['text', 'voice'], 'Mode') === 'voice';
     if (!ai.status(user).aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
 
     const threadId = optionalId(b.thread_id, 'Conversation');
@@ -140,7 +144,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const { sources, references } = ai.retrieveContext(user, [...history.slice(-2).filter((h) => h.role === 'user').map((h) => h.content), prompt].join(' '));
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")) });
+    const system = assistantPrompt({ site, user, assistantName, context: buildContext(user), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice });
 
     const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();
