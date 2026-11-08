@@ -16,9 +16,9 @@ const { createRetrieval, toSource } = require('./retrieval');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest } = require('../http/errors');
 
-function createAiService({ db, env = process.env, fetchImpl, packs = [] }) {
+function createAiService({ db, env = process.env, fetchImpl, packs = [], readPack }) {
   const providers = makeProviders({ env, ...(fetchImpl ? { fetchImpl } : {}) });
-  const retrieval = createRetrieval(db, { packs });
+  const retrieval = createRetrieval(db, { packs, read: readPack });
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';

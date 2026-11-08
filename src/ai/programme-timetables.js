@@ -12,8 +12,7 @@
  *   timetables.describe({ codes, semester, now }) -> context lines for the assistant
  *   timetables.programmes()                     -> [{ code, name }]
  */
-const fs = require('node:fs');
-const path = require('node:path');
+const { readBundled } = require('../lib/bundled');
 const { zonedToUtc, zonedParts, DAY } = require('../lib/time');
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -32,7 +31,7 @@ function createProgrammeTimetables({ root, timeZone, file = 'resources/oth-timet
   function load() {
     if (data) return data;
     try {
-      data = JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
+      data = JSON.parse(readBundled(root, file));
     } catch {
       data = { classes: [], sources: [] };
     }

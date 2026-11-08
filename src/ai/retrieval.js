@@ -15,12 +15,12 @@ const { buildIndex, search } = require('../lib/search');
  * files, so they are always current with the deployment and nobody has to import them. They are searched together
  * with the entries an administrator adds. Their ids are negative so they never collide with database rows.
  */
-function readPacks(files) {
+function readPacks(files, read = (file) => fs.readFileSync(file, 'utf8')) {
   const docs = [];
   for (const file of files) {
     let text = '';
     try {
-      text = fs.readFileSync(file, 'utf8');
+      text = read(file);
     } catch {
       continue;
     }
@@ -48,11 +48,11 @@ function readPacks(files) {
   return docs;
 }
 
-function createRetrieval(db, { packs = [] } = {}) {
+function createRetrieval(db, { packs = [], read } = {}) {
   const cache = new Map();
   let packDocs = null;
   const bundled = () => {
-    packDocs ||= readPacks(packs);
+    packDocs ||= readPacks(packs, read);
     return packDocs;
   };
 

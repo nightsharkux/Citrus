@@ -1,14 +1,13 @@
 'use strict';
 /** Campus guide: edition-defined campuses, official links and current room statuses, and the campus map. */
-const fs = require('node:fs');
-const path = require('node:path');
+const { readBundled } = require('../../lib/bundled');
 
 function register(router, { db, config, timetable, programmes }) {
   let mapFile;
   const campusMap = () => {
     if (mapFile === undefined) {
       try {
-        mapFile = config.site.campusMap ? JSON.parse(fs.readFileSync(path.join(config.root, config.site.campusMap), 'utf8')) : null;
+        mapFile = config.site.campusMap ? JSON.parse(readBundled(config.root, config.site.campusMap)) : null;
       } catch {
         mapFile = null;
       }

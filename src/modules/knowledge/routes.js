@@ -3,11 +3,11 @@
  * Approved knowledge library (what the assistant may cite) and the
  * institution's AI provider choice. Administrators only.
  */
-const fs = require('node:fs');
 const path = require('node:path');
 const { text, id, oneOf, httpUrl } = require('../../lib/validate');
 const { badRequest, notFound, unavailable } = require('../../http/errors');
 const { connectionTestPrompt } = require('../../ai/prompts');
+const { readBundled } = require('../../lib/bundled');
 
 const VOLATILITY = ['stable', 'term-specific', 'dynamic'];
 
@@ -154,8 +154,8 @@ function register(router, { db, config, ai, audit }) {
   /** Import the public reference pack bundled with this edition (e.g. OTH public information). */
   router.post('/api/knowledge/import-pack', (ctx) => {
     if (!config.site.knowledgePack) throw badRequest('This edition has no bundled knowledge pack');
-    const file = path.join(config.root, [].concat(config.site.knowledgePack)[0]);
-    const result = upsert(ctx.user, parseJsonl(fs.readFileSync(file, 'utf8')));
+    const file = [].concat(config.site.knowledgePack)[0];
+    const result = upsert(ctx.user, parseJsonl(readBundled(config.root, file)));
     audit(ctx.user, 'knowledge_pack_imported', `${path.basename(file)}: ${result.added} added, ${result.updated} updated`);
     return result;
   }, { roles: ['admin'] });

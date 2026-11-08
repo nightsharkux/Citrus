@@ -19,6 +19,7 @@ const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
 const { createProgrammeTimetables } = require('./ai/programme-timetables');
+const { readBundled } = require('./lib/bundled');
 const { createAccess } = require('./services/access');
 const { createAudit } = require('./services/audit');
 const { createSettings } = require('./services/settings');
@@ -67,8 +68,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const keys = createKeys({ config, db, env });
   const secretBox = createSecretBox(keys.master());
   const nfcKey = keys.nfc();
-  const packs = env.CAMPUS_BUNDLED_KNOWLEDGE === 'off' ? [] : [].concat(site.knowledgePack || []).map((file) => require('node:path').join(config.root, file));
-  const ai = createAiService({ db, env, fetchImpl, packs });
+  const packs = env.CAMPUS_BUNDLED_KNOWLEDGE === 'off' ? [] : [].concat(site.knowledgePack || []);
+  const ai = createAiService({ db, env, fetchImpl, packs, readPack: (file) => readBundled(config.root, file) });
   const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
   const notifier = createNotifier({ db, bus, push, timeZone });
   const timetable = createTimetable({ db, timeZone });
