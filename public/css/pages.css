@@ -35,8 +35,9 @@
 .stagger > .notice { margin-bottom: 16px; }
 .assistant-teaser { background: linear-gradient(160deg, var(--glass-strong), var(--glass)); }
 .ask-pill { display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 16px; border-radius: var(--radius-pill); background: var(--fill); border: 1px solid var(--hairline); transition: box-shadow var(--fast), border-color var(--fast); }
-.ask-pill:focus-within { box-shadow: var(--ring); border-color: transparent; }
-.ask-pill input { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-size: 15px; height: 34px; }
+.ask-pill:focus-within { border-color: color-mix(in srgb, var(--text) 30%, transparent); box-shadow: 0 0 0 4px var(--fill); }
+.ask-pill input { flex: 1; min-width: 0; border: 0; background: none; outline: none; box-shadow: none; font-size: 15px; height: 34px; }
+.ask-pill input:focus-visible { box-shadow: none; }
 @media (max-width: 960px) { .home-grid { grid-template-columns: minmax(0, 1fr); } .home-actions { max-width: none; } }
 
 /* ---------- Assistant ---------- */
@@ -104,9 +105,12 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
 .suggestion:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 .suggestion svg { color: var(--accent); flex: none; }
 .composer-wrap { padding-top: 6px; }
-.composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 8px 8px 18px; border-radius: 26px; background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--glass-border); box-shadow: var(--shadow); transition: box-shadow var(--fast); }
-.composer:focus-within { box-shadow: var(--ring), var(--shadow); }
-.composer textarea { flex: 1; min-width: 0; border: 0; background: none; resize: none; outline: none; font-size: 15px; line-height: 1.5; padding: 9px 0; max-height: 200px; }
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 8px 8px 8px 18px; border-radius: 26px; background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur); border: 1px solid var(--hairline-strong); box-shadow: 0 1px 2px rgba(20, 18, 44, 0.04), 0 10px 30px -14px rgba(20, 18, 44, 0.22); transition: box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease); }
+/* Focus is shown by the bar itself, softly and in neutral tones: no coloured ring, and none on the text box inside it. */
+.composer:focus-within { border-color: color-mix(in srgb, var(--text) 30%, transparent); box-shadow: 0 0 0 4px var(--fill), 0 14px 36px -14px rgba(20, 18, 44, 0.3); }
+.composer textarea { flex: 1; min-width: 0; border: 0; background: none; resize: none; outline: none; box-shadow: none; border-radius: 0; font-size: 15px; line-height: 1.5; padding: 9px 0; max-height: 200px; }
+.composer textarea:focus, .composer textarea:focus-visible { outline: none; box-shadow: none; }
+.composer textarea::placeholder { color: var(--text-3); }
 @supports (field-sizing: content) { .composer textarea { field-sizing: content; } }
 .composer-actions { display: flex; gap: 4px; }
 .composer-send.is-stop { background: var(--text); color: var(--bg-solid); }
