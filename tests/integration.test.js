@@ -78,7 +78,7 @@ test('Workspace assistant and meeting minutes route through the configured gatew
   assert.match(lastRequest.messages[0].content,/Campus OS/);
   x=await request('student',`/workspaces/${roomId}/notes`,'POST',{category:'minutes',content:'We agreed to share the project outline by Monday.'});assert.equal(x.status,201);
   x=await request('student',`/workspaces/${roomId}/analyze`,'POST',{});assert.equal(x.status,200);assert.equal(x.body.source,'AI draft');
-  assert.equal(lastRequest.model,'google/gemini-2.5-flash-lite');
+  assert.equal(lastRequest.model,'openai/gpt-6-luna');
   x=await request('admin','/ai/test','POST',{});assert.equal(x.status,200);assert.match(x.body.answer,/gateway generated/);
  }finally{
   process.env.AI_GATEWAY_API_KEY=priorKey;

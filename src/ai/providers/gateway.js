@@ -3,16 +3,16 @@
 const { readSse, safeJson } = require('./stream');
 
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
-const chatModel = (env) => String(env.CAMPUS_AI_MODEL || '').trim() || 'openai/gpt-6.1-terra';
-const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'google/gemini-2.5-flash-lite';
-const noThinkingModels = new Set(['openai/gpt-6.1-terra', 'google/gemini-2.5-flash-lite']);
+const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-terra';
+const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'openai/gpt-6-luna';
+const noThinkingModels = new Set(['openai/gpt-6.1-terra', 'openai/gpt-6-luna']);
 
 module.exports = {
   id: 'gateway',
   label: 'Cloud · Vercel AI Gateway',
   location: 'cloud',
   timeoutMs: 60_000,
-  model: (env, task) => task === 'summary' ? summaryModel(env) : chatModel(env),
+  model: (env, task) => task === 'summary' ? summaryModel(env) : defaultModel(env),
   summaryModel,
   missing: (env) => key(env) ? null : 'AI_GATEWAY_API_KEY is missing on the server',
   describe: () => 'Cloud AI selected (Vercel AI Gateway). Summaries use a separate model.',

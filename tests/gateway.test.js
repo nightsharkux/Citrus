@@ -18,15 +18,16 @@ test('gateway uses its own server key, task models and bounded output with confi
   assert.equal(requests[0].url, 'https://ai-gateway.vercel.sh/v1/chat/completions');
   assert.equal(requests[0].options.headers.Authorization, 'Bearer gateway-fixture-key');
   assert.equal(requests[0].body.model, 'openai/gpt-6.1-terra');
-  assert.equal(requests[1].body.model, 'google/gemini-2.5-flash-lite');
+  assert.equal(requests[1].body.model, 'openai/gpt-6-luna');
   assert.equal(requests[1].body.max_tokens, 800);
   assert.deepEqual(requests[0].body.reasoning, { effort: 'none' });
+  assert.deepEqual(requests[1].body.reasoning, { effort: 'none' });
   assert.deepEqual(requests[0].body.provider, { sort: 'cost' });
   assert.equal(requests[0].body.models, undefined, 'no automatic model escalation');
   assert.doesNotMatch(JSON.stringify(providers.list()) + JSON.stringify(providers.status('gateway')), /fixture-key/);
   assert.equal(providers.status('gateway').transcription, 'Disabled');
 
-  const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_MODEL: 'other/model', CAMPUS_AI_SUMMARY_MODEL: 'other/summary' } });
+  const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_DEFAULT_MODEL: 'other/model', CAMPUS_AI_SUMMARY_MODEL: 'other/summary' } });
   assert.equal(custom.status('gateway').model, 'other/model');
   assert.equal(custom.status('gateway').summaryModel, 'other/summary');
 });
@@ -79,7 +80,7 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   }
   const selected = await app.call('admin', 'PATCH', '/api/ai/settings', { provider: 'gateway' });
   assert.equal(selected.status, 200);
-  assert.equal(selected.body.summaryModel, 'google/gemini-2.5-flash-lite');
+  assert.equal(selected.body.summaryModel, 'openai/gpt-6-luna');
   assert.doesNotMatch(JSON.stringify(selected.body), /gateway-fixture-secret/);
   assert.equal((await app.call('admin', 'GET', '/api/ai/settings')).body.provider, 'gateway');
   assert.equal((await app.call('outsider', 'GET', '/api/assistant')).body.status.provider, 'off');
@@ -92,15 +93,15 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   const base = `/api/workspaces/${space.id}`;
   assert.equal((await app.call('admin', 'POST', `${base}/notes`, { category: 'note', content: 'We agreed to review the draft tomorrow.' })).status, 201);
   assert.equal((await app.call('admin', 'POST', `${base}/analyze`, {})).status, 200);
-  assert.equal(requests.at(-1).model, 'google/gemini-2.5-flash-lite');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
   await app.call('admin', 'POST', `${base}/live`, { active: true });
   await app.call('admin', 'POST', `${base}/captions`, { text: 'We will review the draft tomorrow, agree changes, then send the final copy.' });
   assert.equal((await app.call('admin', 'POST', `${base}/captions/summary`, {})).status, 200);
-  assert.equal(requests.at(-1).model, 'google/gemini-2.5-flash-lite');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
   await app.call('student', 'POST', '/api/suggestions', { message: 'Improve the search filters.' });
   await app.call('student', 'POST', '/api/suggestions', { message: 'Make search results easier to scan.' });
   assert.equal((await app.call('admin', 'POST', '/api/admin/suggestions/summary')).status, 200);
-  assert.equal(requests.at(-1).model, 'google/gemini-2.5-flash-lite');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6-luna');
 
   await app.call('student', 'POST', '/api/courses/1/enroll');
   reply = JSON.stringify([{ question: 'Which growth rate is linear?', options: ['O(n)', 'O(log n)', 'O(n²)', 'O(1)'], answer: 0, explanation: 'Work grows with input size.' }]);

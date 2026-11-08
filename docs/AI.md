@@ -35,23 +35,23 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_AI_MODEL=openai/gpt-6.1-terra
-   CAMPUS_AI_SUMMARY_MODEL=google/gemini-2.5-flash-lite
+   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra
+   CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna
    ```
 
 3. Restart with `npm start`. In **Admin → AI & knowledge**, select **Vercel AI Gateway**, save and use **Test connection**. The institution's saved Gateway/Off choice takes precedence over `CAMPUS_AI_PROVIDER`. With no saved choice, Gateway is the default; a missing key leaves it inactive.
-4. Import approved knowledge sources, then check citations, teaching answers and practice questions against your own examples. A successful connection test checks connectivity, not answer quality. `npm run check -- --ai` also makes one live chat-model request per institution; ordinary `npm run check` makes none.
+4. Import approved knowledge sources, then check citations, teaching answers and practice questions against your own examples. A successful connection test checks connectivity, not answer quality. `npm run check -- --ai` also makes one live default-model request per institution; ordinary `npm run check` makes none.
 
 ### Cost-conscious task routing
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_AI_MODEL` |
-| Meeting minutes, live-caption summaries and feedback themes | `google/gemini-2.5-flash-lite` | `CAMPUS_AI_SUMMARY_MODEL` |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_AI_DEFAULT_MODEL` |
+| Meeting minutes, live-caption summaries and feedback themes | `openai/gpt-6-luna` | `CAMPUS_AI_SUMMARY_MODEL` |
 
-Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the chat model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen chat model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
+Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
-The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists GPT-6.1 Terra at $1.00 input / $5.00 output and Flash-Lite at $0.10 / $0.40 per million text tokens at standard global rates for contexts below 272,001 tokens. At 3,000 input and 500 output tokens, 1,000 requests would cost about $5.50 and $0.50 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
+The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists GPT-6.1 Terra at $1.00 input / $5.00 output and GPT-6 Luna at $0.10 / $0.50 per million text tokens at standard global rates for contexts below 272,001 tokens. At 3,000 input and 500 output tokens, 1,000 requests would cost about $5.50 and $0.55 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
 
 The adapter disables thinking for these two default models, preserves each feature's output limit, and asks the gateway to sort providers by cost for the selected model. Other model overrides use that model's default reasoning behavior. No fallback model or automatic premium-model escalation is configured. Evaluate Terra against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
 
@@ -61,9 +61,9 @@ The gateway key stays on the server. Uploaded audio is never sent to a provider.
 
 ## Configuration and upgrades
 
-Model settings use role-based names: `CAMPUS_AI_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier gateway-specific model variable names in your hosting settings, then redeploy.
+Model settings use role-based names: `CAMPUS_AI_DEFAULT_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier model variable names in your hosting settings, then redeploy.
 
-The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
+The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_DEFAULT_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 
 Retired direct-provider and local-provider environment variables are ignored and can be removed. Saved institution choices for a retired provider resolve to Off until an administrator explicitly selects Gateway. Existing conversations and knowledge stay intact; no database migration is required.
 
