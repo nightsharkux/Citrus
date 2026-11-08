@@ -5,3 +5,20 @@ storage/
 *.log
 node_modules/
 backups/
+server-backups/
+campusos.tgz
+
+# Local databases and private keys, including copies outside storage/.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.key
+*.pem
+*.p12
+*.pfx
