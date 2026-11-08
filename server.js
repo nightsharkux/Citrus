@@ -14,19 +14,36 @@ const { seed } = require('./src/db/seed');
 const { createApp } = require('./src/app');
 
 const config = loadConfig();
-const db = openConfiguredDatabase(config);
 // Run directly (npm start), or loaded by Vercel, which needs the server to listen as the module loads.
 const standalone = require.main === module || !!process.env.VERCEL;
 const log = standalone ? console.log : () => {};
-runMigrations(db, { log });
-seed(db, config, log);
 
-const app = createApp({ config, db });
-const server = http.createServer(app.handler);
-const handler = app.handler;
+let db;
+let app;
+let startupError;
+try {
+  db = openConfiguredDatabase(config);
+  runMigrations(db, { log });
+  seed(db, config, log);
+  app = createApp({ config, db });
+} catch (error) {
+  // Elsewhere a failed start should stop the process. On Vercel a crash leaves no message, so log it
+  // and answer every request with a short explanation instead.
+  if (!process.env.VERCEL) throw error;
+  startupError = error;
+  console.error('Campus OS could not start:', error);
+}
+
+const handler = startupError
+  ? (req, res) => {
+    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end('Campus OS could not start. The reason is in the deployment logs.');
+  }
+  : app.handler;
+const server = http.createServer(handler);
 
 if (standalone) {
-  app.maintenance.start();
+  app?.maintenance.start();
   server.listen(config.port, config.host, () => {
     const { networkUrls, listensOnNetwork } = require('./src/lib/network');
     const local = `http://${listensOnNetwork(config.host) ? 'localhost' : config.host}:${config.port}`;
@@ -45,7 +62,7 @@ if (standalone) {
   });
   const shutdown = () => {
     server.close(() => {
-      db.close();
+      db?.close();
       process.exit(0);
     });
     setTimeout(() => process.exit(0), 3000).unref();
