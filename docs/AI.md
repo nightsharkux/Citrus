@@ -35,8 +35,8 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_GATEWAY_MODEL=openai/gpt-6.1-terra
-   CAMPUS_GATEWAY_SUMMARY_MODEL=google/gemini-2.5-flash-lite
+   CAMPUS_AI_MODEL=openai/gpt-6.1-terra
+   CAMPUS_AI_SUMMARY_MODEL=google/gemini-2.5-flash-lite
    ```
 
 3. Restart with `npm start`. In **Admin → AI & knowledge**, select **Vercel AI Gateway**, save and use **Test connection**. The institution's saved Gateway/Off choice takes precedence over `CAMPUS_AI_PROVIDER`. With no saved choice, Gateway is the default; a missing key leaves it inactive.
@@ -46,8 +46,8 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_GATEWAY_MODEL` |
-| Meeting minutes, live-caption summaries and feedback themes | `google/gemini-2.5-flash-lite` | `CAMPUS_GATEWAY_SUMMARY_MODEL` |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra` | `CAMPUS_AI_MODEL` |
+| Meeting minutes, live-caption summaries and feedback themes | `google/gemini-2.5-flash-lite` | `CAMPUS_AI_SUMMARY_MODEL` |
 
 Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the chat model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen chat model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
@@ -61,7 +61,9 @@ The gateway key stays on the server. Uploaded audio is never sent to a provider.
 
 ## Configuration and upgrades
 
-The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_GATEWAY_MODEL`, `CAMPUS_GATEWAY_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
+Model settings use role-based names: `CAMPUS_AI_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier gateway-specific model variable names in your hosting settings, then redeploy.
+
+The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 
 Retired direct-provider and local-provider environment variables are ignored and can be removed. Saved institution choices for a retired provider resolve to Off until an administrator explicitly selects Gateway. Existing conversations and knowledge stay intact; no database migration is required.
 

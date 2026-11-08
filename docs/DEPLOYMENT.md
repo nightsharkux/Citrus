@@ -23,8 +23,8 @@ For the existing code, run `npm start` on a persistent Node server using the VPS
 | Variable | Value | Required? |
 |---|---|---|
 | `AI_GATEWAY_API_KEY` | Your Vercel AI Gateway key | Required for AI; store as Secret |
-| `CAMPUS_GATEWAY_MODEL` | `openai/gpt-6.1-terra` | Optional; shown default |
-| `CAMPUS_GATEWAY_SUMMARY_MODEL` | `google/gemini-2.5-flash-lite` | Optional; shown default |
+| `CAMPUS_AI_MODEL` | `openai/gpt-6.1-terra` | Optional; shown default |
+| `CAMPUS_AI_SUMMARY_MODEL` | `google/gemini-2.5-flash-lite` | Optional; shown default |
 | `CAMPUS_AI_PROVIDER` | `gateway` | Optional; `gateway` or `off`; saved Admin choice wins |
 | `CAMPUS_AI_RATE_PER_MINUTE` | `12` | Optional; per-user request quota, not a spending cap |
 
@@ -139,8 +139,8 @@ CAMPUS_ADMIN_EMAIL=you@example.edu
 CAMPUS_ADMIN_PASSWORD=<a new long password, not the one from your PC>
 # AI through Vercel AI Gateway
 AI_GATEWAY_API_KEY=<your gateway key>
-CAMPUS_GATEWAY_MODEL=openai/gpt-6.1-terra
-CAMPUS_GATEWAY_SUMMARY_MODEL=google/gemini-2.5-flash-lite
+CAMPUS_AI_MODEL=openai/gpt-6.1-terra
+CAMPUS_AI_SUMMARY_MODEL=google/gemini-2.5-flash-lite
 ```
 
 `HOST=127.0.0.1` keeps Campus OS reachable only through Caddy. `TRUST_PROXY=1` lets rate limits see real visitor addresses.

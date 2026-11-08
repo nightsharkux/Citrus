@@ -3,8 +3,8 @@
 const { readSse, safeJson } = require('./stream');
 
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
-const chatModel = (env) => String(env.CAMPUS_GATEWAY_MODEL || '').trim() || 'openai/gpt-6.1-terra';
-const summaryModel = (env) => String(env.CAMPUS_GATEWAY_SUMMARY_MODEL || '').trim() || 'google/gemini-2.5-flash-lite';
+const chatModel = (env) => String(env.CAMPUS_AI_MODEL || '').trim() || 'openai/gpt-6.1-terra';
+const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'google/gemini-2.5-flash-lite';
 const noThinkingModels = new Set(['openai/gpt-6.1-terra', 'google/gemini-2.5-flash-lite']);
 
 module.exports = {

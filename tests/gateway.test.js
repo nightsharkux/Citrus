@@ -26,7 +26,7 @@ test('gateway uses its own server key, task models and bounded output with confi
   assert.doesNotMatch(JSON.stringify(providers.list()) + JSON.stringify(providers.status('gateway')), /fixture-key/);
   assert.equal(providers.status('gateway').transcription, 'Disabled');
 
-  const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_GATEWAY_MODEL: 'other/model', CAMPUS_GATEWAY_SUMMARY_MODEL: 'other/summary' } });
+  const custom = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_MODEL: 'other/model', CAMPUS_AI_SUMMARY_MODEL: 'other/summary' } });
   assert.equal(custom.status('gateway').model, 'other/model');
   assert.equal(custom.status('gateway').summaryModel, 'other/summary');
 });
