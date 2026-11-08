@@ -66,27 +66,34 @@ export async function stream(path, body, { onEvent, signal }) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let boundary;
-    while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-      const chunk = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      let type = 'message';
-      const data = [];
-      for (const line of chunk.split('\n')) {
-        if (line.startsWith('event:')) type = line.slice(6).trim();
-        else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
-      }
-      if (data.length) {
-        try {
-          onEvent(type, JSON.parse(data.join('\n')));
-        } catch {
-          /* ignore malformed event */
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+        const chunk = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        let type = 'message';
+        const data = [];
+        for (const line of chunk.split('\n')) {
+          if (line.startsWith('event:')) type = line.slice(6).trim();
+          else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
         }
+        if (!data.length) continue;
+        let payload;
+        try {
+          payload = JSON.parse(data.join('\n'));
+        } catch {
+          continue; // malformed event
+        }
+        // Outside the try: an error thrown by the handler (an `error` event, for one) ends the stream.
+        onEvent(type, payload);
       }
     }
+  } catch (error) {
+    reader.cancel().catch(() => {});
+    throw error;
   }
 }
