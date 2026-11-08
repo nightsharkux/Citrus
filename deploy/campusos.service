@@ -1,0 +1,26 @@
+# /etc/systemd/system/campusos.service
+# Starts Campus OS on boot and restarts it if it crashes.
+[Unit]
+Description=Campus OS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=campusos
+Group=campusos
+WorkingDirectory=/opt/campusos
+ExecStart=/usr/bin/node --env-file=/opt/campusos/.env server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=10
+
+# Hardening: the app can only write to its own data folders.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/campusos/storage /opt/campusos/backups
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+# /etc/systemd/system/campusos-backup.service — run by campusos-backup.timer
+[Unit]
+Description=Campus OS nightly backup
+
+[Service]
+Type=oneshot
+User=campusos
+Group=campusos
+WorkingDirectory=/opt/campusos
+ExecStart=/usr/bin/node --env-file=/opt/campusos/.env scripts/backup.js
