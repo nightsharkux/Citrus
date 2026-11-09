@@ -12,4 +12,5 @@ module.exports = [
   require('./009-ai-tools'),
   require('./010-quizzes'),
   require('./011-study-groups'),
+  require('./012-ai-model-choice'),
 ];

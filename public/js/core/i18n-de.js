@@ -9,6 +9,10 @@ import more from './i18n-de-more.js';
 import learn from './i18n-de-learn.js';
 
 export const DE = {
+  'Assistant model': 'Assistentenmodell',
+  'Use deployment default': 'Voreinstellung der Bereitstellung verwenden',
+  'Sol handles complex questions. Astra offers deeper reasoning with higher cost and latency. Summaries keep their separate model; voice conversations use shorter reasoning.': 'Sol bearbeitet komplexe Fragen. Astra bietet tiefere Schlussfolgerungen bei höheren Kosten und längerer Wartezeit. Zusammenfassungen behalten ihr eigenes Modell; Sprachgespräche nutzen kürzeres Nachdenken.',
+  'Choose a supported assistant model': 'Wähle ein unterstütztes Assistentenmodell',
   'The speech service is unavailable, so “Hey Campus” is off. Check the connection and try again.': 'Der Sprachdienst ist nicht erreichbar. „Hey Campus“ ist deshalb ausgeschaltet. Prüfe die Verbindung und versuche es erneut.',
   'The speech service cannot be reached. Check the connection and try again.': 'Der Sprachdienst ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.',
   'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.': 'Deepgram verarbeitet Mikrofon-Audio, solange das Zuhören aktiv ist. Schalte es aus, um die Übertragung zu beenden.',

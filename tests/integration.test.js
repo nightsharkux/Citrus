@@ -73,7 +73,7 @@ test('Workspace assistant and meeting minutes route through the configured gatew
   x=await request('admin','/ai/settings','PATCH',{provider:'gateway'});assert.equal(x.status,200);
   x=await request('student','/workspaces','POST',{title:'Gateway test team',kind:'meeting',guidance:'coach'});assert.equal(x.status,201);const roomId=x.body.id;
   x=await request('student',`/workspaces/${roomId}/assistant`,'POST',{prompt:'Explain our team assignment'});assert.equal(x.status,200);
-  assert.match(x.body.answer,/gateway generated/);assert.equal(lastRequest.model,'openai/gpt-6.1-terra');
+  assert.match(x.body.answer,/gateway generated/);assert.equal(lastRequest.model,'openai/gpt-6.1-sol');
   assert.equal(lastRequest.messages.at(-1).content,'Explain our team assignment');
   assert.match(lastRequest.messages[0].content,/Campus OS/);
   x=await request('student',`/workspaces/${roomId}/notes`,'POST',{category:'minutes',content:'We agreed to share the project outline by Monday.'});assert.equal(x.status,201);

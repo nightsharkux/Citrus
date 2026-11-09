@@ -37,7 +37,7 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra/medium
+   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-sol/medium
    CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
    ```
 
@@ -48,28 +48,30 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra/medium` | `CAMPUS_AI_DEFAULT_MODEL` |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-sol/medium` | `CAMPUS_AI_DEFAULT_MODEL`, or the institution's Assistant model choice |
 | Meeting minutes, live-caption summaries, feedback themes and marking written quiz answers | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
 | Spoken conversations (`task: 'voice'`): the default model with a shorter reasoning level, so answers start quickly. Applies only when the default model slug has a level | `low` | `CAMPUS_AI_VOICE_REASONING` |
 | Natural voices (text to speech, see [Voice](#voice)) | `openai/tts-1` | `CAMPUS_AI_SPEECH_MODEL` (`off` uses browser voices) |
 
 Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
-The [gateway catalog](https://ai-gateway.vercel.sh/v1/models), checked November 8, 2026, lists GPT-6.1 Terra at $1.00 input / $5.00 output and GPT-6 Luna at $0.10 / $0.50 per million text tokens at standard global rates for contexts below 272,001 tokens. At 3,000 input and 500 output tokens, 1,000 requests would cost about $5.50 and $0.55 respectively, excluding cache writes, regional premiums and other charges. These are estimates, not measured application bills; prices and actual context sizes vary.
+Consult the [gateway catalog](https://ai-gateway.vercel.sh/v1/models) for current availability and prices. The choice of model, input size, output and reasoning tokens all affect the bill. The application keeps summary routing separate and never escalates to a more expensive model automatically.
 
 Model settings accept `provider/model/reasoning`: the default uses medium reasoning and summaries use low. The adapter removes the final segment from the model ID and sends it as `reasoning.effort` to the [gateway reasoning API](https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/reasoning). No separate reasoning environment variable is needed.
 
 Omit the segment to use the model's own default, or use `/none` to disable reasoning where supported. Gateway effort names are `none`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`; only use a level supported by the selected model. The gateway validates model-specific support and translates the setting to the serving provider's controls. Malformed slugs and unknown effort names disable AI configuration before a request is sent.
 
-The adapter preserves each feature's output token limit and asks the gateway to sort providers by cost for the selected model. Reasoning tokens can consume the output budget and are billable; the price examples above exclude additional reasoning tokens. No fallback model or automatic premium-model escalation is configured. Evaluate Terra against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
+The adapter preserves each feature's output token limit and asks the gateway to sort providers by cost for the selected model. Reasoning tokens can consume the output budget and are billable. No fallback model or automatic premium-model escalation is configured. Evaluate the selected model against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
 
-Terra supports the current text Chat Completions requests. Future tool calling with Terra requires the Responses API.
+Sol supports the current text Chat Completions requests and streaming. Native OpenAI tool calling with Sol requires the Responses API. Campus OS continues to parse its existing app-action protocol from text; this change does not add native OpenAI tool calls. Sol and Astra require at least low reasoning; a deployment voice override of `none` or `minimal` uses low for those models.
 
 The gateway key stays on the server. Uploaded audio is never sent to a provider. Automatic transcription is in development; recordings can have a typed transcript and meetings can use browser live captions. Gateway and downstream provider data policies apply to prompts sent through this cloud option.
 
 ## Configuration and upgrades
 
 Model settings use role-based names: `CAMPUS_AI_DEFAULT_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier model variable names in your hosting settings, then redeploy.
+
+Administrators can select GPT-6.1 Sol (medium reasoning), GPT-6 Astra (high), GPT-6.1 Terra (medium) or GPT-6 Luna (low) in **Admin / AI & knowledge / Assistant model**. The choice is saved for that institution only and overrides the deployment's chat model. **Use deployment default** removes the override, preserving any explicitly configured deployment model. Sol is the code default when no deployment model is configured. Summaries retain Luna by default, and voice retains the selected model with its shorter configured reasoning. There is no automatic switch to a more expensive model. Available model IDs and reasoning levels were checked against the public AI Gateway catalog and official OpenAI documentation on 2026-11-09; account credits and access still determine whether a request succeeds.
 
 The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_DEFAULT_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`), `CAMPUS_AI_RATE_PER_MINUTE`, `CAMPUS_AI_SPEECH_MODEL`, `CAMPUS_AI_SPEECH_PER_MINUTE` (speech requests per user, default 240, because each sentence is one request) and `CAMPUS_AI_VOICE_REASONING`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 

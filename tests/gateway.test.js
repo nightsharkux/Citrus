@@ -17,7 +17,7 @@ test('gateway uses its own server key, task models and bounded output with confi
   assert.equal(await providers.generate('gateway', 'Instructions', 'Notes', [], { task: 'summary', maxTokens: 800 }), 'An answer.');
   assert.equal(requests[0].url, 'https://ai-gateway.vercel.sh/v1/chat/completions');
   assert.equal(requests[0].options.headers.Authorization, 'Bearer gateway-fixture-key');
-  assert.equal(requests[0].body.model, 'openai/gpt-6.1-terra');
+  assert.equal(requests[0].body.model, 'openai/gpt-6.1-sol');
   assert.equal(requests[1].body.model, 'openai/gpt-6-luna');
   assert.equal(requests[1].body.max_tokens, 800);
   assert.deepEqual(requests[0].body.reasoning, { effort: 'medium' });
@@ -137,9 +137,9 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   assert.equal((await app.call('admin', 'GET', '/api/ai/settings')).body.provider, 'gateway');
   assert.equal((await app.call('outsider', 'GET', '/api/assistant')).body.status.provider, 'off');
   assert.equal((await app.call('admin', 'POST', '/api/ai/test')).status, 200);
-  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol');
   assert.equal((await app.call('student', 'POST', '/api/assistant/messages', { prompt: 'Explain a linear algorithm.', task: 'summary', model: 'expensive/model' })).status, 200);
-  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra', 'clients cannot override server routing');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol', 'clients cannot override server routing');
   assert.deepEqual(requests.at(-1).reasoning, { effort: 'medium' });
 
   const space = (await app.call('admin', 'POST', '/api/workspaces', { title: 'Gateway fixture meeting', kind: 'meeting' })).body;
@@ -164,5 +164,5 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   const practice = await app.call('student', 'POST', '/api/revision', { course_id: 1 });
   assert.equal(practice.status, 201);
   assert.equal(practice.body.source, 'ai');
-  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-terra');
+  assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol');
 });

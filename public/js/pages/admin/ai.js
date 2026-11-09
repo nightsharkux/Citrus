@@ -37,6 +37,10 @@ export default {
                 ${p.id !== 'off' && !p.ready ? html`<span class="chip warning">Needs key</span>` : ''}
               </label>`;
             })}</div>
+            <label class="field mt-16"><span>Assistant model</span><select class="select" name="model">
+              <option value="" ${!s.modelOverride ? 'selected' : ''}>Use deployment default</option>
+              ${(s.modelChoices || []).map((m) => html`<option value="${m.id}" ${s.modelOverride === m.id ? 'selected' : ''}>${m.label}</option>`)}
+            </select><span class="hint">Sol handles complex questions. Astra offers deeper reasoning with higher cost and latency. Summaries keep their separate model; voice conversations use shorter reasoning.</span></label>
             <div class="form-actions mt-16"><span class="small muted grow" id="test-result">Uploaded audio transcription is in development.</span><button type="button" class="btn" data-test ${s.aiEnabled ? '' : 'disabled'}>${icon('bolt', 16)} Test connection</button><button class="btn btn-primary">Save</button></div>
           </form>
         </section>
@@ -75,7 +79,7 @@ export default {
   },
   mount(root, d, ctx) {
     onSubmit($('#provider-form', root), async (v) => {
-      const s = await api.patch('/ai/settings', { provider: v.provider });
+      const s = await api.patch('/ai/settings', { provider: v.provider, model: v.model });
       setSession({ ai: s });
       ctx.refresh();
       return s.aiEnabled ? `Using ${s.label}` : s.description;

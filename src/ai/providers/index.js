@@ -17,25 +17,28 @@ const NOT_CONFIGURED = 'The selected AI provider is not configured. Ask the admi
 
 function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.env } = {}) {
   const providerName = (mode) => (MODES.includes(mode) ? mode : 'off');
+  const modelEnv = (model) => model ? { ...env, CAMPUS_AI_DEFAULT_MODEL: model } : env;
 
-  function status(mode) {
+  function status(mode, { model } = {}) {
     const id = providerName(mode);
     const provider = BY_ID.get(id);
-    const missing = provider ? provider.missing(env) : 'AI disabled by administrator';
+    const configured = modelEnv(model);
+    const missing = provider ? provider.missing(configured) : 'AI disabled by administrator';
     return {
       provider: id,
       label: provider ? provider.label : 'Off',
       location: provider ? provider.location : null,
       aiEnabled: !!provider && !missing,
-      model: provider ? provider.model(env) : null,
+      model: provider ? provider.model(configured) : null,
       ...(provider?.summaryModel ? { summaryModel: provider.summaryModel(env) } : {}),
       transcription: 'Disabled',
       description: missing || provider.describe(env),
     };
   }
 
-  function list() {
-    return [{ id: 'off', label: 'Off', location: null, ready: true, missing: null }, ...PROVIDERS.map((p) => ({ id: p.id, label: p.label, location: p.location, model: p.model(env), ready: !p.missing(env), missing: p.missing(env) }))];
+  function list({ model } = {}) {
+    const configured = modelEnv(model);
+    return [{ id: 'off', label: 'Off', location: null, ready: true, missing: null }, ...PROVIDERS.map((p) => ({ id: p.id, label: p.label, location: p.location, model: p.model(configured), ready: !p.missing(configured), missing: p.missing(configured) }))];
   }
 
   /**
@@ -64,12 +67,13 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
   let webRestsUntil = 0;
   const webAvailable = () => Date.now() >= webRestsUntil;
 
-  async function call(mode, system, input, history, { stream, signal, maxTokens = 1200, task = 'chat', web = null }) {
+  async function call(mode, system, input, history, { stream, signal, maxTokens = 1200, task = 'chat', web = null, model = null }) {
     const provider = BY_ID.get(providerName(mode));
-    if (!provider || provider.missing(env)) throw new AiError(NOT_CONFIGURED);
+    const configured = modelEnv(model);
+    if (!provider || provider.missing(configured)) throw new AiError(NOT_CONFIGURED);
     const messages = buildMessages(input, history);
     const send = async (withWeb) => {
-      const req = provider.request({ env, model: provider.model(env, task), system: String(system).slice(0, 64_000), messages, stream, maxTokens, web: withWeb });
+      const req = provider.request({ env: configured, model: provider.model(configured, task), system: String(system).slice(0, 64_000), messages, stream, maxTokens, web: withWeb });
       const timeout = AbortSignal.timeout(provider.timeoutMs * (withWeb ? 1.5 : 1));
       try {
         return await fetchImpl(req.url, {

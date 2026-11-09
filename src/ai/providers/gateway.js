@@ -3,7 +3,7 @@
 const { readSse, safeJson } = require('./stream');
 
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
-const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-terra/medium';
+const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-sol/medium';
 const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'openai/gpt-6-luna/low';
 /** Text to speech (beta on the gateway). "off" turns natural voices off; the browser's voices are used instead. */
 const speechModel = (env) => {
@@ -13,6 +13,7 @@ const speechModel = (env) => {
 /** A spoken conversation wants a quick answer: a reasoning model thinks briefly there (CAMPUS_AI_VOICE_REASONING). */
 const voiceEffort = (env) => String(env.CAMPUS_AI_VOICE_REASONING || '').trim() || 'low';
 const reasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const reasoningRequired = new Set(['openai/gpt-6.1-sol', 'openai/gpt-6-astra']);
 
 /** Campus OS configuration: provider/model[/effort]. The gateway receives the base ID. */
 function parseModel(slug) {
@@ -23,6 +24,9 @@ function parseModel(slug) {
   const [provider, model, effort] = parts;
   if (effort && !reasoningEfforts.has(effort)) {
     throw new Error('Unknown AI reasoning level. Use none, minimal, low, medium, high, xhigh or max');
+  }
+  if (effort && reasoningRequired.has(`${provider}/${model}`) && ['none', 'minimal'].includes(effort)) {
+    throw new Error('This model requires a reasoning level of low, medium, high, xhigh or max');
   }
   return { model: provider + '/' + model, ...(effort ? { reasoning: { effort } } : {}) };
 }
@@ -37,7 +41,9 @@ module.exports = {
     // Voice: same model, shorter thinking, but only when the configured model is a reasoning model (has a level).
     if (task === 'voice') {
       const parts = defaultModel(env).split('/');
-      return parts.length === 3 && reasoningEfforts.has(voiceEffort(env)) ? `${parts[0]}/${parts[1]}/${voiceEffort(env)}` : defaultModel(env);
+      const configuredEffort = voiceEffort(env);
+      const effort = reasoningRequired.has(`${parts[0]}/${parts[1]}`) && ['none', 'minimal'].includes(configuredEffort) ? 'low' : configuredEffort;
+      return parts.length === 3 && reasoningEfforts.has(effort) ? `${parts[0]}/${parts[1]}/${effort}` : defaultModel(env);
     }
     return defaultModel(env);
   },

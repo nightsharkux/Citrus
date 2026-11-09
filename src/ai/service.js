@@ -16,6 +16,7 @@ const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
 const { voiceCatalog, speechOptions } = require('./voices');
 const { createRecognitionProvider } = require('./recognition');
+const { MODEL_CHOICES, readModelOverride } = require('./models');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest, unavailable } = require('../http/errors');
 
@@ -35,6 +36,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     const row = db.get('SELECT * FROM institution_ai_settings WHERE institution_id = ?', institutionId);
     return {
       mode: providers.providerName(row?.provider || defaultProvider()),
+      model: row?.chat_model || null,
       webSearch: row?.web_search === undefined || row?.web_search === null ? true : !!row.web_search,
       speech: row?.speech === undefined || row?.speech === null ? true : !!row.speech,
     };
@@ -43,10 +45,12 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
 
   function status(user) {
     const s = settingsFor(user.institution_id);
-    const base = providers.status(s.mode);
+    const base = providers.status(s.mode, { model: s.model });
     const speechModel = base.aiEnabled && s.speech ? providers.speechModel(s.mode) : null;
     return {
       ...base,
+      modelOverride: s.model,
+      modelChoices: MODEL_CHOICES,
       webSearch: base.aiEnabled && s.webSearch && providers.webAvailable(),
       webSearchAllowed: s.webSearch,
       speech: !!speechModel,
@@ -78,6 +82,14 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     return status(user);
   }
 
+  function setModel(user, value) {
+    const model = readModelOverride(value);
+    db.run(`INSERT INTO institution_ai_settings(institution_id, provider, chat_model, updated) VALUES(?, ?, ?, ?)
+      ON CONFLICT(institution_id) DO UPDATE SET chat_model = excluded.chat_model, updated = excluded.updated`,
+    user.institution_id, selected(user.institution_id), model, new Date().toISOString());
+    return status(user);
+  }
+
   function checkQuota(user) {
     if (!quota.hit(user.id)) throw tooMany('Please allow a minute before sending more AI requests');
   }
@@ -88,13 +100,15 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   /** `web`: 'auto' (the model decides) or 'required' (search first); ignored when the institution turned search off. */
   async function complete({ user, system, prompt, history = [], maxTokens, task = 'chat', web = null, onMeta }) {
     checkQuota(user);
-    return providers.generate(selected(user.institution_id), system, prompt, history, { maxTokens, task, web: webFor(user, web), onMeta });
+    const s = settingsFor(user.institution_id);
+    return providers.generate(s.mode, system, prompt, history, { maxTokens, task, web: webFor(user, web), onMeta, model: s.model });
   }
 
   /** `onMeta({ searched })` says whether the web was searched for this answer. */
   function stream({ user, system, prompt, history = [], signal, maxTokens, task = 'chat', web = null, onMeta }) {
     checkQuota(user);
-    return providers.stream(selected(user.institution_id), system, prompt, history, { signal, maxTokens, task, web: webFor(user, web), onMeta });
+    const s = settingsFor(user.institution_id);
+    return providers.stream(s.mode, system, prompt, history, { signal, maxTokens, task, web: webFor(user, web), onMeta, model: s.model });
   }
 
   // Recently made audio, so samples and repeated sentences cost nothing the second time.
@@ -168,6 +182,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   return {
     status,
     setProvider,
+    setModel,
     setTools,
     complete,
     stream,
@@ -177,7 +192,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     retrieve,
     retrieveContext,
     bundledCount: retrieval.bundledCount,
-    providers: providers.list,
+    providers: (user) => providers.list({ model: user ? settingsFor(user.institution_id).model : null }),
   };
 }
 

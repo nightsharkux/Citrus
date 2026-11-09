@@ -8,6 +8,7 @@ const { text, id, oneOf, httpUrl } = require('../../lib/validate');
 const { badRequest, notFound, unavailable } = require('../../http/errors');
 const { connectionTestPrompt } = require('../../ai/prompts');
 const { readBundled } = require('../../lib/bundled');
+const { readModelOverride } = require('../../ai/models');
 
 const VOLATILITY = ['stable', 'term-specific', 'dynamic'];
 
@@ -78,9 +79,9 @@ function register(router, { db, config, ai, audit }) {
 
   // --- AI provider ---
 
-  router.get('/api/ai/settings', (ctx) => ({ ...ai.status(ctx.user), providers: ai.providers() }), { roles: ['admin'] });
+  router.get('/api/ai/settings', (ctx) => ({ ...ai.status(ctx.user), providers: ai.providers(ctx.user) }), { roles: ['admin'] });
 
-  /** { provider?, web_search?, speech? }: the provider, and whether the assistant may search the web and use natural voices. */
+  /** { provider?, model?, web_search?, speech? }: institution choices; validate everything before applying it. */
   router.patch('/api/ai/settings', async (ctx) => {
     const b = await ctx.json();
     const flag = (value, label) => {
@@ -89,14 +90,19 @@ function register(router, { db, config, ai, audit }) {
       return value;
     };
     const tools = { webSearch: flag(b.web_search, 'Web search'), speech: flag(b.speech, 'Natural voices') };
-    if (b.provider === undefined && tools.webSearch === undefined && tools.speech === undefined) throw badRequest('Nothing to change');
+    const model = b.model === undefined ? undefined : readModelOverride(b.model);
+    if (b.provider === undefined && model === undefined && tools.webSearch === undefined && tools.speech === undefined) throw badRequest('Nothing to change');
     let status = b.provider === undefined ? ai.status(ctx.user) : ai.setProvider(ctx.user, String(b.provider || ''));
     if (b.provider !== undefined) audit(ctx.user, 'ai_provider_changed', status.provider);
+    if (model !== undefined) {
+      status = ai.setModel(ctx.user, model);
+      audit(ctx.user, 'ai_model_changed', status.model);
+    }
     if (tools.webSearch !== undefined || tools.speech !== undefined) {
       status = ai.setTools(ctx.user, tools);
       audit(ctx.user, 'ai_tools_changed', `web search ${status.webSearchAllowed ? 'on' : 'off'}, natural voices ${status.speechAllowed ? 'on' : 'off'}`);
     }
-    return { ...status, providers: ai.providers() };
+    return { ...status, providers: ai.providers(ctx.user) };
   }, { roles: ['admin'] });
 
   router.post('/api/ai/test', async (ctx) => {
