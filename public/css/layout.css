@@ -264,3 +264,6 @@
   .float-card { display: none; }
   .hero { padding: 22px 20px; border-radius: 26px; }
 }
+
+/* Campus Focus: the moon in the top bar is lit while notifications are paused. */
+.focus-btn.is-on { color: var(--accent); background: var(--accent-soft); }

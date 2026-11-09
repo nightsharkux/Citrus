@@ -135,4 +135,15 @@ export default {
   'Natural voices off': 'Natürliche Stimmen aus',
   'The gateway refused the last search, so it is paused for a few minutes.': 'Das Gateway hat die letzte Suche abgelehnt, deshalb ist sie für einige Minuten pausiert.',
   'Not available right now, so browsers use their own voices.': 'Gerade nicht verfügbar, deshalb nutzen Browser ihre eigenen Stimmen.',
+  // Campus Focus
+  'Campus Focus': 'Campus Fokus',
+  'Campus Focus: pause notifications': 'Campus Fokus: Benachrichtigungen pausieren',
+  '30 minutes': '30 Minuten',
+  '1 hour': '1 Stunde',
+  '2 hours': '2 Stunden',
+  '4 hours': '4 Stunden',
+  'Turn Focus off': 'Fokus beenden',
+  'Focus off': 'Fokus aus',
+  'Focus can last up to 12 hours.': 'Der Fokus kann bis zu 12 Stunden dauern.',
+  'Choose when Focus should end.': 'Wähle, wann der Fokus enden soll.',
 };

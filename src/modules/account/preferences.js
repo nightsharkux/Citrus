@@ -36,6 +36,7 @@ function readPreferences(input = {}) {
   if (input.language !== undefined) changes.language = oneOf(input.language, LANGUAGES, 'Language');
   if (input.answerLanguage !== undefined) changes.answerLanguage = input.answerLanguage === 'match' ? null : oneOf(input.answerLanguage, ANSWER_LANGUAGES, 'Answer language');
   if (input.speechLanguage !== undefined) changes.speechLanguage = oneOf(input.speechLanguage, SPEECH_LANGUAGES, 'Speech language');
+  if (input.focusUntil !== undefined) changes.focusUntil = cleanFocus(input.focusUntil);
   if (input.assistantName !== undefined) changes.assistantName = cleanAssistantName(input.assistantName) || null;
   return changes;
 }
@@ -49,6 +50,23 @@ function applyPreferences(current, changes) {
   return next;
 }
 
+/**
+ * Campus Focus: "do not disturb until". null (or a time already past) turns it off; otherwise a time up to 12 hours away.
+ * While it lasts, notifications that are not urgent arrive silently in the inbox (no push, no pop-up).
+ */
+function cleanFocus(value) {
+  if (value === null || value === false || value === '') return null;
+  const at = Date.parse(value);
+  const now = Date.now();
+  if (!Number.isFinite(at)) throw badRequest('Choose when Focus should end.');
+  if (at <= now) return null;
+  if (at > now + 12 * 3600_000 + 60_000) throw badRequest('Focus can last up to 12 hours.');
+  return new Date(at).toISOString();
+}
+
+/** True while the person has Campus Focus on. */
+const isFocused = (preferences, now = Date.now()) => Date.parse(preferences?.focusUntil || '') > now;
+
 /** The name the assistant answers to for this person. */
 const assistantNameFor = (user, site) => {
   const own = user?.preferences?.assistantName;
@@ -56,4 +74,4 @@ const assistantNameFor = (user, site) => {
   return typeof own === 'string' && own.length <= 24 && NAME.test(own) ? own : site.assistant || 'Campus';
 };
 
-module.exports = { readPreferences, applyPreferences, cleanAssistantName, assistantNameFor, LANGUAGES, SPEECH_LANGUAGES, ANSWER_LANGUAGES };
+module.exports = { isFocused, readPreferences, applyPreferences, cleanAssistantName, assistantNameFor, LANGUAGES, SPEECH_LANGUAGES, ANSWER_LANGUAGES };

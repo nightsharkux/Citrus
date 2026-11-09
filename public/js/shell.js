@@ -64,6 +64,7 @@ export function mountApp() {
         <a class="topbar-mobile-brand" href="/home" aria-label="Campus OS home">${wordmark()}</a>
         <span class="topbar-title" id="topbar-title"></span>
         <div class="topbar-actions">
+          <button class="icon-btn focus-btn" data-focus aria-label="Campus Focus" title="Campus Focus: pause notifications">${icon('moon', 18)}</button>
           <button class="icon-btn wake-indicator" data-wake-indicator hidden aria-label="Campus is listening for “Hey Campus”. Click to stop." title="Listening for “Hey Campus” — click to stop">${icon('mic', 18)}</button>
           <button class="search-pill" data-palette aria-label="Search">${icon('search', 18)}<span>Search or jump to…</span><kbd>${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'} K</kbd></button>
           <a class="icon-btn" href="/inbox" aria-label="Inbox">${icon('bell', 19)}<span data-unread-slot>${session.unread ? html`<span class="count">${session.unread > 99 ? '99+' : session.unread}</span>` : ''}</span></a>
@@ -80,9 +81,38 @@ export function mountApp() {
     </div>`);
 
   wireShell();
+  syncFocus();
   live.connect();
   if (session.user.preferences?.voiceWake && !wake.enabled) wake.start(assistantName());
   syncWakeIndicator();
+}
+
+/** Campus Focus: minutes left (0 when off). Notifications that are not urgent wait quietly in the inbox meanwhile. */
+const focusLeft = () => Math.max(0, Math.ceil((Date.parse(session.user?.preferences?.focusUntil || '') - Date.now()) / 60000)) || 0;
+const span = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
+let focusTimer = 0;
+function syncFocus() {
+  const left = focusLeft();
+  const el = $('[data-focus]');
+  if (el) {
+    el.classList.toggle('is-on', left > 0);
+    el.title = left > 0 ? `Focus on for ${span(left)}. Click to change.` : 'Campus Focus: pause notifications';
+  }
+  clearTimeout(focusTimer);
+  if (left > 0) focusTimer = setTimeout(syncFocus, 30_000);
+}
+export async function setFocus(minutes) {
+  const focusUntil = minutes ? new Date(Date.now() + minutes * 60000).toISOString() : null;
+  const res = await api.patch('/me', { preferences: { focusUntil } });
+  setSession({ user: { ...session.user, preferences: res.user.preferences } });
+  syncFocus();
+  toast(minutes ? `Focus on for ${span(minutes)}. Notifications wait in your inbox.` : 'Focus off', 'info', { duration: 2200 });
+}
+function focusMenu(button) {
+  menu(button, [
+    ...[[30, '30 minutes'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours']].map(([m, label]) => ({ label, icon: 'moon', onSelect: () => setFocus(m).catch(() => {}) })),
+    ...(focusLeft() > 0 ? ['divider', { label: 'Turn Focus off', icon: 'x', onSelect: () => setFocus(0).catch(() => {}) }] : []),
+  ]);
 }
 
 function syncWakeIndicator() {
@@ -187,6 +217,7 @@ function wireShell() {
 
   on(document, 'click', '[data-user-menu]', (e, button) => userMenu(button));
   on(document, 'click', '[data-palette]', () => openPalette());
+  on(document, 'click', '[data-focus]', (e, button) => focusMenu(button));
   on(document, 'click', '[data-more]', () => openMore());
   document.addEventListener('keydown', (e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && session.user) {
@@ -219,7 +250,7 @@ function wireShell() {
 
   live.on('notification', (n) => {
     setSession({ unread: session.unread + 1 });
-    if (!location.pathname.startsWith('/inbox')) toast(n.title, 'info');
+    if (!location.pathname.startsWith('/inbox') && !n.quiet && !focusLeft()) toast(n.title, 'info');
   });
   live.on('activation', async (a) => {
     if (a.status) return;

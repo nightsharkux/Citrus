@@ -7,9 +7,10 @@
  * message: { kind, title, body?, link?, category?, priority?, urgent? }
  *   kind      'system' | 'campus' | 'course' | 'device' | ...
  *   category  campus feed category (used for topic preferences)
- *   urgent    bypass quiet hours (e.g. a device tap the user just made)
+ *   urgent    bypass quiet hours and Campus Focus (e.g. a device tap the user just made)
  */
 const { zonedParts } = require('../../lib/time');
+const { isFocused } = require('../account/preferences');
 
 function createNotifier({ db, bus, push, timeZone }) {
   function prefs(userId) {
@@ -35,7 +36,17 @@ function createNotifier({ db, bus, push, timeZone }) {
     return start < end ? now >= start && now < end : now >= start || now < end;
   }
 
+  /** Campus Focus is on for this person right now. */
+  function focused(userId) {
+    try {
+      return isFocused(JSON.parse(db.get('SELECT preferences FROM users WHERE id = ?', userId)?.preferences || '{}'));
+    } catch {
+      return false;
+    }
+  }
+
   function shouldPush(userId, message) {
+    if (!message.urgent && focused(userId)) return false;
     const p = prefs(userId);
     if (!message.urgent && inQuietHours(p)) return false;
     if (message.kind !== 'campus') return true;
@@ -61,7 +72,7 @@ function createNotifier({ db, bus, push, timeZone }) {
         'INSERT INTO notifications(user_id, kind, title, body, link, created) VALUES(?, ?, ?, ?, ?, ?)',
         userId, message.kind || 'system', String(message.title).slice(0, 160), String(message.body || '').slice(0, 600), String(message.link || '').slice(0, 300), created,
       );
-      bus.publish(`user:${userId}`, 'notification', { id, kind: message.kind, title: message.title, body: message.body || '', link: message.link || '' });
+      bus.publish(`user:${userId}`, 'notification', { id, kind: message.kind, title: message.title, body: message.body || '', link: message.link || '', quiet: !message.urgent && focused(userId) });
       if (shouldPush(userId, message)) {
         pushTo(userId, message, id).catch((error) => console.error('Push failed:', error.message));
       }
@@ -70,7 +81,7 @@ function createNotifier({ db, bus, push, timeZone }) {
 
   const unread = (userId) => db.get('SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0', userId).n;
 
-  return { notify, unread, inQuietHours };
+  return { notify, unread, inQuietHours, focused };
 }
 
 module.exports = { createNotifier };

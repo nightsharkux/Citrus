@@ -10,7 +10,16 @@
  * The same pass puts the person's name for the assistant where the interface says "Campus" (Ask Campus, Hey
  * Campus), except in "Campus OS", "Campus life", "Campus map" and similar names.
  */
-import { DE, PATTERNS } from './i18n-de.js';
+
+/**
+ * The German dictionary is about 60 KB, so it is fetched only when German is needed (at start-up for German
+ * speakers, or when someone switches). Until it has arrived, text stays as the page wrote it.
+ */
+let dictionary = null;
+export async function loadGerman() {
+  dictionary ||= await import('./i18n-de.js');
+  return dictionary;
+}
 
 const KEY = 'campus-lang';
 const SKIP = 'script, style, textarea, input, code, pre, svg, [data-no-translate], .prose, .bubble, .att-name, .md, .markdown';
@@ -50,7 +59,8 @@ export function translateWith(lang, name, text) {
   // Only an English "Campus" that means the assistant is renamed. A German "Campus" is the place (Auf dem Campus).
   const meansAssistant = name !== 'Campus' && new RegExp(NAME_RE.source).test(key);
   let out = key;
-  if (lang === 'de') {
+  if (lang === 'de' && dictionary) {
+    const { DE, PATTERNS } = dictionary;
     out = DE[key];
     if (out === undefined) {
       out = key;
@@ -174,6 +184,7 @@ function rescan() {
 
 export function setLanguage(code, { save = true } = {}) {
   const next = code === 'de' ? 'de' : 'en';
+  if (next === 'de' && !dictionary) loadGerman().then(() => language === 'de' && rescan()).catch(() => {});
   if (save) {
     try {
       localStorage.setItem(KEY, next);
@@ -207,6 +218,8 @@ export function startTranslating({ language: account = null, assistantName = nul
     });
   }
   rescan();
+  // German speakers get their dictionary before the first page is drawn (the caller waits for this).
+  return language === 'de' ? loadGerman().then(rescan).catch(() => {}) : Promise.resolve();
 }
 
 /** Follow the signed-in person's account settings (called whenever the session changes). */

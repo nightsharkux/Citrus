@@ -30,7 +30,7 @@ async function boot() {
   if (theme && theme !== 'system' && !document.documentElement.dataset.theme) setTheme(theme);
 
   // Language and the assistant's name first, so nothing flashes in the wrong language.
-  startTranslating({ language: data.user?.preferences?.language, assistantName: data.user?.preferences?.assistantName });
+  await startTranslating({ language: data.user?.preferences?.language, assistantName: data.user?.preferences?.assistantName });
   on('session', (patch) => {
     if ('user' in patch) syncFromUser(patch.user);
   });

@@ -55,6 +55,7 @@ module.exports = Object.freeze([
       item('meetings', 'Meeting recording and minutes', 'limited', '/spaces', 'Record audio with consent, add a transcript, and draft minutes for review.'),
       item('guidance', 'Lecturer-defined AI guidance', 'available', '/spaces', 'Coach, Socratic, direct or assessment-safe assistant behaviour.'),
       item('conversation', 'Voice conversation', 'limited', '/assistant', 'Talk with Campus hands-free: it listens, answers out loud, then listens again, and you can interrupt it. Start it with the waveform button or “Hey Campus, let’s talk”. Listening uses configured Wispr Flow or Deepgram, otherwise browser recognition. Requires microphone access over HTTPS or on this computer.'),
+      item('focus', 'Campus Focus', 'available', '/inbox', 'A do-not-disturb setting for 30 minutes to 4 hours. Pop-ups and push notifications pause and everything waits in your inbox; urgent device taps still come through. The moon in the top bar turns it on and off.'),
       item('wake', 'Voice wake word', 'limited', '/settings/assistant', 'Say “Hey Campus” or “Campus” on any page, then a command or question. Uses configured Wispr Flow or Deepgram, otherwise browser recognition. Wispr returns phrases after a pause. Requires microphone access over HTTPS or on this computer.'),
       item('moodle', 'Moodle connection', 'configuration', '/settings/connections', 'Link your Moodle account with a personal token. Needs MOODLE_URL.'),
     ],
@@ -99,7 +100,7 @@ module.exports = Object.freeze([
       item('audit', 'Audit log and data retention', 'available', '/admin/institution', 'Track sensitive changes and auto-delete old recordings.', ADMIN),
       item('privacy', 'Personal data export and deletion', 'available', '/settings/privacy', 'Download everything about you, or delete your account.'),
       item('compliance', 'Institutional security and GDPR review', 'planned', null, 'A process with your data-protection office, not a code feature.'),
-      item('i18n', 'German interface', 'planned', null, 'Interface translation. The assistant already answers in German.'),
+      item('i18n', 'German interface', 'limited', '/settings/assistant', 'The whole interface switches between German and English. A few catalogue texts are English only.'),
     ],
   },
 ]);

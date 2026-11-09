@@ -58,7 +58,8 @@ test('voice commands work in German and English, and a question still goes to th
 });
 
 test('the interface switches to German, keeps names and Campus OS, and uses the assistant\'s own name', async () => {
-  const { translateWith } = await load('core/i18n.js');
+  const { translateWith, loadGerman } = await load('core/i18n.js');
+  await loadGerman();
   const de = (s, name = 'Campus') => translateWith('de', name, s);
   const en = (s, name = 'Campus') => translateWith('en', name, s);
 
