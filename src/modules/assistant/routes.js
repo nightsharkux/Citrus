@@ -32,7 +32,7 @@ const { assistantNameFor } = require('../account/preferences');
 /** What the browser heard in the latest message: its language (as the browser judged it) and the recogniser's. */
 function readHeard(b) {
   const heard = ['de', 'en'].includes(b.heard) ? b.heard : null;
-  const recogniser = /^[a-z]{2}-[A-Z]{2}$/.test(String(b.recogniser || '')) ? b.recogniser : null;
+  const recogniser = b.recogniser === 'multi' ? 'German and English together' : /^[a-z]{2}-[A-Z]{2}$/.test(String(b.recogniser || '')) ? b.recogniser : null;
   return { heard, recogniser, spoken: b.mode === 'voice' || b.spoken === true };
 }
 

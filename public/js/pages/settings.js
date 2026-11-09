@@ -101,7 +101,7 @@ function assistant() {
   return html`<section class="card assistant-settings">
     <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Campus OS.</p></div></div>
     <div class="stack mt-24" style="--gap:18px">
-      <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
+      <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
         <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Campus"><span></span></span></label>
       <label class="spread"><span><strong>Animated explanations</strong><br><span class="small muted">Campus’s eye turns into small animations — formulas, steps, figures — while it explains something.</span></span>
         <span class="switch"><input type="checkbox" data-pref="visuals" ${prefs.visuals === false ? '' : 'checked'} aria-label="Animated explanations"><span></span></span></label>
@@ -134,7 +134,7 @@ function identityCard() {
       <label class="field"><span>Interface language</span><select class="select" name="language">${option('en', 'English', language)}${option('de', 'Deutsch', language)}</select></label>
       <label class="field"><span>Answer language</span><select class="select" name="answerLanguage">${option('match', 'Follow my language', answer)}${option('de', 'Deutsch', answer)}${option('en', 'English', answer)}</select><span class="hint">You can switch languages or mix German and English in any conversation.</span></label>
       <label class="field"><span>Voice input language</span><select class="select" name="speechLanguage">${option('auto', 'Automatic (English and German)', speech)}${option('en', 'English', speech)}${option('de', 'Deutsch', speech)}</select>
-        <span class="hint">Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.</span></label>
+        <span class="hint">${session.ai?.recognition?.enabled ? 'Deepgram Nova-3: Automatic understands German and English together, including changes within a sentence. Microphone echo cancellation and noise suppression are enabled.' : 'Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.'}</span></label>
       <div class="form-actions"><button class="btn btn-primary">Save</button></div>
     </form></section>`;
 }

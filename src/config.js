@@ -6,6 +6,8 @@
  * AI provider credentials are intentionally NOT copied here: the provider
  * registry reads them lazily from the environment so that keys can be rotated
  * without touching the rest of the app (and so tests can swap them).
+ * Live recognition settings DEEPGRAM_API_KEY, CAMPUS_STT_PROVIDER and CAMPUS_STT_REGION
+ * are read lazily by src/ai/recognition.js for the same reason.
  */
 const path = require('node:path');
 const { siteConfig } = require('../config/site');

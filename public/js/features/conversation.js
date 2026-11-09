@@ -43,7 +43,7 @@ const QUIET_LIMIT = 120_000;
 const TROUBLE = {
   blocked: 'Microphone access is blocked for this site. Allow it in the browser’s address bar, then try again.',
   'no-microphone': 'No microphone was found. Connect one and try again.',
-  network: 'Your browser can’t reach its speech service. Check the connection and try again. Some privacy-focused browsers block it.',
+  network: 'The speech service cannot be reached. Check the connection and try again.',
   unsupported: 'This browser has no speech recognition for your language.',
   unstable: 'The microphone keeps stopping. Make sure no other app is using it, then try again.',
 };
@@ -303,7 +303,7 @@ function createConversation({ threadId: startThread }) {
     if (!text) return;
     if (state === 'speaking') {
       // Listening in one language while Campus speaks the other: its own voice comes back as "new" words.
-      const strict = (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
+      const strict = recognitionLanguage() !== 'multi' && (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
       if (listenWhileSpeaking && isInterruption(text, reply, { final, strict })) {
         interrupt();
         hear(text, final);

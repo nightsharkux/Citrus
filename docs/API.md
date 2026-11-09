@@ -334,6 +334,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 | Method | Path | Auth | Roles |
 |---|---|---|---|
 | GET | `/api/speech` | user | any |
+| POST | `/api/speech/recognition-session` | user | any |
 | POST | `/api/speech` | user | any |
 
 ## study

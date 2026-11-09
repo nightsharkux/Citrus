@@ -9,6 +9,13 @@ import more from './i18n-de-more.js';
 import learn from './i18n-de-learn.js';
 
 export const DE = {
+  'The speech service is unavailable, so “Hey Campus” is off. Check the connection and try again.': 'Der Sprachdienst ist nicht erreichbar. „Hey Campus“ ist deshalb ausgeschaltet. Prüfe die Verbindung und versuche es erneut.',
+  'The speech service cannot be reached. Check the connection and try again.': 'Der Sprachdienst ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.',
+  'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.': 'Deepgram verarbeitet Mikrofon-Audio, solange das Zuhören aktiv ist. Schalte es aus, um die Übertragung zu beenden.',
+  'Deepgram Nova-3: Automatic understands German and English together, including changes within a sentence. Microphone echo cancellation and noise suppression are enabled.': 'Deepgram Nova-3: Automatisch versteht Deutsch und Englisch zusammen, auch bei einem Sprachwechsel im Satz. Echo- und Rauschunterdrückung sind aktiviert.',
+  'Deepgram is unavailable. Using browser speech recognition for now.': 'Deepgram ist nicht erreichbar. Vorerst wird die Spracherkennung des Browsers verwendet.',
+  'Voice needs a supported browser or configured Deepgram recognition.': 'Spracheingabe benötigt einen unterstützten Browser oder eine eingerichtete Deepgram-Spracherkennung.',
+  'Voice input is reconnecting too often. Please wait a moment.': 'Die Spracheingabe verbindet sich zu oft neu. Bitte warte einen Moment.',
   'From your saved schedule. Ask the assistant about programme timetables.': 'Aus deinem gespeicherten Stundenplan. Studiengangspläne findest du beim Assistenten.',
   'Ask about a programme timetable': 'Nach einem Studiengangsplan fragen',
   'Answer language': 'Antwortsprache',

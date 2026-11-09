@@ -15,6 +15,7 @@ const crypto = require('node:crypto');
 const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
 const { voiceCatalog, speechOptions } = require('./voices');
+const { createRecognitionProvider } = require('./recognition');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest, unavailable } = require('../http/errors');
 
@@ -24,6 +25,8 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
   // Speech is requested one sentence at a time, so it has its own, larger allowance.
   const speechQuota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_SPEECH_PER_MINUTE || 240) });
+  const recognition = createRecognitionProvider({ env, fetchImpl });
+  const recognitionQuota = createRateLimiter({ windowMs: 60_000, max: 6 });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
@@ -48,6 +51,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
       webSearchAllowed: s.webSearch,
       speech: !!speechModel,
       speechAllowed: s.speech,
+      recognition: base.aiEnabled ? recognition.info() : { enabled: false, provider: 'browser' },
       ...(speechModel ? { speechModel } : {}),
     };
   }
@@ -113,6 +117,12 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     return { enabled: true, model: s.speechModel, ...voiceCatalog(s.speechModel) };
   }
 
+  async function recognitionSession({ user, language, signal }) {
+    if (!status(user).recognition.enabled) throw unavailable('Deepgram recognition is not available. Browser speech recognition is available.');
+    if (!recognitionQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Voice input is reconnecting too often. Please wait a moment.');
+    return recognition.session({ language, signal });
+  }
+
   /** One piece of speech in a natural voice: { audio: Buffer, mime }. */
   async function speak({ user, text, voice = '', speed = 1, language = null, signal }) {
     const s = status(user);
@@ -163,6 +173,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     stream,
     speak,
     speechInfo,
+    recognitionSession,
     retrieve,
     retrieveContext,
     bundledCount: retrieval.bundledCount,

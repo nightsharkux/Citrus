@@ -7,7 +7,7 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
-  "connect-src 'self'",
+  "connect-src 'self' wss://api.eu.deepgram.com wss://api.deepgram.com",
   "font-src 'self'",
   "worker-src 'self'",
   "manifest-src 'self'",

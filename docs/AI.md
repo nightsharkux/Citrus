@@ -223,6 +223,8 @@ The assistant can search the web through the AI Gateway's Perplexity search tool
 
 ## Languages
 
+Live recognition can use Deepgram Nova-3 with simultaneous German/English decoding and WebRTC microphone processing. The existing browser recognizer remains the fallback. Account activation and testing are documented in [SPEECH.md](SPEECH.md).
+
 People here use German and English together, often in one sentence. `LANGUAGE_GUIDE` in `src/ai/prompts.js` tells the model that this is normal: mixed sentences, German words and place names inside English ("Banhof", "Schirmitzer Weg"), missing umlauts, broken grammar and speech-recognition errors in both languages. It answers in the language of the latest message, keeps official German terms with a short gloss and understands German dates ("halb drei", "übermorgen"). The same guide is in the classroom voice and workspace prompts.
 
 - **Interface.** `public/js/core/i18n.js` translates what is on screen from the dictionary in `i18n-de*.js` (text, placeholders, labels, toasts) and follows each person's language setting, then the browser. Add a string by adding its English text and the German beside it. Text people wrote is never touched. Unmapped interface strings retain their original text. The account menu offers a page translation, including content outside the dictionary, in a separate sheet; the original is unchanged.

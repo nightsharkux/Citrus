@@ -14,6 +14,17 @@ const { badRequest } = require('../../http/errors');
 function register(router, { ai }) {
   router.get('/api/speech', (ctx) => ai.speechInfo(ctx.user));
 
+  router.post('/api/speech/recognition-session', async (ctx) => {
+    const b = await ctx.json();
+    const language = oneOf(b.language || 'multi', ['multi', 'en', 'de'], 'Language');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    ctx.res.on('close', abort);
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    try { return await ai.recognitionSession({ user: ctx.user, language, signal: controller.signal }); }
+    finally { ctx.res.off('close', abort); }
+  });
+
   router.post('/api/speech', async (ctx) => {
     const b = await ctx.json();
     const said = text(b.text, { min: 1, max: 1200, label: 'Text' });

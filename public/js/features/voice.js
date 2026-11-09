@@ -1,10 +1,9 @@
 /**
  * Voice: the "Hey Campus" wake word, dictation, read-aloud and live captions.
  *
- * Uses the browser's Web Speech API. Chrome and Edge send audio to their speech
- * service; Safari supports it on recent versions; Firefox does not. Microphone
- * access needs HTTPS (or this computer). An on-device engine can replace
- * `Recognition` here without touching any page.
+ * Uses Deepgram Nova-3 when configured, with WebRTC microphone cleanup and true
+ * multilingual decoding. Otherwise uses the browser's Web Speech API. Microphone
+ * access needs HTTPS (or this computer). Both engines expose the same result shape.
  *
  * How "Hey Campus" works:
  *   idle      one microphone session stays open and reads every phrase as it is
@@ -21,8 +20,25 @@ import { toast } from '../core/ui.js';
 import { detectLanguage } from './turns.js';
 import { session } from '../core/store.js';
 import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
+import { api } from '../core/api.js';
+import { DeepgramRecognition } from './recognition.js';
 
-const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let cloudRestUntil = 0;
+const useDeepgram = () => session.ai?.recognition?.enabled && Date.now() >= cloudRestUntil && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder && !!window.WebSocket;
+const recognitionAvailable = () => useDeepgram() || !!NativeRecognition;
+function createRecognition() {
+  if (!useDeepgram()) return new NativeRecognition();
+  return new DeepgramRecognition({
+    requestSession: (language, signal) => api.post('/speech/recognition-session', { language }, { signal }),
+    onFailure() {
+      if (NativeRecognition) {
+        cloudRestUntil = Date.now() + 60000;
+        toast('Deepgram is unavailable. Using browser speech recognition for now.', 'info');
+      }
+    },
+  });
+}
 
 // ------------------------------------------------------------------ languages
 //
@@ -38,6 +54,7 @@ const speechPreference = () => session.user?.preferences?.speechLanguage || 'aut
 /** The language code to give the speech recogniser right now. */
 export function recognitionLanguage() {
   const pref = speechPreference();
+  if (pref === 'auto' && useDeepgram()) return 'multi';
   const code = pref === 'auto' ? heardLanguage || uiLanguage() : pref;
   return code === 'de' ? 'de-DE' : englishCode();
 }
@@ -67,7 +84,7 @@ export function noteSpoken(text) {
 
 /** Null when voice works here, otherwise a short reason to show the user. */
 export function voiceProblem() {
-  if (!Recognition) return 'Voice needs Chrome, Edge or Safari.';
+  if (!recognitionAvailable()) return 'Voice needs a supported browser or configured Deepgram recognition.';
   if (!window.isSecureContext) return 'Voice needs a secure link. Open Campus OS on this computer, or use the https link from share-online.';
   return null;
 }
@@ -283,8 +300,8 @@ function onResult(e) {
 }
 
 function listen() {
-  if (!enabled || paused || recognizer || !Recognition) return;
-  const rec = new Recognition();
+  if (!enabled || paused || recognizer || !recognitionAvailable()) return;
+  const rec = createRecognition();
   recognizer = rec;
   rec.lang = lang();
   rec.continuous = true;
@@ -310,7 +327,7 @@ function listen() {
     } else if (e.error === 'network') {
       networkErrors += 1;
       if (networkErrors >= 3) {
-        toast('This browser cannot reach its speech service, so “Hey Campus” is off. Chrome, Edge or Safari with an internet connection work; some privacy-focused browsers block it.', 'error', { duration: 9000 });
+        toast('The speech service is unavailable, so “Hey Campus” is off. Check the connection and try again.', 'error', { duration: 9000 });
         wake.stop('unavailable');
       }
     } else if (e.error === 'language-not-supported') {
@@ -455,7 +472,7 @@ export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () =
 
   const resumeWake = wake.enabled;
   if (resumeWake) wake.pause();
-  const rec = new Recognition();
+  const rec = createRecognition();
   let finalText = '';
   rec.lang = lang();
   rec.continuous = false;
@@ -535,8 +552,8 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble } 
   };
   const open = () => {
     retry = 0;
-    if (!wanted || rec || !Recognition) return;
-    const r = new Recognition();
+    if (!wanted || rec || !recognitionAvailable()) return;
+    const r = createRecognition();
     rec = r;
     r.lang = lang();
     r.continuous = true;
@@ -622,15 +639,17 @@ export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => 
   if (voiceProblem()) return null;
   let rec = null;
   let running = false;
+  let networkFailures = 0;
   const resumeWake = wake.enabled;
   const start = () => {
     if (!running && resumeWake) wake.pause();
     running = true;
-    rec = new Recognition();
+    rec = createRecognition();
     rec.lang = lang();
     rec.continuous = true;
     rec.interimResults = true;
     rec.onresult = (e) => {
+      networkFailures = 0;
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i += 1) {
         if (e.results[i].isFinal) onFinal(e.results[i][0].transcript.trim());
@@ -642,10 +661,16 @@ export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => 
       if (e.error === 'not-allowed') {
         running = false;
         toast('Microphone access was blocked.', 'error');
+      } else if (e.error === 'network') {
+        networkFailures += 1;
+        if (networkFailures >= 3) {
+          running = false;
+          toast('The speech service cannot be reached. Check the connection and try again.', 'error');
+        }
       }
     };
     rec.onend = () => {
-      if (running) setTimeout(() => running && start(), 250);
+      if (running) setTimeout(() => running && start(), networkFailures ? Math.min(8000, 500 * 2 ** networkFailures) : 250);
       else {
         if (resumeWake) wake.resume();
         onStop();
