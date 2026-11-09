@@ -17,6 +17,7 @@ const { HttpError } = require('../../http/errors');
 const { zonedToUtc, zonedParts, DAY } = require('../../lib/time');
 const { KINDS } = require('../timetable/service');
 const { readPreferences, applyPreferences } = require('../account/preferences');
+const { KINDS: QUIZ_KINDS } = require('../quiz/questions');
 
 const ERRORS = {
   when: 'I could not read that date and time.',
@@ -26,14 +27,14 @@ const ERRORS = {
 
 /** Where "navigate" may go, by role. */
 const PAGES = {
-  home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile',
+  home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile', quiz: '/quiz',
 };
 const ROLE_PAGES = {
   student: { learning: '/learning', review: '/learning', participation: '/participation', career: '/career' },
   lecturer: { classroom: '/classroom', participation: '/participation' },
   admin: { people: '/admin/people', moderation: '/admin/moderation', ai: '/admin/ai', devices: '/admin/devices', institution: '/admin/institution', classroom: '/classroom', participation: '/participation' },
 };
-const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings' };
+const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz' };
 
 function createActionRunner({ db, config, access, timetable, audit }) {
   const tz = config.site.timezone;
@@ -250,6 +251,23 @@ function createActionRunner({ db, config, access, timetable, audit }) {
       }
       const title = String(a.title || '').replace(/\s+/g, ' ').trim().slice(0, 100) || `${host}${url.pathname}`.slice(0, 100);
       return { title: 'Opening the page', detail: title, link: url.toString(), client: { type: 'open', url: url.toString() } };
+    },
+
+    /** Opens the Quizzes tool on a new quiz; the page makes the questions (src/modules/quiz). */
+    'quiz.start'(user, a) {
+      const topic = String(a.topic || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      let course = null;
+      if (a.course) {
+        course = db.get('SELECT id, code FROM courses WHERE institution_id = ? AND UPPER(code) = UPPER(?)', user.institution_id, String(a.course).trim());
+        if (!course || !access.course(user, course.id)) throw fail('I could not find that course.');
+      }
+      if (!topic && !course) throw fail('What should the quiz be about?');
+      const count = Math.min(15, Math.max(3, Math.round(Number(a.count) || 6)));
+      const difficulty = ['easy', 'medium', 'hard', 'mixed'].includes(String(a.difficulty)) ? String(a.difficulty) : 'mixed';
+      const types = (Array.isArray(a.types) ? a.types : []).map(String).filter((t) => QUIZ_KINDS.includes(t));
+      const query = new URLSearchParams({ topic, count: String(count), difficulty, ...(types.length ? { types: [...new Set(types)].join(',') } : {}), ...(course ? { course: String(course.id) } : {}) });
+      const path = `/quiz/new?${query}`;
+      return { title: `Quiz: ${topic || course.code}`, detail: `${count} questions · ${difficulty}`, link: path, client: { type: 'navigate', path } };
     },
 
     'app.theme'(user, a) {

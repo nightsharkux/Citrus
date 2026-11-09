@@ -41,6 +41,7 @@ const MODULES = [
   require('./modules/account/routes'),
   require('./modules/courses/routes'),
   require('./modules/study/routes'),
+  require('./modules/quiz/routes'),
   require('./modules/timetable/routes'),
   require('./modules/assistant/routes'),
   require('./modules/speech/routes'),

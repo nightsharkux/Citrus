@@ -14,6 +14,7 @@ const EXTRA_NAMES = {
   '/schedule': ['calendar', 'timetable', 'my schedule', 'my calendar', 'my timetable', 'stundenplan', 'mein stundenplan', 'kalender', 'mein kalender', 'terminplan'],
   '/home': ['home', 'dashboard', 'start', 'home screen', 'startseite', 'startbildschirm'],
   '/courses': ['courses', 'my courses', 'classes', 'teaching', 'my classes', 'kurse', 'meine kurse', 'lehrveranstaltungen', 'vorlesungen', 'lehre'],
+  '/quiz': ['quiz', 'quizzes', 'my quizzes', 'quizze', 'meine quizze', 'tests', 'practice quiz'],
   '/learning': ['learning', 'study', 'review', 'revision', 'lernen', 'wiederholen', 'wiederholung'],
   '/inbox': ['inbox', 'notifications', 'my notifications', 'messages', 'postfach', 'benachrichtigungen', 'nachrichten', 'meine nachrichten'],
   '/campus': ['campus', 'campus life', 'campus feed', 'feed', 'events', 'campusleben', 'veranstaltungen'],

@@ -10,4 +10,5 @@ module.exports = [
   require('./007-lecture-insights'),
   require('./008-assistant-attachments'),
   require('./009-ai-tools'),
+  require('./010-quizzes'),
 ];

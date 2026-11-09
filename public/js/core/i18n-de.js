@@ -6,6 +6,7 @@ import shell from './i18n-de-shell.js';
 import pages from './i18n-de-pages.js';
 import staff from './i18n-de-staff.js';
 import more from './i18n-de-more.js';
+import learn from './i18n-de-learn.js';
 
 export const DE = {
   'From your saved schedule. Ask the assistant about programme timetables.': 'Aus deinem gespeicherten Stundenplan. Studiengangspläne findest du beim Assistenten.',
@@ -21,6 +22,7 @@ export const DE = {
   'The translation is too long. Select a shorter passage and try again.': 'Die Übersetzung ist zu lang. Wähle einen kürzeren Abschnitt und versuche es erneut.',
   ...staff,
   ...more,
+  ...learn,
   ...pages,
   ...shell,
   // Messages the server sends.
@@ -51,6 +53,16 @@ const value = (v) => VALUES[v] ?? v;
 
 /** [regex, builder]. The first match wins. */
 export const PATTERNS = [
+  [/^Partly right · (\d+)%$/, (n) => `Teilweise richtig · ${n} %`],
+  [/^Practise my (?:(\d+) )?mistakes?$/, (n) => (n ? `Meine ${n} Fehler üben` : 'Meinen Fehler üben')],
+  [/^([\d.]+) of (\d+) points\.(.*)$/, (a, b, rest) => `${a} von ${b} Punkten.${rest ? ' Die verpassten Fragen sind auch in deiner Wiederholungsliste.' : ''}`],
+  [/^Tutor · Question (\d+)$/, (n) => `Tutor · Frage ${n}`],
+  [/^(\d+) questions · (.+)$/, (n, when) => `${n} Fragen · ${when}`],
+  [/^Practise with questions (\S+) writes for you: eight kinds of question, instant feedback, and a tutor for every question\.$/, (name) => `Übe mit Fragen, die ${name} für dich schreibt: acht Fragearten, sofortiges Feedback und ein Tutor für jede Frage.`],
+  [/^Web search automatic: (\S+) searches when it needs to$/, (name) => `Websuche automatisch: ${name} sucht, wenn es nötig ist`],
+  [/^From the web: (.+)$/, (site) => `Aus dem Web: ${site}`],
+  [/^Play (.+)$/, (name) => `${name} abspielen`],
+  [/^How (\S+) sounds\. Talk hands-free with the waveform button in the assistant, or say “Hey (\S+), let’s talk”\.$/, (name, hey) => `So klingt ${name}. Sprich ohne Hände über den Wellen-Knopf im Assistenten oder sag „Hey ${hey}, lass uns reden“.`],
   [/^(\d+) (students?|check-ins?|responses?|notes?|members?|posts?|questions?|new suggestions?|reports?|lecturer requests?|entry|entries|courses?|topics?|lines?|devices?|days?|files?)$/, (n, w) => `${n} ${noun(w, n)}`],
   [/^Hi (.+), what can I help with\?$/, (name) => `Hallo ${name}, wobei kann ich helfen?`],
   [/^Ask (\S+)$/, (name) => `${name} fragen`],
