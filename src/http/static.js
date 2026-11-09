@@ -6,6 +6,31 @@
  */
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
+
+/** Text files shrink four to six times; pictures and fonts are compressed already. */
+const COMPRESSIBLE = new Set(['.html', '.js', '.mjs', '.css', '.svg', '.json', '.webmanifest', '.txt']);
+
+/** The best encoding the browser accepts: br, gzip or none. */
+function encodingFor(req) {
+  const accepted = String(req.headers['accept-encoding'] || '');
+  if (/\bbr\b/.test(accepted)) return 'br';
+  if (/\bgzip\b/.test(accepted)) return 'gzip';
+  return null;
+}
+
+/** Compressed copies, made once per file version and encoding. */
+const compressed = new Map();
+function compress(key, body, encoding) {
+  const hit = compressed.get(key);
+  if (hit) return hit;
+  const out = encoding === 'br'
+    ? zlib.brotliCompressSync(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 7, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length } })
+    : zlib.gzipSync(body, { level: 7 });
+  compressed.set(key, out);
+  if (compressed.size > 600) compressed.delete(compressed.keys().next().value);
+  return out;
+}
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -42,16 +67,25 @@ function createStaticServer({ publicDir, site }) {
     return body;
   }
 
-  function sendShell(res) {
-    res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache' });
-    res.end(renderShell());
+  function sendShell(req, res) {
+    const body = Buffer.from(renderShell());
+    const encoding = encodingFor(req);
+    const headers = { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' };
+    if (!encoding) {
+      res.writeHead(200, headers);
+      res.end(body);
+      return;
+    }
+    const out = compress(`shell:${shellCache.mtime}:${encoding}`, body, encoding);
+    res.writeHead(200, { ...headers, 'Content-Encoding': encoding, 'Content-Length': out.length });
+    res.end(req.method === 'HEAD' ? undefined : out);
   }
 
   /** Returns true when the request was handled. */
   function serve(req, res, pathname) {
     if (req.method !== 'GET' && req.method !== 'HEAD') return false;
     if (pathname === '/' || pathname === '/index.html') {
-      sendShell(res);
+      sendShell(req, res);
       return true;
     }
 
@@ -68,24 +102,31 @@ function createStaticServer({ publicDir, site }) {
     if (!stat || !stat.isFile()) {
       // In-app route (no file extension): hand back the app shell.
       if (!path.extname(pathname)) {
-        sendShell(res);
+        sendShell(req, res);
         return true;
       }
       return false;
     }
 
-    const etag = `W/"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+    const ext = path.extname(filePath).toLowerCase();
+    // Small text files are sent compressed; the ETag names the encoding so caches never mix them up.
+    const encoding = COMPRESSIBLE.has(ext) && stat.size > 600 && stat.size < 4_000_000 ? encodingFor(req) : null;
+    const version = `${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}`;
+    const etag = `W/"${version}${encoding ? `-${encoding}` : ''}"`;
+    const headers = { 'Cache-Control': 'no-cache', ETag: etag, ...(COMPRESSIBLE.has(ext) ? { Vary: 'Accept-Encoding' } : {}) };
     if (req.headers['if-none-match'] === etag) {
-      res.writeHead(304, { ETag: etag });
+      res.writeHead(304, headers);
       res.end();
       return true;
     }
-    res.writeHead(200, {
-      'Content-Type': TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-      'Content-Length': stat.size,
-      'Cache-Control': 'no-cache',
-      ETag: etag,
-    });
+    const type = TYPES[ext] || 'application/octet-stream';
+    if (encoding) {
+      const out = compress(`${filePath}:${version}:${encoding}`, fs.readFileSync(filePath), encoding);
+      res.writeHead(200, { ...headers, 'Content-Type': type, 'Content-Encoding': encoding, 'Content-Length': out.length });
+      res.end(req.method === 'HEAD' ? undefined : out);
+      return true;
+    }
+    res.writeHead(200, { ...headers, 'Content-Type': type, 'Content-Length': stat.size });
     if (req.method === 'HEAD') res.end();
     else fs.createReadStream(filePath).pipe(res);
     return true;

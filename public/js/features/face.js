@@ -9,7 +9,8 @@
  *   const face = createFace({ size: 44 });
  *   container.append(face.el);
  *   face.setMood('thinking');            // idle · listening · thinking · speaking · asleep
- *   face.react('happy', 1600);           // brief expression: happy · surprised · confused · sad
+ *   face.react('happy', 1600);           // brief: happy · excited · laugh · curious · wink · surprised · confused · sad
+ *   face.pulse();                        // a quick widening: "I hear you"
  *   face.typingAt(x, y);                 // follow the text cursor (screen point)
  *   face.showVisual({ kind: 'formula', content: 'a^2 + b^2 = c^2' });
  *   face.hideVisual();
@@ -21,6 +22,7 @@
  */
 import { buildVisual } from './face-visuals.js';
 import { escape, raw } from '../core/dom.js';
+import { speechLevel, isSpeaking } from './speaker.js';
 
 let seq = 0;
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -41,14 +43,21 @@ const KEYS = ['w', 'top', 'bot', 'x', 'y', 'tilt', 'brow', 'gap', 'sw'];
 const REST = { w: 35.5, top: 35.5, bot: 35.5, x: 0, y: 0, tilt: 0, brow: 0, gap: 0, sw: 12 };
 const STAGE = { ...REST, w: 40.5, top: 40.5, bot: 40.5, sw: 10 }; // wide open around an illustration
 
-/** Mood → shape changes, plus behaviour: spin (gradient, deg/s), talk, pulse, wobble, noBlink. */
+/**
+ * Mood → shape changes, plus behaviour: spin (gradient, deg/s), talk, pulse, wobble, bounce (little hops),
+ * laugh (quick shake), noBlink.
+ */
 const MOODS = {
   idle: {},
   drowsy: { w: 37, top: 15, bot: 32, y: 4 },
   listening: { w: 38, top: 38, bot: 38, spin: 70, pulse: 0.035 },
-  thinking: { w: 35, top: 32, bot: 28, gap: 22, spin: 110 },
-  speaking: { talk: true, spin: 30 },
+  thinking: { w: 35, top: 32, bot: 28, gap: 22, spin: 130 },
+  speaking: { talk: true, spin: 36 },
   happy: { w: 36, top: 26, bot: -21, y: 6, noBlink: true },
+  excited: { w: 39, top: 30, bot: -25, y: 4, noBlink: true, bounce: true, spin: 220 },
+  laugh: { w: 37, top: 22, bot: -23, y: 6, noBlink: true, laugh: true, spin: 120 },
+  curious: { w: 37.5, top: 40, bot: 33, tilt: 12, brow: 7 },
+  wink: { w: 37, top: 3, bot: 22, y: 3, tilt: -7, noBlink: true },
   surprised: { w: 41.5, top: 41.5, bot: 41.5, sw: 9.5 },
   confused: { w: 33, top: 26, bot: 34, brow: 10, tilt: -9, wobble: true },
   sad: { w: 32, top: 13, bot: 30, y: 8, brow: -11, tilt: 5 },
@@ -64,14 +73,20 @@ const GESTURES = [
   { shape: { top: 24, bot: 29, w: 37 }, ms: 750 },         // squint
   { shape: { y: -4 }, ms: 260 },                           // little hop
   { blink: 2 },                                            // double blink
+  { shape: { w: 37, top: 3, bot: 22, y: 3, tilt: -7 }, ms: 360 }, // wink
+  { shape: { w: 36.5, top: 30, bot: -12, y: 4 }, ms: 900 },       // a quick smile
 ];
 
 /** Reactions get a small physical kick when they start. */
 const KICKS = {
-  happy: { y: -70 },
-  surprised: { w: 90, top: 90, bot: 90 },
-  confused: { tilt: -60 },
-  sad: { y: 30 },
+  happy: { y: -90 },
+  excited: { y: -150, w: 70 },
+  laugh: { y: -80 },
+  curious: { tilt: 110 },
+  wink: { top: -120 },
+  surprised: { w: 110, top: 110, bot: 110 },
+  confused: { tilt: -80 },
+  sad: { y: 40 },
 };
 
 // One shared listener for pointer position and global activity.
@@ -153,7 +168,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
     blinkStart: -1, blinksLeft: 0, nextBlink: performance.now() + rand(1500, 4000),
     gesture: null, gestureUntil: 0, nextGesture: performance.now() + rand(7000, 12000),
     typingUntil: 0, attentiveUntil: 0, caret: null,
-    angle: 0, spin: 0, phase: 0, visual: false,
+    angle: 0, spin: 0, phase: 0, visual: false, voice: 0, heard: 0,
     rect: null, rectAt: 0, visualStop: null, visualTimer: null, alive: true, last: performance.now(),
   };
   retainWorld();
@@ -191,7 +206,8 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       case 'speaking': s.tx = Math.sin(t * 1.7) * 0.45; s.ty = 0.05 + Math.sin(t * 0.9) * 0.1; return;
       case 'listening': s.tx = Math.sin(t * 0.8) * 0.08; s.ty = -0.3; return;
       case 'asleep': s.tx = 0; s.ty = 0.15; return;
-      case 'happy': case 'surprised': case 'confused': case 'sad': s.tx = 0; s.ty = -0.1; return;
+      case 'happy': case 'surprised': case 'confused': case 'sad': case 'excited': case 'laugh': case 'wink': s.tx = 0; s.ty = -0.1; return;
+      case 'curious': s.tx = 0.25; s.ty = -0.35; return;
       default: break;
     }
     if (now < s.typingUntil && s.caret) return void ([s.tx, s.ty] = towards(s.caret[0], s.caret[1], 180));
@@ -205,7 +221,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
     }
   }
 
-  /** 0 (open) → 1 (closed) → 0 over 170 ms; handles double blinks. */
+  /** 0 (open) → 1 (closed) → 0 over 140 ms (a quick, lively blink); handles double blinks. */
   function blinkAmount(now, name, m) {
     if (reduced() || m.noBlink || s.visual) return 0;
     if (s.blinkStart < 0 && now > s.nextBlink) {
@@ -213,11 +229,11 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       if (!s.blinksLeft) s.blinksLeft = Math.random() < 0.18 ? 2 : 1;
     }
     if (s.blinkStart < 0 || now < s.blinkStart) return 0;
-    const p = (now - s.blinkStart) / 170;
+    const p = (now - s.blinkStart) / 140;
     if (p >= 1) {
       s.blinksLeft = Math.max(0, s.blinksLeft - 1);
       s.blinkStart = s.blinksLeft ? now + 70 : -1;
-      if (!s.blinksLeft) s.nextBlink = now + (name === 'drowsy' ? rand(1800, 3200) : rand(2600, 6500));
+      if (!s.blinksLeft) s.nextBlink = now + (name === 'drowsy' ? rand(1800, 3200) : rand(2200, 5400));
       return 0;
     }
     return p < 0.45 ? p / 0.45 : 1 - (p - 0.45) / 0.55;
@@ -253,7 +269,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
             const g = pick(GESTURES);
             if (g.blink) { s.blinksLeft = g.blink; s.blinkStart = now; }
             else { s.gesture = g.shape; s.gestureUntil = now + g.ms; }
-            s.nextGesture = now + rand(7000, 14000);
+            s.nextGesture = now + rand(5000, 10000);
           }
           if (s.gesture && now < s.gestureUntil) Object.assign(target, s.gesture);
         }
@@ -266,7 +282,8 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       if (target.bot > 0) target.bot *= 1 - 0.07 * Math.abs(s.ty);
     }
 
-    // Springs give the movement a little weight and overshoot; reduced motion snaps.
+    // Springs give the movement a little weight and overshoot; reduced motion snaps. They are stiff enough that a
+    // change of mood lands in about a fifth of a second, with the same bounce as before (same damping ratio).
     if (s.kick && !still) {
       for (const [k, dv] of Object.entries(s.kick)) vel[k] += dv;
     }
@@ -275,14 +292,15 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
     for (const k of KEYS) {
       if (still) { v[k] = target[k]; vel[k] = 0; continue; }
       const look = k === 'x' || k === 'y';
-      const stiff = look ? (typing ? 320 : 240) : 190;
-      const damp = look ? (typing ? 32 : 26) : 17;
+      const stiff = look ? (typing ? 420 : 340) : 300;
+      const damp = look ? (typing ? 38 : 31) : 21;
       vel[k] += (stiff * (target[k] - v[k]) - damp * vel[k]) * dt;
       v[k] += vel[k] * dt;
     }
 
-    // Fast effects on top of the springs: blink, talking rhythm, breathing.
+    // Fast effects on top of the springs: blink, talking, hops, laughter, breathing.
     let { w, top, bot } = v;
+    let lift = 0;
     const blink = blinkAmount(now, name, m);
     if (blink) {
       top += (2 - top) * blink;
@@ -290,18 +308,28 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       w *= 1 + 0.05 * blink;
     }
     if (m.talk && !still && !s.visual) {
-      const amp = (0.5 + 0.5 * Math.sin(t * 10.5)) * (0.6 + 0.4 * Math.sin(t * 2.3));
-      top -= amp * 7;
-      bot -= amp * 3;
-      w += amp * 1.5;
+      // With Campus's voice playing, the eye opens and closes with its loudness; otherwise a speech-like rhythm.
+      s.voice += ((isSpeaking() ? speechLevel() : (0.5 + 0.5 * Math.sin(t * 10.5)) * (0.6 + 0.4 * Math.sin(t * 2.3))) - s.voice) * Math.min(1, dt * 18);
+      top -= s.voice * 9;
+      bot -= s.voice * 4;
+      w += s.voice * 2.4;
+      lift = -s.voice * 1.5;
+    }
+    if (m.bounce && !still) lift -= Math.abs(Math.sin(t * 8.5)) * 5;
+    if (m.laugh && !still) lift += Math.sin(t * 24) * 1.8;
+    // A little widening each time the person's words come in (pulse()).
+    if (s.heard > 0.01 && !still) {
+      w += s.heard * 3;
+      top += s.heard * 3;
+      s.heard *= Math.max(0, 1 - dt * 7);
     }
     const breathe = still ? 1 : 1 + (m.pulse ? m.pulse * Math.sin(t * 4.2) : 0.01 * Math.sin(t * 1.6));
     w *= breathe; top *= breathe; bot *= breathe;
 
     ring.setAttribute('d', eyePath(Math.max(4, w), top, bot, v.brow));
     ring.setAttribute('stroke-width', clamp(v.sw, 6, 14).toFixed(2));
-    const tilt = v.tilt + (m.wobble && !still ? Math.sin(t * 2.4) * 3.5 : 0);
-    eye.setAttribute('transform', `translate(${v.x.toFixed(2)} ${v.y.toFixed(2)}) rotate(${tilt.toFixed(2)})`);
+    const tilt = v.tilt + (m.wobble && !still ? Math.sin(t * 2.4) * 3.5 : 0) + (m.laugh && !still ? Math.sin(t * 12) * 2.5 : 0);
+    eye.setAttribute('transform', `translate(${v.x.toFixed(2)} ${(v.y + lift).toFixed(2)}) rotate(${tilt.toFixed(2)})`);
 
     // The gap that circles the ring while thinking.
     if (v.gap > 0.5) {
@@ -372,6 +400,11 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       s.blinkStart = performance.now();
       return api;
     },
+    /** A small, quick widening: "I hear you" (each time new words of the person come in). */
+    pulse(strength = 1) {
+      s.heard = Math.min(1.4, s.heard + 0.6 * strength);
+      return api;
+    },
     /** Open the ring wide and show an illustration inside it. Returns false for unknown kinds. */
     showVisual(spec, { duration = 0 } = {}) {
       const built = buildVisual(spec);
@@ -429,6 +462,7 @@ export function faceGroup(...faces) {
     typingAt: (x, y) => each((f) => f.typingAt(x, y)),
     stopTyping: () => each((f) => f.stopTyping()),
     look: (x, y) => each((f) => f.look(x, y)),
+    pulse: (n) => each((f) => f.pulse(n)),
     showVisual: (spec, opts) => [...members].map((f) => f.showVisual(spec, opts)).some(Boolean),
     hideVisual: (opts) => each((f) => f.hideVisual(opts)),
     get showingVisual() { return [...members].some((f) => f.showingVisual); },

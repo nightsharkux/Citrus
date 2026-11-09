@@ -21,6 +21,35 @@
   <link rel="stylesheet" href="/css/face.css">
   <script src="/js/theme-boot.js"></script>
   <script type="module" src="/js/main.js"></script>
+  <!-- Every module main.js loads at start-up, fetched in parallel instead of one import level at a time (tests/speed.test.js keeps this list complete). -->
+  <link rel="modulepreload" href="/js/core/api.js">
+  <link rel="modulepreload" href="/js/core/store.js">
+  <link rel="modulepreload" href="/js/core/router.js">
+  <link rel="modulepreload" href="/js/core/live.js">
+  <link rel="modulepreload" href="/js/routes.js">
+  <link rel="modulepreload" href="/js/shell.js">
+  <link rel="modulepreload" href="/js/core/i18n.js">
+  <link rel="modulepreload" href="/js/core/dom.js">
+  <link rel="modulepreload" href="/js/core/components.js">
+  <link rel="modulepreload" href="/js/core/icons.js">
+  <link rel="modulepreload" href="/js/core/ui.js">
+  <link rel="modulepreload" href="/js/nav.js">
+  <link rel="modulepreload" href="/js/core/brand.js">
+  <link rel="modulepreload" href="/js/features/voice.js">
+  <link rel="modulepreload" href="/js/features/commands.js">
+  <link rel="modulepreload" href="/js/core/i18n-de.js">
+  <link rel="modulepreload" href="/js/features/translate.js">
+  <link rel="modulepreload" href="/js/core/format.js">
+  <link rel="modulepreload" href="/js/features/turns.js">
+  <link rel="modulepreload" href="/js/features/speaker.js">
+  <link rel="modulepreload" href="/js/core/i18n-de-shell.js">
+  <link rel="modulepreload" href="/js/core/i18n-de-pages.js">
+  <link rel="modulepreload" href="/js/core/i18n-de-staff.js">
+  <link rel="modulepreload" href="/js/core/i18n-de-more.js">
+  <link rel="modulepreload" href="/js/core/i18n-de-learn.js">
+  <link rel="modulepreload" href="/js/core/markdown.js">
+  <link rel="modulepreload" href="/js/core/math.js">
+  <link rel="modulepreload" href="/js/features/voices.js">
 </head>
 <body>
   <div id="app"></div>

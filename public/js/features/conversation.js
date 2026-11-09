@@ -323,6 +323,7 @@ function createConversation({ threadId: startThread }) {
   }
 
   function hear(text, final) {
+    if (text.length > heard.length) face.pulse(0.7); // the eye widens a little as each word comes in
     heard = text;
     heardFinal = final;
     clearTimeout(quietTimer);

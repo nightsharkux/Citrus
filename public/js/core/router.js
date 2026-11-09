@@ -195,10 +195,29 @@ function interceptLinks(event) {
   navigate(url.pathname + url.search);
 }
 
+/** Load a page's code as soon as the pointer is on its link (or it is focused or touched), so the click finds it ready. */
+function warm(path) {
+  const found = match(path);
+  if (!found || found.route.warm) return;
+  found.route.warm = found.route.loader().catch(() => {
+    found.route.warm = null; // try again next time
+  });
+}
+function prefetch(event) {
+  const a = event.target.closest?.('a[href]');
+  if (!a || a.target || a.hasAttribute('download')) return;
+  const url = new URL(a.href, location.origin);
+  if (url.origin !== location.origin || /^\/(api|auth|calendar)\//.test(url.pathname) || /\.[a-z0-9]+$/i.test(url.pathname)) return;
+  warm(url.pathname);
+}
+
 export function startRouter() {
   document.addEventListener('click', interceptLinks);
+  for (const type of ['pointerover', 'focusin', 'touchstart']) document.addEventListener(type, prefetch, { passive: true });
   window.addEventListener('popstate', () => show());
-  return show();
+  // The assistant is where people go most: get it ready once the first page is up and the browser is idle.
+  const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+  return show().then(() => idle(() => session.user && warm('/assistant')));
 }
 
 export const reload = () => show({ soft: true });
