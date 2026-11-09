@@ -20,7 +20,7 @@ export const NAV = {
     ],
     secondary: [item('/quiz', 'Quizzes', 'target'), item('/groups', 'Study groups', 'users'), item('/campus', 'Campus life', 'compass'), item('/campus/map', 'Campus map', 'map-pin'), item('/career', 'Career explorer', 'briefcase')],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/courses', '/assistant', '/learning', 'more'],
+    tabs: ['/home', '/courses', '/participation', '/assistant', 'more'],
   },
   lecturer: {
     primary: [
@@ -35,7 +35,7 @@ export const NAV = {
     ],
     secondary: [item('/quiz', 'Quizzes', 'target'), item('/campus', 'Campus life', 'compass'), item('/campus/map', 'Campus map', 'map-pin')],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/courses', '/assistant', '/classroom', 'more'],
+    tabs: ['/home', '/courses', '/classroom', '/participation', 'more'],
   },
   admin: {
     primary: [

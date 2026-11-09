@@ -134,12 +134,13 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     return { enabled: true, model: s.speechModel, ...voiceCatalog(s.speechModel) };
   }
 
-  async function recognitionSession({ user, language, signal }) {
+  async function recognitionSession({ user, language, terms = [], signal }) {
     const info = status(user).recognition;
     if (!info.enabled) throw unavailable('External recognition is not available. Browser speech recognition is available.');
     if (!(info.provider === 'wispr' ? wisprQuota : recognitionQuota).hit(`${user.institution_id}:${user.id}`)) throw tooMany('Voice input is reconnecting too often. Please wait a moment.');
     const profile = db.get('SELECT p.programme FROM user_profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND u.institution_id = ?', user.id, user.institution_id);
-    const dictionary = ['Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120));
+    // Lecture terms first (they matter most), then the campus basics; Deepgram takes about a hundred keyterms.
+    const dictionary = [...terms, 'Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120)).slice(0, 100);
     return recognition.session({ language, user, dictionary, signal });
   }
 

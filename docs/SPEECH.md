@@ -28,6 +28,14 @@ Settings / Assistant identifies the configured recognition system. While the wak
 - Microphone permission is obtained before requesting the temporary token. Audio streams as MediaRecorder container chunks directly to the selected Deepgram region. Campus OS stores neither the audio nor the token. Existing chat/caption text follows its existing storage behavior. `mip_opt_out=true` is sent to Deepgram; its account terms and retention controls still apply.
 - The Deepgram client rotates streams after two minutes and sends the same vocabulary as recognition keyterms. Both adapters flush the final audio on stop, release tracks on abort/error, bound buffered audio and reuse existing reconnect/turn-taking behavior. Campus OS does not store recognition audio or grants; existing chat/caption storage and provider retention terms apply.
 
+## Best recognition without waiting for Wispr
+
+Wispr Flow needs approved API access. **Deepgram Nova-3 does not**: create a Deepgram project key (self-serve, free starting credit), set `DEEPGRAM_API_KEY` and leave `CAMPUS_STT_PROVIDER` unset, and Campus uses it automatically for dictation, the wake phrase, conversations and the live lecture. It decodes German and English together, streams words as they are spoken, and the app asks the browser for echo cancellation, noise suppression and gain control.
+
+For lectures, recognition also learns the lecture's vocabulary. When the lecturer opens a live lecture, each recognition session carries its id (`live_session`), and the server sends Deepgram keyterms built by `src/modules/live/vocabulary.js`: the lecture and course titles, the topic names, and terms that stand out in the uploaded notes (acronyms, names, capitalised phrases, repeated technical words), up to 100. Only the lecture's own lecturer receives them. Text is mined from documents (PDF, Word, PowerPoint, text); a photo of a slide has no text to mine. The stream rotates every two minutes, so notes added mid-lecture are picked up at the next rotation.
+
+What this does not do: it does not classify non-speech sounds (applause, a door), identify who is speaking, or remove noise beyond what the browser and Deepgram do. In a large room, accuracy depends mostly on the microphone: a lapel or headset microphone on the lecturer, or a USB conference microphone, beats a laptop microphone at the back. Measure it in the real room before promising accuracy.
+
 ## Playback
 
 Generated audio receives bounded per-clip loudness correction and a compressor to reduce volume jumps. Saved volume settings remain in effect. Device playback keeps one voice per language throughout an answer and retries a dropped sentence once. Natural speech requests have bounded timeouts and one retry before device fallback. Supported phones request playback audio routing while the microphone is paused. Campus's gaze stays centered while speaking.

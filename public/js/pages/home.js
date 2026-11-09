@@ -62,19 +62,19 @@ function quickActions(data) {
   const openSessions = (data.participation || []).filter((s) => s.open && !s.mine).length;
   if (data.role === 'lecturer') {
     return [
+      ['/courses', 'presentation', 'Lecture', 0],
       ['/participation?new=1', 'clipboard', 'Check-in', 0],
       ['/classroom', 'door', 'Room status', 0],
-      ['/courses', 'book', 'Teaching', 0],
       ['/schedule', 'calendar', 'Schedule', 0],
       ['/assistant', 'campus', 'Ask', 0],
     ];
   }
   return [
-    ['/assistant', 'campus', 'Ask', 0],
     ['/participation', 'clipboard', 'Check in', openSessions],
+    ['/courses', 'presentation', 'Lectures', 0],
     ['/learning', 'graduation', 'Review', data.review?.stats?.dueNow || 0],
     ['/schedule', 'calendar', 'Schedule', 0],
-    ['/spaces', 'grid', 'Spaces', 0],
+    ['/assistant', 'campus', 'Ask', 0],
   ];
 }
 
@@ -142,7 +142,6 @@ function studentBody(data) {
     <div class="home-grid">
       <div class="stack">${upNext(data)}${campusCard(data.posts)}</div>
       <div class="stack">
-        ${assistantCard()}
         <section class="card">
           <div class="spread"><div><div class="stat-value" data-count="${due}">${due}</div><div class="stat-label">${due === 1 ? 'card to review' : 'cards to review'}</div></div><span class="tile lg success">${icon('graduation', 26)}</span></div>
           <a class="btn ${due ? 'btn-primary' : ''} btn-block mt-16" href="/learning">${due ? 'Start review' : 'Open learning'}</a>
@@ -152,6 +151,7 @@ function studentBody(data) {
           ${data.courses.length ? html`<div class="list" style="padding-bottom:8px">${data.courses.slice(0, 4).map((c) => row({ href: `/courses/${c.id}`, tile: courseTile(c.code), title: c.title, sub: c.lecturer || c.code }))}</div>`
             : empty({ icon: 'book', title: 'No courses yet', action: html`<a class="btn btn-sm btn-primary" href="/courses">Browse courses</a>` })}
         </section>
+        ${assistantCard()}
       </div>
     </div>`;
 }
@@ -169,7 +169,7 @@ function lecturerBody(data) {
             : empty({ icon: 'book', title: 'No courses assigned yet', body: 'An administrator assigns courses to lecturers.' })}
         </section>
       </div>
-      <div class="stack">${assistantCard()}
+      <div class="stack">
         <section class="card flush">
           <div class="card-head"><h2>Recent check-ins</h2><a class="btn btn-sm btn-ghost" href="/participation">All ${icon('chevron-right', 16)}</a></div>
           ${recent.length ? html`<div class="list" style="padding-bottom:8px">${recent.map((s) => row({ href: `/participation/${s.id}`, icon: 'clipboard', tone: s.open ? 'success' : 'neutral', title: s.title, sub: `${s.code} · ${plural(s.checkins, 'check-in')}`, trail: s.open ? html`<span class="chip success"><span class="dot live"></span>Open</span>` : '' }))}</div>`

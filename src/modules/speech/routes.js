@@ -10,8 +10,9 @@
  */
 const { text, oneOf } = require('../../lib/validate');
 const { badRequest } = require('../../http/errors');
+const { loadLectureVocabulary } = require('../live/vocabulary');
 
-function register(router, { ai }) {
+function register(router, { ai, db, access }) {
   router.get('/api/speech', (ctx) => ai.speechInfo(ctx.user));
 
   router.post('/api/speech/recognition-session', async (ctx) => {
@@ -21,7 +22,9 @@ function register(router, { ai }) {
     const abort = () => controller.abort();
     ctx.res.on('close', abort);
     ctx.res.setHeader('Cache-Control', 'no-store');
-    try { return await ai.recognitionSession({ user: ctx.user, language, signal: controller.signal }); }
+    // A lecturer's live lecture adds its own vocabulary (titles, topics, terms from the notes) so jargon is heard correctly.
+    const terms = b.live_session ? loadLectureVocabulary({ db, access }, ctx.user, b.live_session) : [];
+    try { return await ai.recognitionSession({ user: ctx.user, language, terms, signal: controller.signal }); }
     finally { ctx.res.off('close', abort); }
   });
 

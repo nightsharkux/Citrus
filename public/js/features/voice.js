@@ -30,11 +30,20 @@ let cloudRestUntil = 0;
 const useExternalRecognition = () => session.ai?.recognition?.enabled && Date.now() >= cloudRestUntil && !!navigator.mediaDevices?.getUserMedia && !!window.WebSocket
   && (session.ai.recognition.provider === 'wispr' ? !!window.AudioWorkletNode && !!(window.AudioContext || window.webkitAudioContext) : !!window.MediaRecorder);
 const recognitionAvailable = () => useExternalRecognition() || !!NativeRecognition;
+/**
+ * While a lecture is running, recognition sessions carry its id so the server can add the lecture's vocabulary (titles,
+ * topics, terms from the notes). Only the lecture's own lecturer gets it. Pass null when the lecture page closes.
+ */
+let liveSession = null;
+export function setRecognitionLecture(id) {
+  liveSession = id || null;
+}
+
 function createRecognition() {
   if (!useExternalRecognition()) return new NativeRecognition();
   const Recognition = session.ai.recognition.provider === 'wispr' ? WisprRecognition : DeepgramRecognition;
   return new Recognition({
-    requestSession: (language, signal) => api.post('/speech/recognition-session', { language }, { signal }),
+    requestSession: (language, signal) => api.post('/speech/recognition-session', { language, ...(liveSession ? { live_session: liveSession } : {}) }, { signal }),
     onFailure() {
       if (NativeRecognition) {
         cloudRestUntil = Date.now() + 60000;

@@ -16,7 +16,7 @@ import { pageHead, empty } from '../core/components.js';
 import { markdown } from '../core/markdown.js';
 import { toast, toastError, confirm } from '../core/ui.js';
 import { createAttachments } from '../features/attach.js';
-import { createCaptioner, speak, stopSpeaking, voiceProblem } from '../features/voice.js';
+import { createCaptioner, speak, stopSpeaking, voiceProblem, setRecognitionLecture } from '../features/voice.js';
 import { time } from '../core/format.js';
 
 const SIGNALS = [
@@ -190,6 +190,7 @@ function lecturerScreen(view) {
 
 function mountLecturer(root, d, ctx) {
   const sid = d.active.session.id;
+  setRecognitionLecture(sid); // the speech recogniser learns this lecture's terms
   const transcript = []; // the whole lecture, kept only in this page and offered as a file
   let captioner = null;
   let heardAt = 0;
@@ -311,6 +312,7 @@ function mountLecturer(root, d, ctx) {
     clearInterval(quiet);
     captioner?.stop();
     stopSpeaking();
+    setRecognitionLecture(null);
     delete document.body.dataset.livePulse;
   };
 }
