@@ -5,6 +5,16 @@ const { startApp } = require('./helpers');
 const { openDatabase } = require('../src/db/database');
 const { MODEL_CHOICES } = require('../src/ai/models');
 
+test('the faster Sol migration preserves other model choices and can run twice', () => {
+  const db = openDatabase(':memory:');
+  try {
+    db.exec("CREATE TABLE institution_ai_settings(institution_id INTEGER PRIMARY KEY, chat_model TEXT); INSERT INTO institution_ai_settings VALUES(1,'openai/gpt-6.1-sol/medium'),(2,'openai/gpt-6-astra/high'),(3,NULL),(4,'openai/gpt-6.1-sol/high')");
+    const migration = require('../src/db/migrations/013-faster-sol');
+    migration.up(db); migration.up(db);
+    assert.deepEqual(db.all('SELECT chat_model FROM institution_ai_settings ORDER BY institution_id').map((r) => r.chat_model), ['openai/gpt-6.1-sol/low', 'openai/gpt-6-astra/high', null, 'openai/gpt-6.1-sol/high']);
+  } finally { db.close(); }
+});
+
 test('Sol and Astra never receive unsupported none/minimal reasoning levels', async () => {
   const { makeProviders } = require('../src/ai/providers');
   for (const model of ['openai/gpt-6.1-sol', 'openai/gpt-6-astra']) {
@@ -45,10 +55,10 @@ test('admin model choices are tenant-scoped, survive restarts and govern complet
   await app.login('admin'); await app.register('student');
   assert.equal((await app.call('student', 'GET', '/api/ai/settings')).status, 403);
   assert.equal((await app.call('student', 'PATCH', '/api/ai/settings', { model: 'openai/gpt-6-astra/high' })).status, 403);
-  assert.equal((await app.call('anon', 'PATCH', '/api/ai/settings', { model: 'openai/gpt-6.1-sol/medium' })).status, 401);
-  const selected = await app.call('admin', 'PATCH', '/api/ai/settings', { model: 'openai/gpt-6.1-sol/medium', web_search: false });
+  assert.equal((await app.call('anon', 'PATCH', '/api/ai/settings', { model: 'openai/gpt-6.1-sol/low' })).status, 401);
+  const selected = await app.call('admin', 'PATCH', '/api/ai/settings', { model: 'openai/gpt-6.1-sol/low', web_search: false });
   assert.equal(selected.status, 200);
-  assert.equal(selected.body.model, 'openai/gpt-6.1-sol/medium');
+  assert.equal(selected.body.model, 'openai/gpt-6.1-sol/low');
   assert.ok(selected.body.modelChoices.some((m) => m.id === 'openai/gpt-6-astra/high'));
   assert.equal(selected.body.providers.find((p) => p.id === 'gateway').model, selected.body.model);
   assert.equal(selected.body.summaryModel, 'openai/gpt-6-luna/low');
@@ -58,10 +68,10 @@ test('admin model choices are tenant-scoped, survive restarts and govern complet
   const user = app.db.get("SELECT * FROM users WHERE email = 'student@test.invalid'");
   const { createAiService } = require('../src/ai/service');
   const restarted = createAiService({ db: app.db, env, fetchImpl });
-  assert.equal(restarted.status(user).model, 'openai/gpt-6.1-sol/medium');
+  assert.equal(restarted.status(user).model, 'openai/gpt-6.1-sol/low');
   await restarted.complete({ user, system: 'Explain', prompt: 'A question' });
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol');
-  assert.deepEqual(requests.at(-1).reasoning, { effort: 'medium' });
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
   await restarted.complete({ user, system: 'Speak', prompt: 'A question', task: 'voice' });
   assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
   await restarted.complete({ user, system: 'Summarise', prompt: 'Notes', task: 'summary' });

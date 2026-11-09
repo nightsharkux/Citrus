@@ -1,14 +1,14 @@
 /**
  * Voice: the "Hey Campus" wake word, dictation, read-aloud and live captions.
  *
- * Uses Deepgram Nova-3 when configured, with WebRTC microphone cleanup and true
+ * Uses Wispr Flow or Deepgram when configured, with WebRTC microphone cleanup and
  * multilingual decoding. Otherwise uses the browser's Web Speech API. Microphone
- * access needs HTTPS (or this computer). Both engines expose the same result shape.
+ * access needs HTTPS (or this computer). All engines expose the same result shape.
  *
  * How "Hey Campus" works:
  *   idle      one microphone session stays open and reads every phrase as it is
  *             spoken (interim results, so there is no wait for the speech service
- *             to finish a sentence).
+ *             to finish a sentence). Wispr returns complete phrases after a pause.
  *   heard     the wake phrase was recognised: a chime plays, `onState('heard')`
  *             fires and the words that follow are captured live (`onTranscript`).
  *   dispatch  after a short pause the command goes to the local command layer
@@ -22,19 +22,22 @@ import { session } from '../core/store.js';
 import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
 import { api } from '../core/api.js';
 import { DeepgramRecognition } from './recognition.js';
+import { WisprRecognition } from './wispr-recognition.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
-const useDeepgram = () => session.ai?.recognition?.enabled && Date.now() >= cloudRestUntil && !!navigator.mediaDevices?.getUserMedia && !!window.MediaRecorder && !!window.WebSocket;
-const recognitionAvailable = () => useDeepgram() || !!NativeRecognition;
+const useExternalRecognition = () => session.ai?.recognition?.enabled && Date.now() >= cloudRestUntil && !!navigator.mediaDevices?.getUserMedia && !!window.WebSocket
+  && (session.ai.recognition.provider === 'wispr' ? !!window.AudioWorkletNode && !!(window.AudioContext || window.webkitAudioContext) : !!window.MediaRecorder);
+const recognitionAvailable = () => useExternalRecognition() || !!NativeRecognition;
 function createRecognition() {
-  if (!useDeepgram()) return new NativeRecognition();
-  return new DeepgramRecognition({
+  if (!useExternalRecognition()) return new NativeRecognition();
+  const Recognition = session.ai.recognition.provider === 'wispr' ? WisprRecognition : DeepgramRecognition;
+  return new Recognition({
     requestSession: (language, signal) => api.post('/speech/recognition-session', { language }, { signal }),
     onFailure() {
       if (NativeRecognition) {
         cloudRestUntil = Date.now() + 60000;
-        toast('Deepgram is unavailable. Using browser speech recognition for now.', 'info');
+        toast('The speech service is unavailable. Using browser speech recognition for now.', 'info');
       }
     },
   });
@@ -54,7 +57,7 @@ const speechPreference = () => session.user?.preferences?.speechLanguage || 'aut
 /** The language code to give the speech recogniser right now. */
 export function recognitionLanguage() {
   const pref = speechPreference();
-  if (pref === 'auto' && useDeepgram()) return 'multi';
+  if (pref === 'auto' && useExternalRecognition()) return 'multi';
   const code = pref === 'auto' ? heardLanguage || uiLanguage() : pref;
   return code === 'de' ? 'de-DE' : englishCode();
 }
@@ -84,7 +87,7 @@ export function noteSpoken(text) {
 
 /** Null when voice works here, otherwise a short reason to show the user. */
 export function voiceProblem() {
-  if (!recognitionAvailable()) return 'Voice needs a supported browser or configured Deepgram recognition.';
+  if (!recognitionAvailable()) return 'Voice needs a supported browser or configured external recognition.';
   if (!window.isSecureContext) return 'Voice needs a secure link. Open Campus OS on this computer, or use the https link from share-online.';
   return null;
 }
@@ -509,7 +512,7 @@ onSpeakingChange((on) => {
 });
 setLanguageHint(() => heardLanguage || uiLanguage());
 
-export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoice, speechLevel, speakingLanguage } from './speaker.js';
+export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoice, speechLevel, speakingLanguage, preferLoudspeaker } from './speaker.js';
 
 // ------------------------------------------------------------------ conversation microphone
 

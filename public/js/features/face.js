@@ -200,10 +200,10 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
   /** Where to look (-1..1 on each axis). */
   function chooseTarget(now, name) {
     const t = now / 1000;
+    if (name === 'speaking' || isSpeaking()) return void ([s.tx, s.ty] = [0, 0]);
     if (s.visual) return void ([s.tx, s.ty] = [0, 0]);
     switch (name) {
       case 'thinking': s.tx = 0.55 + Math.sin(t * 1.3) * 0.18; s.ty = -0.65 + Math.cos(t * 1.1) * 0.1; return;
-      case 'speaking': s.tx = Math.sin(t * 1.7) * 0.45; s.ty = 0.05 + Math.sin(t * 0.9) * 0.1; return;
       case 'listening': s.tx = Math.sin(t * 0.8) * 0.08; s.ty = -0.3; return;
       case 'asleep': s.tx = 0; s.ty = 0.15; return;
       case 'happy': case 'surprised': case 'confused': case 'sad': case 'excited': case 'laugh': case 'wink': s.tx = 0; s.ty = -0.1; return;

@@ -9,6 +9,10 @@ import more from './i18n-de-more.js';
 import learn from './i18n-de-learn.js';
 
 export const DE = {
+  'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.': 'Wispr Flow verarbeitet Mikrofon-Audio, solange das Zuhören aktiv ist. Schalte es aus, um die Übertragung zu beenden.',
+  'Wispr Flow: Automatic supports German and English together. Pause to finish a phrase. Microphone echo cancellation and noise suppression are enabled.': 'Wispr Flow: Automatisch unterstützt Deutsch und Englisch zusammen. Eine Pause beendet den Satz. Echo- und Rauschunterdrückung sind aktiviert.',
+  'The speech service is unavailable. Using browser speech recognition for now.': 'Der Sprachdienst ist nicht erreichbar. Vorerst wird die Spracherkennung des Browsers verwendet.',
+  'Voice needs a supported browser or configured external recognition.': 'Spracheingabe benötigt einen unterstützten Browser oder eine eingerichtete externe Spracherkennung.',
   'Assistant model': 'Assistentenmodell',
   'Use deployment default': 'Voreinstellung der Bereitstellung verwenden',
   'Sol handles complex questions. Astra offers deeper reasoning with higher cost and latency. Summaries keep their separate model; voice conversations use shorter reasoning.': 'Sol bearbeitet komplexe Fragen. Astra bietet tiefere Schlussfolgerungen bei höheren Kosten und längerer Wartezeit. Zusammenfassungen behalten ihr eigenes Modell; Sprachgespräche nutzen kürzeres Nachdenken.',

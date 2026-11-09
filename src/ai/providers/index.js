@@ -73,7 +73,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     if (!provider || provider.missing(configured)) throw new AiError(NOT_CONFIGURED);
     const messages = buildMessages(input, history);
     const send = async (withWeb) => {
-      const req = provider.request({ env: configured, model: provider.model(configured, task), system: String(system).slice(0, 64_000), messages, stream, maxTokens, web: withWeb });
+      const req = provider.request({ env: configured, model: provider.model(configured, task), system: String(system).slice(0, 64_000), messages, stream, maxTokens, web: withWeb, task });
       const timeout = AbortSignal.timeout(provider.timeoutMs * (withWeb ? 1.5 : 1));
       try {
         return await fetchImpl(req.url, {
@@ -172,7 +172,9 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     }
     if (!response.ok) {
       console.error('Campus OS speech status:', provider.id, model, response.status);
-      if (response.status >= 400 && response.status < 500 && response.status !== 429) speechRestsUntil = Date.now() + 10 * 60_000;
+      // Only a refusal of access (key, credits, model) rests voices for everyone. A 400 is about this one
+      // piece of text, and must not switch every user to the device voice for ten minutes.
+      if ([401, 402, 403, 404].includes(response.status)) speechRestsUntil = Date.now() + 10 * 60_000;
       throw new AiError(response.status === 429 ? 'Natural voices are busy. Please try again in a moment.' : 'Natural voices are not available right now.');
     }
     let json;

@@ -37,7 +37,7 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
    ```dotenv
    AI_GATEWAY_API_KEY=<your gateway API key>
    CAMPUS_AI_PROVIDER=gateway
-   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-sol/medium
+   CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-sol/low
    CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
    ```
 
@@ -48,7 +48,7 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 
 | Task | Default model | Environment override |
 |---|---|---|
-| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-sol/medium` | `CAMPUS_AI_DEFAULT_MODEL`, or the institution's Assistant model choice |
+| Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-sol/low` | `CAMPUS_AI_DEFAULT_MODEL`, or the institution's Assistant model choice |
 | Meeting minutes, live-caption summaries, feedback themes and marking written quiz answers | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
 | Spoken conversations (`task: 'voice'`): the default model with a shorter reasoning level, so answers start quickly. Applies only when the default model slug has a level | `low` | `CAMPUS_AI_VOICE_REASONING` |
 | Natural voices (text to speech, see [Voice](#voice)) | `openai/tts-1` | `CAMPUS_AI_SPEECH_MODEL` (`off` uses browser voices) |
@@ -57,11 +57,11 @@ Feature modules mark summarization calls with the server-controlled `task: 'summ
 
 Consult the [gateway catalog](https://ai-gateway.vercel.sh/v1/models) for current availability and prices. The choice of model, input size, output and reasoning tokens all affect the bill. The application keeps summary routing separate and never escalates to a more expensive model automatically.
 
-Model settings accept `provider/model/reasoning`: the default uses medium reasoning and summaries use low. The adapter removes the final segment from the model ID and sends it as `reasoning.effort` to the [gateway reasoning API](https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/reasoning). No separate reasoning environment variable is needed.
+Model settings accept `provider/model/reasoning`: the default uses low reasoning to reduce response delay, and summaries use low. The adapter removes the final segment from the model ID and sends it as `reasoning.effort` to the [gateway reasoning API](https://vercel.com/docs/ai-gateway/sdks-and-apis/openai-chat-completions/reasoning). No separate reasoning environment variable is needed.
 
 Omit the segment to use the model's own default, or use `/none` to disable reasoning where supported. Gateway effort names are `none`, `minimal`, `low`, `medium`, `high`, `xhigh` and `max`; only use a level supported by the selected model. The gateway validates model-specific support and translates the setting to the serving provider's controls. Malformed slugs and unknown effort names disable AI configuration before a request is sent.
 
-The adapter preserves each feature's output token limit and asks the gateway to sort providers by cost for the selected model. Reasoning tokens can consume the output budget and are billable. No fallback model or automatic premium-model escalation is configured. Evaluate the selected model against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
+The adapter preserves each feature's output token limit and sorts providers for the same model by time to first token (`ttft`) for interactive answers, and by cost for summaries. Reasoning tokens can consume the output budget and are billable. No fallback model or automatic premium-model escalation is configured. Evaluate the selected model against real teaching examples before relying on answer quality. Gateway may route the same model among its available providers; configure any required provider/data restrictions in Vercel.
 
 Sol supports the current text Chat Completions requests and streaming. Native OpenAI tool calling with Sol requires the Responses API. Campus OS continues to parse its existing app-action protocol from text; this change does not add native OpenAI tool calls. Sol and Astra require at least low reasoning; a deployment voice override of `none` or `minimal` uses low for those models.
 
@@ -71,7 +71,7 @@ The gateway key stays on the server. Uploaded audio is never sent to a provider.
 
 Model settings use role-based names: `CAMPUS_AI_DEFAULT_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier model variable names in your hosting settings, then redeploy.
 
-Administrators can select GPT-6.1 Sol (medium reasoning), GPT-6 Astra (high), GPT-6.1 Terra (medium) or GPT-6 Luna (low) in **Admin / AI & knowledge / Assistant model**. The choice is saved for that institution only and overrides the deployment's chat model. **Use deployment default** removes the override, preserving any explicitly configured deployment model. Sol is the code default when no deployment model is configured. Summaries retain Luna by default, and voice retains the selected model with its shorter configured reasoning. There is no automatic switch to a more expensive model. Available model IDs and reasoning levels were checked against the public AI Gateway catalog and official OpenAI documentation on 2026-11-09; account credits and access still determine whether a request succeeds.
+Administrators can select GPT-6.1 Sol (low reasoning), GPT-6 Astra (high), GPT-6.1 Terra (medium) or GPT-6 Luna (low) in **Admin / AI & knowledge / Assistant model**. The choice is saved for that institution only and overrides the deployment's chat model. **Use deployment default** removes the override, preserving any explicitly configured deployment model. Sol is the code default when no deployment model is configured. Migration 013 moves the former Sol medium preset to low, preserving other choices. Summaries retain Luna by default, and voice retains the selected model with its shorter configured reasoning. There is no automatic switch to a more expensive model. Available model IDs and reasoning levels were checked against the public AI Gateway catalog and official OpenAI documentation on 2026-11-09; account credits and access still determine whether a request succeeds.
 
 The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_DEFAULT_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`), `CAMPUS_AI_RATE_PER_MINUTE`, `CAMPUS_AI_SPEECH_MODEL`, `CAMPUS_AI_SPEECH_PER_MINUTE` (speech requests per user, default 240, because each sentence is one request) and `CAMPUS_AI_VOICE_REASONING`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 
@@ -210,7 +210,7 @@ Academic questions use the user-supplied `resources/CampusOS_OTH_AW_Academic_Dat
 
 The assistant can search the web through the AI Gateway's Perplexity search tool, which works with any model. `providers/gateway.js` adds `{"type":"vercel:perplexity_search","config":{"max_results":6}}` to the Chat Completions request; the gateway runs the search, gives the results to the model and returns only the final answer, so `WEB_GUIDE` in `prompts.js` tells the model when to search (current or changing facts, things it does not reliably know, or when asked), to prefer the university's own SOURCES and CONTEXT, and to link every page it used as a Markdown link without inventing addresses.
 
-- **When.** By default (`web: 'auto'`) the model decides. The globe button in the message box makes every message search first (`web: 'on'` → `tool_choice: 'required'`; the stream then starts with `event: searching` and the page shows "Searching the web"). `web: 'off'` never searches. Voice conversations use automatic search.
+- **When.** In automatic mode (`web: 'auto'`), `src/ai/latency.js` only attaches the search tool for explicit search requests or recognized changing external facts such as weather, news and current prices. Ordinary chat, explanations and local timetable questions use their existing context directly. The model decides whether to search when the tool is attached. This text heuristic does not cover every current-fact question; use the globe button to force search. The globe button in the message box makes every message search first (`web: 'on'` → `tool_choice: 'required'`; the stream then starts with `event: searching` and the page shows "Searching the web"). `web: 'off'` never searches. Voice conversations use automatic search.
 - **Sources.** Pages the answer links to after a search are added to the message's sources with `{ web: true, site }` and shown with a globe and the site's name, after the library's numbered sources.
 - **Switch and fallback.** Administrators turn it off in Admin → AI & knowledge → Tools (`institution_ai_settings.web_search`, migration 009). If the gateway refuses a request because of the tool (search not enabled for the account), the same request is sent again without it, so the assistant still answers, and search rests for 15 minutes. Searches cost about $5 per 1,000 on the gateway.
 

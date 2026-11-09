@@ -33,7 +33,7 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker } from './voice.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
@@ -349,6 +349,7 @@ function createConversation({ threadId: startThread }) {
       setState('muted');
       return;
     }
+    if (!listenWhileSpeaking) preferLoudspeaker(false);
     // A phone in the background cannot open the microphone; it reopens when the page is visible again.
     if (!(touch && document.hidden)) listener.start();
     setState('listening');
@@ -435,7 +436,10 @@ function createConversation({ threadId: startThread }) {
   }
 
   function speakerFor(mine) {
-    if (!listenWhileSpeaking) listener.stop(); // phones: release the microphone so speech plays on the loudspeaker
+    if (!listenWhileSpeaking) {
+      listener.stop(); // phones: release the microphone so speech plays on the loudspeaker
+      preferLoudspeaker(true);
+    }
     return createSpeaker({
       onStart: () => {
         if (mine === turn && !closed) setState('speaking');
@@ -613,6 +617,7 @@ function createConversation({ threadId: startThread }) {
     listener.stop();
     if (speaker) stopSpeaking();
     speaker = null;
+    if (!listenWhileSpeaking) preferLoudspeaker(false);
     offs.forEach((off) => off());
     face.destroy();
     root.remove();

@@ -1,8 +1,8 @@
 'use strict';
 /**
  * Campus's voice (public/js/features/speaker.js), run against simulated browser engines: speech that streams in
- * is said one sentence at a time and in order, a sentence the engine drops is skipped instead of stopping the
- * answer, cancelling stops at once, natural voices play back to back without gaps or overlaps, and a failing
+ * is said one sentence at a time and in order, a sentence the engine drops is retried, cancelling stops at once,
+ * natural voices play back to back without gaps or overlaps, and a failing
  * natural voice hands over to the device voice without losing words.
  */
 const test = require('node:test');
@@ -69,6 +69,7 @@ class Utterance {
 
 const requests = [];
 let failFrom = Infinity; // natural speech fails from this request on
+let failOnce = 0; // the next this many requests fail, then speech works again
 class FakeAudio {
   constructor() {
     FakeAudio.last = this;
@@ -76,6 +77,7 @@ class FakeAudio {
     this.t0 = performance.now();
     this.destination = {};
     this.played = [];
+    this.gains = [];
   }
   get currentTime() {
     return (performance.now() - this.t0) / 1000;
@@ -84,7 +86,12 @@ class FakeAudio {
     return Promise.resolve();
   }
   createGain() {
-    return { gain: { value: 1 }, connect: (n) => n };
+    const node = { gain: { value: 1 }, connect(n) { this.output = n; return n; }, disconnect() {} };
+    this.gains.push(node); return node;
+  }
+  createDynamicsCompressor() {
+    this.compressor = { threshold: {}, knee: {}, ratio: {}, attack: {}, release: {}, connect: (n) => n };
+    return this.compressor;
   }
   createAnalyser() {
     return { fftSize: 512, connect: (n) => n, getFloatTimeDomainData: (a) => a.fill(0.2) };
@@ -92,9 +99,10 @@ class FakeAudio {
   createBufferSource() {
     const ctx = this;
     const src = {
-      connect() {},
+      connect(n) { src.output = n; },
+      disconnect() {},
       start(at) {
-        ctx.played.push({ at, duration: src.buffer.duration, text: src.buffer.text });
+        ctx.played.push({ at, duration: src.buffer.duration, text: src.buffer.text, gain: src.output.gain.value });
         src.timer = setTimeout(() => src.onended?.(), Math.max(0, (at - ctx.currentTime) * 1000) + src.buffer.duration * 1000);
       },
       stop() {
@@ -105,7 +113,7 @@ class FakeAudio {
     return src;
   }
   decodeAudioData(bytes, ok) {
-    setTimeout(() => ok({ duration: 0.03, text: Buffer.from(bytes).toString() }), 1);
+    setTimeout(() => ok({ duration: 0.03, text: Buffer.from(bytes).toString(), numberOfChannels: 1, getChannelData: () => Float32Array.from([0.02, -0.02]) }), 1);
   }
 }
 
@@ -120,6 +128,10 @@ Object.assign(globalThis, {
   fetch: async (url, options) => {
     const body = JSON.parse(options.body);
     requests.push(body);
+    if (failOnce > 0) {
+      failOnce -= 1;
+      return new Response('', { status: 503 });
+    }
     if (requests.length >= failFrom) return new Response('', { status: 503 });
     return new Response(body.text);
   },
@@ -164,7 +176,7 @@ test('the device voice says a streamed answer one sentence at a time, in order, 
   assert.equal(isSpeaking(), false);
 });
 
-test('a sentence the engine drops is skipped; the rest of the answer is still said', async () => {
+test('a dropped device sentence is retried without losing words', async () => {
   const { createSpeaker, timing } = await load('features/speaker.js');
   timing.deviceStart = 50;
   synth.reset();
@@ -174,9 +186,22 @@ test('a sentence the engine drops is skipped; the rest of the answer is still sa
   await stream(speaker, ANSWER, 400);
   assert.equal(await t.ended, 'done');
   const said = synth.done.map((u) => u.text).join(' ');
-  assert.ok(!said.includes('opens at eight'), 'the dropped sentence');
+  assert.equal(said, ANSWER, 'the dropped sentence is recovered');
   assert.ok(said.includes('It closes at ten') && said.endsWith('study session?'), 'everything after it');
-  timing.deviceStart = 9000;
+  timing.deviceStart = 4000;
+});
+
+test('repeated device failure reports blocked instead of claiming a complete answer', async () => {
+  const { createSpeaker, timing } = await load('features/speaker.js');
+  timing.deviceStart = 30; synth.reset(); synth.dropNext = 2;
+  const t = track(); const speaker = createSpeaker(t.options);
+  try {
+    await stream(speaker, ANSWER, 400);
+    assert.equal(await t.ended, 'blocked');
+    assert.equal(synth.log.length, 2);
+    assert.equal(synth.log[0].text, synth.log[1].text);
+    assert.equal(synth.done.length, 0);
+  } finally { timing.deviceStart = 4000; }
 });
 
 test('stopping Campus silences it at once and reports it once', async () => {
@@ -237,10 +262,31 @@ test('natural voices: fetched ahead, played back to back without gaps or overlap
   assert.ok(requests.every((r) => r.lang === 'en'));
   // Back to back: each piece starts when the one before ends (a short breath), never on top of it.
   const played = lastAudio().played;
+  assert.ok(played.every((p) => p.gain === 3.5), 'quiet clips are amplified before master volume');
+  assert.equal(lastAudio().compressor.ratio.value, 12, 'the shared compressor controls peaks');
   for (let i = 1; i < played.length; i += 1) {
     const gap = played[i].at - (played[i - 1].at + played[i - 1].duration);
     assert.ok(gap >= -0.001 && gap < 0.2, `gap ${gap.toFixed(3)} s before piece ${i}`);
   }
+});
+
+test('a sentence the server fails once is asked for again, and the answer keeps its natural voice', async () => {
+  const { createSpeaker, timing } = await load('features/speaker.js');
+  const { setSession } = await load('core/store.js');
+  setSession({ ai: { speech: true } });
+  synth.reset();
+  requests.length = 0;
+  timing.naturalRetry = 5;
+  failOnce = 1;
+  const t = track();
+  const speaker = createSpeaker(t.options);
+  assert.equal(speaker.engine, 'natural');
+  await stream(speaker, 'This sentence is busy the first time. The next one is fine.', 400);
+  assert.equal(await t.ended, 'done');
+  assert.equal(synth.done.length, 0, 'the device voice never took over');
+  assert.equal(requests[0].text, requests[1].text, 'the failed sentence was requested a second time');
+  assert.equal(createSpeaker().engine, 'natural', 'natural voices are not resting');
+  timing.naturalRetry = 250;
 });
 
 test('natural voices that fail mid-answer hand over to the device voice without losing words', async () => {

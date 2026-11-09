@@ -8,6 +8,7 @@
  * without touching the rest of the app (and so tests can swap them).
  * Live recognition settings DEEPGRAM_API_KEY, CAMPUS_STT_PROVIDER and CAMPUS_STT_REGION
  * are read lazily by src/ai/recognition.js for the same reason.
+ * WISPR_FLOW_API_KEY is read by src/ai/wispr.js when that recognition provider is selected.
  */
 const path = require('node:path');
 const { siteConfig } = require('../config/site');

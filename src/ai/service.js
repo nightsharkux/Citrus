@@ -27,7 +27,10 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   // Speech is requested one sentence at a time, so it has its own, larger allowance.
   const speechQuota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_SPEECH_PER_MINUTE || 240) });
   const recognition = createRecognitionProvider({ env, fetchImpl });
-  const recognitionQuota = createRateLimiter({ windowMs: 60_000, max: 6 });
+  // Phones reopen the microphone after every answer, and streams rotate every two minutes; six a minute was
+  // reached in a brisk conversation, which dropped it to the browser's recogniser mid-sentence.
+  const recognitionQuota = createRateLimiter({ windowMs: 60_000, max: 20 });
+  const wisprQuota = createRateLimiter({ windowMs: 60_000, max: 24 });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
@@ -132,9 +135,12 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   }
 
   async function recognitionSession({ user, language, signal }) {
-    if (!status(user).recognition.enabled) throw unavailable('Deepgram recognition is not available. Browser speech recognition is available.');
-    if (!recognitionQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Voice input is reconnecting too often. Please wait a moment.');
-    return recognition.session({ language, signal });
+    const info = status(user).recognition;
+    if (!info.enabled) throw unavailable('External recognition is not available. Browser speech recognition is available.');
+    if (!(info.provider === 'wispr' ? wisprQuota : recognitionQuota).hit(`${user.institution_id}:${user.id}`)) throw tooMany('Voice input is reconnecting too often. Please wait a moment.');
+    const profile = db.get('SELECT p.programme FROM user_profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND u.institution_id = ?', user.id, user.institution_id);
+    const dictionary = ['Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120));
+    return recognition.session({ language, user, dictionary, signal });
   }
 
   /** One piece of speech in a natural voice: { audio: Buffer, mime }. */
@@ -179,9 +185,15 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     };
   }
 
+  /** Build the knowledge indexes ahead of time, so the first question after a restart does not wait for them. */
+  function warm() {
+    for (const { id } of db.all('SELECT id FROM institutions ORDER BY id LIMIT 10')) retrieval.find(id, 'campus', { limit: 1 });
+  }
+
   return {
     status,
     setProvider,
+    warm,
     setModel,
     setTools,
     complete,

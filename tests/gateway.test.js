@@ -20,9 +20,10 @@ test('gateway uses its own server key, task models and bounded output with confi
   assert.equal(requests[0].body.model, 'openai/gpt-6.1-sol');
   assert.equal(requests[1].body.model, 'openai/gpt-6-luna');
   assert.equal(requests[1].body.max_tokens, 800);
-  assert.deepEqual(requests[0].body.reasoning, { effort: 'medium' });
+  assert.deepEqual(requests[0].body.reasoning, { effort: 'low' });
   assert.deepEqual(requests[1].body.reasoning, { effort: 'low' });
-  assert.deepEqual(requests[0].body.provider, { sort: 'cost' });
+  assert.deepEqual(requests[0].body.provider, { sort: 'ttft' });
+  assert.deepEqual(requests[1].body.provider, { sort: 'cost' });
   assert.equal(requests[0].body.models, undefined, 'no automatic model escalation');
   assert.doesNotMatch(JSON.stringify(providers.list()) + JSON.stringify(providers.status('gateway')), /fixture-key/);
   assert.equal(providers.status('gateway').transcription, 'Disabled');
@@ -140,7 +141,7 @@ test('gateway selection is admin-only and tenant-scoped; real feature routes sel
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol');
   assert.equal((await app.call('student', 'POST', '/api/assistant/messages', { prompt: 'Explain a linear algorithm.', task: 'summary', model: 'expensive/model' })).status, 200);
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol', 'clients cannot override server routing');
-  assert.deepEqual(requests.at(-1).reasoning, { effort: 'medium' });
+  assert.deepEqual(requests.at(-1).reasoning, { effort: 'low' });
 
   const space = (await app.call('admin', 'POST', '/api/workspaces', { title: 'Gateway fixture meeting', kind: 'meeting' })).body;
   const base = `/api/workspaces/${space.id}`;

@@ -28,6 +28,7 @@ const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
 const { createAttachments } = require('./attachments');
 const { assistantNameFor } = require('../account/preferences');
+const { needsWebSearch } = require('../../ai/latency');
 
 /** What the browser heard in the latest message: its language (as the browser judged it) and the recogniser's. */
 function readHeard(b) {
@@ -171,7 +172,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const voice = oneOf(b.mode ?? 'text', ['text', 'voice'], 'Mode') === 'voice';
     // Web search: 'auto' lets the model search when it needs to, 'on' (the globe button) searches first, 'off' never.
     const webChoice = oneOf(b.web ?? 'auto', ['auto', 'on', 'off'], 'Web search');
-    const web = !ai.status(user).webSearch || webChoice === 'off' ? null : webChoice === 'on' ? 'required' : 'auto';
+    const web = !ai.status(user).webSearch || webChoice === 'off' ? null : webChoice === 'on' ? 'required' : needsWebSearch(prompt) ? 'auto' : null;
     if (!ai.status(user).aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
 
     const threadId = optionalId(b.thread_id, 'Conversation');

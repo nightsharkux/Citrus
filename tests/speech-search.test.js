@@ -149,6 +149,20 @@ test('web search: the gateway tool is attached, linked pages become sources, and
   }
 });
 
+test('ordinary chat, explanations and local schedule questions avoid the web-search round trip', async (t) => {
+  const fixture = gateway({ reply: 'A local answer.' });
+  const app = await readyApp(fixture); t.after(() => app.close());
+  for (const prompt of ['Hello', 'Explain the quadratic formula', 'Explain binary search', 'Erkläre die binäre Suche', 'Was steht heute in meinem Stundenplan?', 'Add a study session tomorrow at 4 pm']) {
+    const result = await app.call('stu', 'POST', '/api/assistant/messages', { prompt, mode: 'voice' });
+    assert.equal(result.status, 200);
+    assert.equal(fixture.state.chats.at(-1).tools, undefined);
+  }
+  await app.call('stu', 'POST', '/api/assistant/messages', { prompt: 'Explain fractions', web: 'on' });
+  assert.equal(fixture.state.chats.at(-1).tool_choice, 'required');
+  await app.call('stu', 'POST', '/api/assistant/messages', { prompt: 'Search for the university website' });
+  assert.equal(fixture.state.chats.at(-1).tool_choice, 'auto');
+});
+
 test('a gateway that refuses the search tool still answers, without search, and rests it', async () => {
   const fixture = gateway({ refuseTools: true, reply: 'An answer without the web.' });
   const app = await readyApp(fixture);
@@ -183,4 +197,21 @@ test('a spoken question uses the short-thinking voice model; typed ones keep the
   const plain = makeProviders({ env: { AI_GATEWAY_API_KEY: 'key', CAMPUS_AI_DEFAULT_MODEL: 'openai/gpt-6-mini' }, fetchImpl: async (url, options) => { requests.push(JSON.parse(options.body)); return Response.json({ choices: [{ message: { content: 'Yes.' } }] }); } });
   await plain.generate('gateway', 'System', 'Hello', [], { task: 'voice' });
   assert.equal(requests.at(-1).reasoning, undefined, 'a model without a reasoning level is left alone');
+});
+
+test('a refused piece of text does not turn natural voices off; a refused account does', async () => {
+  let status = 400;
+  const providers = makeProviders({
+    env: { AI_GATEWAY_API_KEY: 'fixture-key' },
+    fetchImpl: async () => new Response('{"error":"refused"}', { status }),
+  });
+  const say = () => providers.speech('gateway', 'Hello there.', { voice: 'coral', format: 'mp3' });
+  await assert.rejects(say(), { status: 503 });
+  assert.ok(providers.speechModel('gateway'), 'one bad request leaves voices on for everyone');
+  status = 500;
+  await assert.rejects(say(), { status: 503 });
+  assert.ok(providers.speechModel('gateway'), 'a gateway hiccup leaves voices on');
+  status = 403;
+  await assert.rejects(say(), { status: 503 });
+  assert.equal(providers.speechModel('gateway'), null, 'no access rests voices for a while');
 });

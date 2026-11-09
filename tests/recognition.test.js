@@ -34,7 +34,7 @@ test('Deepgram uses a short grant, EU routing and true bilingual decoding withou
   assert.deepEqual(url.searchParams.getAll('language_hint'), ['de', 'en']);
   assert.equal(url.searchParams.get('mip_opt_out'), 'true');
   assert.equal(url.searchParams.get('encoding'), null, 'MediaRecorder supplies container audio');
-  for (let i = 0; i < 5; i++) assert.equal((await app.call('ana', 'POST', endpoint, { language: 'de' })).status, 200);
+  for (let i = 0; i < 19; i++) assert.equal((await app.call('ana', 'POST', endpoint, { language: 'de' })).status, 200);
   assert.equal((await app.call('ana', 'POST', endpoint, {})).status, 429);
   await app.register('ben');
   assert.equal((await app.call('ben', 'POST', endpoint, {})).status, 200, 'another user has a separate connection quota');

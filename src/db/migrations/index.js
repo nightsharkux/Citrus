@@ -13,4 +13,5 @@ module.exports = [
   require('./010-quizzes'),
   require('./011-study-groups'),
   require('./012-ai-model-choice'),
+  require('./013-faster-sol'),
 ];

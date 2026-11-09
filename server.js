@@ -58,6 +58,14 @@ if (standalone) {
     else console.log('  Other devices:      set HOST=0.0.0.0 in .env to open Campus OS from phones on the same Wi-Fi');
     if (config.hosted) console.log(`  Public address:     ${config.publicUrl}`);
     console.log('\n  Keep this window open while people use Campus OS. Press Ctrl+C to stop.\n');
+    // Prepare knowledge indexes before the first question arrives.
+    setTimeout(() => {
+      try {
+        app?.deps.ai.warm();
+      } catch (error) {
+        console.error('Campus OS could not prepare the knowledge index:', error.message);
+      }
+    }, 50).unref();
   });
   server.on('error', (error) => {
     if (error.code === 'EADDRINUSE') console.error(`\n  Port ${config.port} is already in use. Is Campus OS already running? Close it or set another PORT in .env.\n`);

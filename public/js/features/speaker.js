@@ -21,6 +21,7 @@ import { speakable } from '../core/math.js';
 import { session } from '../core/store.js';
 import { speakBoundary, detectLanguage } from './turns.js';
 import { getVoiceSettings, chooseVoice, voiceTuning, naturalSpeed } from './voices.js';
+import { speechGain } from './speech-audio.js';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 const hasDevice = 'speechSynthesis' in window;
@@ -28,7 +29,7 @@ const hasDevice = 'speechSynthesis' in window;
 // ------------------------------------------------------------------ shared state
 
 /** Watchdog timings in ms (tests shorten them). */
-export const timing = { deviceStart: 9000, deviceGrace: 6000, afterCancel: 80, afterSkip: 60, audioUnlock: 400 };
+export const timing = { deviceStart: 4000, deviceGrace: 6000, afterCancel: 80, afterSkip: 60, audioUnlock: 400, naturalFetch: 5000, naturalRetry: 250 };
 
 let current = null; // the speaker that owns the voice right now
 let speakingNow = false;
@@ -75,8 +76,18 @@ function audioGraph() {
       const gain = ctx.createGain();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
-      gain.connect(analyser).connect(ctx.destination);
+      const compressor = ctx.createDynamicsCompressor?.();
+      if (compressor) {
+        compressor.threshold.value = -10; compressor.knee.value = 6; compressor.ratio.value = 12;
+        compressor.attack.value = 0.003; compressor.release.value = 0.18;
+        gain.connect(compressor).connect(analyser).connect(ctx.destination);
+      } else gain.connect(analyser).connect(ctx.destination);
       audio = { ctx, gain, analyser, samples: new Float32Array(analyser.fftSize) };
+      // Phones suspend audio for a call or Siri, some browsers when the output device changes. Scheduled
+      // sentences would then never end and Campus would fall silent mid-answer, so resume while it talks.
+      ctx.onstatechange = () => {
+        if (ctx.state !== 'running' && ctx.state !== 'closed' && current && !current.over) ctx.resume().catch(() => {});
+      };
     } catch {
       return null;
     }
@@ -126,11 +137,9 @@ function deviceChunks(text, max = 170) {
   return out;
 }
 
-function utteranceFor(text, language) {
-  const settings = getVoiceSettings();
+function utteranceFor(text, language, settings, voice) {
   const utterance = new SpeechSynthesisUtterance(text);
   const code = language === 'de' ? 'de-DE' : englishCode();
-  const voice = chooseVoice(settings, code);
   if (voice) {
     utterance.voice = voice;
     utterance.lang = voice.lang;
@@ -148,9 +157,9 @@ function utteranceFor(text, language) {
  * Say one chunk with the device voice. Resolves 'done', 'skipped' (the engine dropped or stalled on it),
  * 'blocked' (no click on the page yet) or 'cancelled'.
  */
-function sayOnDevice(text, language, isLive, onStart) {
+function sayOnDevice(text, language, isLive, onStart, settings, voice) {
   return new Promise((resolve) => {
-    const utterance = utteranceFor(text, language);
+    const utterance = utteranceFor(text, language, settings, voice);
     deviceUtterance = utterance;
     let started = false;
     let settled = false;
@@ -257,19 +266,30 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
   function fetchPiece(piece) {
     if (piece.promise) return piece.promise;
     const graph = audioGraph();
-    piece.promise = fetch('/api/speech', {
+    const attempt = (ms) => fetch('/api/speech', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: piece.text, voice: voiceId || undefined, speed, lang: piece.lang }),
-      signal: sp.aborter.signal,
+      signal: AbortSignal.any([sp.aborter.signal, AbortSignal.timeout(ms)]),
     }).then(async (res) => {
       if (!res.ok) throw Object.assign(new Error('speech'), { status: res.status });
       const bytes = await res.arrayBuffer();
-      piece.buffer = await new Promise((resolve, reject) => graph.ctx.decodeAudioData(bytes, resolve, reject));
-    }).catch((error) => {
-      piece.failed = error?.name === 'AbortError' ? 'aborted' : error?.status || 'network';
+      return new Promise((resolve, reject) => graph.ctx.decodeAudioData(bytes, resolve, reject));
     });
+    // One slow or busy sentence is asked for again before the rest of the answer changes voice.
+    const refused = (error) => error?.name === 'AbortError' || (error?.status >= 400 && error.status < 500 && error.status !== 429);
+    piece.promise = attempt(timing.naturalFetch)
+      .catch((error) => {
+        if (refused(error)) throw error;
+        return wait(timing.naturalRetry).then(() => attempt(timing.naturalFetch * 2));
+      })
+      .then((buffer) => {
+        piece.buffer = buffer;
+      })
+      .catch((error) => {
+        piece.failed = error?.name === 'AbortError' ? 'aborted' : error?.status || 'network';
+      });
     return piece.promise;
   }
   const prefetch = () => {
@@ -294,19 +314,23 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       if (!live()) return;
       if (piece.failed) {
         if (piece.failed === 'aborted') return;
-        // 503 / 4xx: natural voices are off or not enabled for this gateway yet. Rest them and carry on.
-        naturalRestsUntil = Date.now() + (piece.failed === 429 || piece.failed === 'network' ? 60_000 : 10 * 60_000);
+        // It failed twice. The server answers 503 for a busy gateway as well as for voices that are off, so rest
+        // them only a minute (ten when the session itself was refused) and carry on in the device voice.
+        naturalRestsUntil = Date.now() + ([401, 403].includes(piece.failed) ? 10 * 60_000 : 60_000);
         await wait(Math.max(0, (sp.scheduledUntil - graph.ctx.currentTime) * 1000));
         return switchToDevice();
       }
       const src = graph.ctx.createBufferSource();
       src.buffer = piece.buffer;
-      src.connect(graph.gain);
+      const clipGain = graph.ctx.createGain();
+      clipGain.gain.value = speechGain(piece.buffer);
+      src.connect(clipGain); clipGain.connect(graph.gain);
       // A small breath between sentences; the first one starts at once.
       const at = Math.max(graph.ctx.currentTime + 0.03, sp.scheduledUntil + (sp.playIndex ? 0.06 : 0));
       src.start(at);
       sp.sources.add(src);
       src.onended = () => {
+        src.disconnect?.(); clipGain.disconnect?.();
         sp.sources.delete(src);
         sp.wake?.();
       };
@@ -318,8 +342,17 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       sp.playIndex += 1;
       drain(false); // text held back to make longer pieces can go now
     }
-    // Everything is scheduled: wait until the last sound has played.
-    while (live() && sp.sources.size) await new Promise((resolve) => { sp.wake = resolve; });
+    // Everything is scheduled: wait until the last sound has played. Audio the browser suspended and would not
+    // resume ends the answer a few seconds later, instead of leaving the conversation waiting in silence.
+    let deadline = 0;
+    while (live() && sp.sources.size) {
+      if (graph.ctx.state === 'running' || !deadline) deadline = performance.now() + Math.max(0, sp.scheduledUntil - graph.ctx.currentTime) * 1000 + 4000;
+      if (performance.now() > deadline) break;
+      await new Promise((resolve) => {
+        sp.wake = resolve;
+        setTimeout(resolve, 1000);
+      });
+    }
     if (live()) finish(sp.begun ? 'done' : 'blocked');
   }
 
@@ -331,7 +364,7 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       speechSynthesis.cancel();
       await wait(timing.afterCancel);
     }
-    let blockedCount = 0;
+    const voices = new Map();
     while (live()) {
       const piece = sp.pieces[sp.playIndex];
       if (!piece) {
@@ -341,16 +374,18 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       }
       for (const chunk of deviceChunks(piece.text)) {
         if (!live()) return;
-        const result = await sayOnDevice(chunk, piece.lang, live, () => {
+        if (!voices.has(piece.lang)) voices.set(piece.lang, chooseVoice(settings, piece.lang === 'de' ? 'de-DE' : englishCode()));
+        const say = () => sayOnDevice(chunk, piece.lang, live, () => {
           started();
           fakeLevel();
-        });
+        }, settings, voices.get(piece.lang));
+        let result = await say();
+        if (result === 'skipped' && live()) { await wait(timing.afterSkip); result = await say(); }
         if (result === 'cancelled') {
           if (live()) finish('cancelled'); // never leave a speaker hanging without an end
           return;
         }
-        if (result === 'blocked' && ++blockedCount >= 2) return finish('blocked');
-        if (result === 'skipped') await wait(timing.afterSkip);
+        if (result === 'blocked' || result === 'skipped') return finish('blocked');
       }
       sp.playIndex += 1;
     }
@@ -490,6 +525,21 @@ export function primeSpeech() {
     speechSynthesis.speak(silent);
   } catch {
     /* nothing to unlock */
+  }
+}
+
+/**
+ * iPhones treat a page that may use the microphone as a call: web audio is played quietly and not at all with
+ * the silent switch on. The conversation calls this with true once it has released the microphone to speak, and
+ * false before it listens again (Safari 16.4 and later; elsewhere it does nothing).
+ */
+export function preferLoudspeaker(on) {
+  const audioSession = navigator.audioSession;
+  if (!audioSession) return;
+  try {
+    audioSession.type = on ? 'playback' : 'auto';
+  } catch {
+    /* not supported here */
   }
 }
 

@@ -3,7 +3,7 @@
 const { readSse, safeJson } = require('./stream');
 
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
-const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-sol/medium';
+const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-sol/low';
 const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'openai/gpt-6-luna/low';
 /** Text to speech (beta on the gateway). "off" turns natural voices off; the browser's voices are used instead. */
 const speechModel = (env) => {
@@ -65,7 +65,7 @@ module.exports = {
    * `web`: 'auto' lets the model search the web when it needs to, 'required' makes it search first. The gateway
    * runs the search itself (Perplexity) and returns only the final answer, so the model cites pages as links.
    */
-  request({ env, model, system, messages, stream, maxTokens, web }) {
+  request({ env, model, system, messages, stream, maxTokens, web, task }) {
     return {
       url: 'https://ai-gateway.vercel.sh/v1/chat/completions',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key(env)}` },
@@ -75,8 +75,8 @@ module.exports = {
         max_tokens: maxTokens,
         stream,
         ...(web ? { tools: [{ type: 'vercel:perplexity_search', config: { max_results: 6 } }], tool_choice: web === 'required' ? 'required' : 'auto' } : {}),
-        // Choose the least expensive provider for this model; no model escalation.
-        provider: { sort: 'cost' },
+        // Interactive answers prioritize first-token latency; background summaries stay cost-focused.
+        provider: { sort: task === 'summary' ? 'cost' : 'ttft' },
       },
     };
   },
