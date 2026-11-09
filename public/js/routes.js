@@ -13,6 +13,7 @@ export function registerRoutes() {
   route('/learning/packs/:id', () => import('./pages/pack.js'));
   route('/learning/:tab?', () => import('./pages/learning.js'));
   route('/quiz/:id?', () => import('./pages/quiz.js'));
+  route('/groups', () => import('./pages/groups.js'));
   route('/schedule', () => import('./pages/schedule.js'));
   route('/spaces', () => import('./pages/spaces.js'));
   route('/spaces/:id/:tab?', () => import('./pages/space.js'));

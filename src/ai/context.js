@@ -14,7 +14,7 @@ const DAY_START_HOUR = 8;
 const DAY_END_HOUR = 20;
 const MIN_FREE_MINUTES = 45;
 
-function createContextBuilder({ db, timetable, timeZone, programmes = null }) {
+function createContextBuilder({ db, timetable, timeZone, programmes = null, studyGroups = null }) {
   const fmt = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone, ...opts }).format(new Date(iso));
   const ymd = (d) => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
   const hhmm = (iso) => fmt(iso, { hour: '2-digit', minute: '2-digit' });
@@ -55,6 +55,32 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null }) {
       const interests = p ? JSON.parse(p.interests) : [];
       if (interests.length) bits.push(`Interests: ${interests.join(', ')}`);
       return bits.join(' · ');
+    },
+
+    /** Facts the assistant was asked to keep (memory.save), newest first, so it never has to ask twice. */
+    function memories(user) {
+      const rows = db.all('SELECT id, text, created FROM assistant_memories WHERE user_id = ? ORDER BY id DESC LIMIT 20', user.id);
+      return rows.length ? `What you remember about the user (memory.forget removes one):\n${rows.map((r) => `- [memory ${r.id}] ${r.text} (${r.created.slice(0, 10)})`).join('\n')}` : '';
+    },
+
+    /**
+     * Study groups: the user's own open requests always; other students' open requests when the conversation is
+     * about groups or names someone who has one. Names and e-mails appear only for people who agreed to share them.
+     */
+    function groups(user, shared) {
+      if (!studyGroups) return '';
+      const out = [];
+      const mine = studyGroups.mine(user);
+      if (mine.length) out.push(`The user is looking for a study group (keep this in mind; close it with groups.stop when they found one):\n${mine.map((v) => `- ${studyGroups.describe(v)}${v.shareContact ? ' (contact shared with matches)' : ' (contact not shared yet)'}`).join('\n')}`);
+      const said = String(shared.extras.query || '').toLowerCase();
+      const others = studyGroups.others(user);
+      const topical = /grou?p|gruppe|lern|study|partner|buddy|team|kommilit|classmate|mitstud|looking for|sucht|suche/.test(said);
+      const words = new Set(said.split(/[^a-z0-9äöüß]+/));
+      const named = others.filter((v) => v.name && words.has(v.name.split(' ')[0].toLowerCase()));
+      const list = topical ? others : named;
+      if (list.length) out.push(`Other students looking for a study group (open requests at this university):\n${list.slice(0, 30).map((v) => `- ${studyGroups.describe(v)}`).join('\n')}`);
+      else if (topical) out.push('Other students looking for a study group: none right now.');
+      return out.join('\n');
     },
 
     /**
@@ -195,6 +221,22 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null }) {
         user.institution_id, user.id, user.id,
       );
       return rows.length ? `Spaces: ${rows.map((w) => `${w.title} (${w.kind}${w.live ? ', live now' : ''})`).join('; ')}` : '';
+    },
+
+    /** Campus events and posts, with ids for campus.rsvp, when the conversation is about them. */
+    function campusFeed(user, shared) {
+      const said = String(shared.extras.query || '').toLowerCase();
+      const topical = /event|veranstalt|party|stammtisch|workshop|campus feed|rsvp|sign me up|anmeld|going|hingehen|job|stelle|housing|wohnung|zimmer|post|beitrag|announce|ankündig/.test(said);
+      const rows = db.all(
+        `SELECT p.id, p.title, p.category, p.event_start, p.location, EXISTS(SELECT 1 FROM cx_rsvps r WHERE r.post_id = p.id AND r.user_id = ?) AS going
+         FROM cx_posts p WHERE p.institution_id = ? AND p.status = 'published' AND (p.category != 'event' OR p.event_start IS NULL OR p.event_start > ?)
+         ORDER BY p.created DESC LIMIT 12`, user.id, user.institution_id, new Date(Date.now() - DAY).toISOString(),
+      );
+      // Also when the user names a post ("board game night") without saying "event".
+      const words = new Set(said.split(/[^a-z0-9äöüß]+/).filter((w) => w.length >= 4));
+      if (!topical && !rows.some((p) => p.title.toLowerCase().split(/[^a-z0-9äöüß]+/).some((w) => words.has(w)))) return '';
+      const line = (p) => `- [post ${p.id}] ${p.category}: ${p.title}${p.event_start ? `, ${dayLabel(p.event_start)} ${hhmm(p.event_start)}` : ''}${p.location ? ` @ ${p.location}` : ''}${p.going ? ' (user is going)' : ''}`;
+      return rows.length ? `Campus feed (latest posts):\n${rows.map(line).join('\n')}` : 'Campus feed: no posts yet.';
     },
 
     function unread(user) {

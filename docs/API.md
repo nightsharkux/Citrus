@@ -159,6 +159,15 @@ State-changing browser requests must be same-origin (CSRF protection).
 |---|---|---|---|
 | GET | `/api/events` | user | any |
 
+## groups
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/groups` | user | any |
+| POST | `/api/groups` | user | any |
+| PATCH | `/api/groups/:id` | user | any |
+| DELETE | `/api/groups/:id` | user | any |
+
 ## health
 
 | Method | Path | Auth | Roles |

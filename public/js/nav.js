@@ -18,7 +18,7 @@ export const NAV = {
       item('/campus', 'Campus life', 'compass'),
       item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
-    secondary: [item('/quiz', 'Quizzes', 'target'), item('/campus/map', 'Campus map', 'map-pin'), item('/participation', 'Check-in', 'clipboard'), item('/career', 'Career explorer', 'briefcase')],
+    secondary: [item('/quiz', 'Quizzes', 'target'), item('/groups', 'Study groups', 'users'), item('/campus/map', 'Campus map', 'map-pin'), item('/participation', 'Check-in', 'clipboard'), item('/career', 'Career explorer', 'briefcase')],
     foot: COMMON_FOOT,
     tabs: ['/home', '/learning', '/assistant', '/campus', 'more'],
   },

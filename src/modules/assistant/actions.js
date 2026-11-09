@@ -18,6 +18,8 @@ const { zonedToUtc, zonedParts, DAY } = require('../../lib/time');
 const { KINDS } = require('../timetable/service');
 const { readPreferences, applyPreferences } = require('../account/preferences');
 const { KINDS: QUIZ_KINDS } = require('../quiz/questions');
+const { INTEREST_TAGS } = require('../account/routes');
+const { CATEGORIES: POST_CATEGORIES } = require('../connect/routes');
 
 const ERRORS = {
   when: 'I could not read that date and time.',
@@ -27,16 +29,16 @@ const ERRORS = {
 
 /** Where "navigate" may go, by role. */
 const PAGES = {
-  home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile', quiz: '/quiz',
+  home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile', quiz: '/quiz', groups: '/groups',
 };
 const ROLE_PAGES = {
   student: { learning: '/learning', review: '/learning', participation: '/participation', career: '/career' },
   lecturer: { classroom: '/classroom', participation: '/participation' },
   admin: { people: '/admin/people', moderation: '/admin/moderation', ai: '/admin/ai', devices: '/admin/devices', institution: '/admin/institution', classroom: '/classroom', participation: '/participation' },
 };
-const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz' };
+const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz', study_groups: 'groups', group: 'groups', lerngruppen: 'groups', lerngruppe: 'groups' };
 
-function createActionRunner({ db, config, access, timetable, audit }) {
+function createActionRunner({ db, config, access, timetable, audit, studyGroups = null, campusPosts = null }) {
   const tz = config.site.timezone;
   const when = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, ...opts }).format(new Date(iso));
   const dayAndTime = (startIso, endIso) => `${when(startIso, { weekday: 'short', day: 'numeric', month: 'short' })}, ${when(startIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}–${when(endIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
@@ -77,7 +79,179 @@ function createActionRunner({ db, config, access, timetable, audit }) {
     .map((e) => e.title);
   const clash = (names) => (names.length ? `Overlaps with ${names.join(', ')}` : undefined);
 
+  const yes = (v) => !(v === false || /^(false|off|no|aus|nein|0)$/i.test(String(v)));
+  const oneLine = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
+  const courseByCode = (user, code) => {
+    const c = db.get('SELECT id, code, title FROM courses WHERE institution_id = ? AND (UPPER(code) = UPPER(?) OR LOWER(title) = LOWER(?))', user.institution_id, String(code).trim(), String(code).trim());
+    if (!c) throw fail('I could not find that course.');
+    return c;
+  };
+  const contactLine = (m) => (m.name ? `${m.name} (${m.email})` : `a student${m.programme ? ` in ${m.programme}` : ''} who has not shared their contact`);
+  const profileRow = (user) => {
+    const p = db.get('SELECT programme, semester, interests FROM user_profiles WHERE user_id = ?', user.id);
+    return { programme: p?.programme || '', semester: p?.semester ?? null, interests: p ? JSON.parse(p.interests) : [] };
+  };
+  const saveProfile = (user, p) => db.run(
+    `INSERT INTO user_profiles(user_id, programme, semester, interests, updated) VALUES(?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET programme = excluded.programme, semester = excluded.semester, interests = excluded.interests, updated = excluded.updated`,
+    user.id, p.programme, p.semester, JSON.stringify(p.interests), new Date().toISOString(),
+  );
+  const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
   const ACTIONS = {
+    /** Record that the user wants a study group and show who else wants one for the same subject. */
+    'groups.seek'(user, a) {
+      if (!studyGroups) throw fail('Study groups are not available here.');
+      const courseId = a.course ? courseByCode(user, a.course).id : null;
+      let r;
+      try {
+        r = studyGroups.seek(user, { subject: a.subject || a.course, note: a.note, courseId, shareContact: a.share_contact === undefined ? undefined : yes(a.share_contact) });
+      } catch (error) {
+        throw fail(error.message);
+      }
+      const found = r.matches.length
+        ? `Also looking: ${r.matches.slice(0, 5).map(contactLine).join('; ')}`
+        : 'Nobody else is looking yet. You will get a notification when someone is.';
+      return {
+        title: r.created ? `Looking for a study group: ${r.subject}` : `Study group request updated: ${r.subject}`,
+        detail: `${found} · Your contact: ${r.shareContact ? `shared with matches (${user.email})` : 'not shared'}`,
+        link: '/groups',
+        undo: r.created ? { op: 'group_close', id: r.id } : { op: 'group_restore', id: r.id, before: r.before },
+      };
+    },
+
+    /** Who is looking for a group for a subject, without recording anything. */
+    'groups.find'(user, a) {
+      if (!studyGroups) throw fail('Study groups are not available here.');
+      const courseId = a.course ? courseByCode(user, a.course).id : null;
+      const subject = oneLine(a.subject || a.course, 120);
+      if (!subject) throw fail('Which subject is the group for?');
+      const found = studyGroups.matches(user, subject, { courseId });
+      return {
+        title: `Study groups for ${subject}`,
+        detail: found.length ? found.map((m) => `${contactLine(m)}${m.note ? `: ${m.note}` : ''}`).join('; ') : 'Nobody is looking for a group for this yet.',
+        link: '/groups',
+      };
+    },
+
+    'groups.stop'(user, a) {
+      if (!studyGroups) throw fail('Study groups are not available here.');
+      const r = studyGroups.close(user, { id: a.id, subject: a.subject });
+      if (!r) throw fail('I could not find that study group request.');
+      return { title: 'Study group request closed', detail: r.subject, link: '/groups', undo: { op: 'group_reopen', id: r.id } };
+    },
+
+    /** Keep a short fact for later conversations ("I work on Tuesdays", "my thesis is about batteries"). */
+    'memory.save'(user, a) {
+      const t = oneLine(a.text, 240);
+      if (t.length < 3) throw fail('What should I remember?');
+      const count = db.get('SELECT COUNT(*) n FROM assistant_memories WHERE user_id = ?', user.id).n;
+      if (count >= 60) db.run('DELETE FROM assistant_memories WHERE id = (SELECT id FROM assistant_memories WHERE user_id = ? ORDER BY id LIMIT 1)', user.id);
+      const id = db.insert('INSERT INTO assistant_memories(user_id, text, created) VALUES(?, ?, ?)', user.id, t, new Date().toISOString());
+      return { title: 'Remembered', detail: t, undo: { op: 'memory_delete', id } };
+    },
+
+    'memory.forget'(user, a) {
+      const row = db.get('SELECT * FROM assistant_memories WHERE id = ? AND user_id = ?', Number(a.id), user.id);
+      if (!row) throw fail('I could not find that memory.');
+      db.run('DELETE FROM assistant_memories WHERE id = ?', row.id);
+      return { title: 'Forgotten', detail: row.text, undo: { op: 'memory_restore', row: { text: row.text, created: row.created } } };
+    },
+
+    /** Programme, semester and interests: what timetable answers and matching use. */
+    'profile.update'(user, a) {
+      const before = profileRow(user);
+      const next = { ...before, interests: [...before.interests] };
+      if (a.programme !== undefined) next.programme = oneLine(a.programme, 120);
+      if (a.semester !== undefined) next.semester = a.semester === null || a.semester === '' ? null : Math.max(1, Math.min(20, Math.round(Number(a.semester)) || 1));
+      const tags = (v) => (Array.isArray(v) ? v : [v]).map((t) => String(t).toLowerCase().trim()).filter((t) => INTEREST_TAGS.includes(t));
+      if (a.interests !== undefined) next.interests = [...new Set(tags(a.interests))];
+      if (a.add_interests !== undefined) next.interests = [...new Set([...next.interests, ...tags(a.add_interests)])];
+      if (a.remove_interests !== undefined) next.interests = next.interests.filter((t) => !tags(a.remove_interests).includes(t));
+      if (JSON.stringify(next) === JSON.stringify(before)) throw fail(`Tell me what to change. Interests can be: ${INTEREST_TAGS.join(', ')}.`);
+      saveProfile(user, next);
+      const parts = [];
+      if (next.programme !== before.programme) parts.push(`Programme: ${next.programme || 'none'}`);
+      if (next.semester !== before.semester) parts.push(`Semester: ${next.semester ?? 'none'}`);
+      if (JSON.stringify(next.interests) !== JSON.stringify(before.interests)) parts.push(`Interests: ${next.interests.join(', ') || 'none'}`);
+      return { title: 'Profile updated', detail: parts.join(' · '), link: '/settings/profile', undo: { op: 'profile', before } };
+    },
+
+    'course.enroll'(user, a) {
+      if (user.role !== 'student') throw fail('Only students enrol in courses.');
+      const c = courseByCode(user, a.course);
+      if (db.get('SELECT 1 FROM enrollments WHERE course_id = ? AND user_id = ?', c.id, user.id)) throw fail(`You are already enrolled in ${c.code}.`);
+      db.run('INSERT INTO enrollments(course_id, user_id) VALUES(?, ?)', c.id, user.id);
+      return { title: `Enrolled in ${c.code}`, detail: c.title, link: `/courses/${c.id}`, undo: { op: 'unenroll', id: c.id } };
+    },
+
+    'course.leave'(user, a) {
+      const c = courseByCode(user, a.course);
+      if (!db.get('SELECT 1 FROM enrollments WHERE course_id = ? AND user_id = ?', c.id, user.id)) throw fail(`You are not enrolled in ${c.code}.`);
+      db.run('DELETE FROM enrollments WHERE course_id = ? AND user_id = ?', c.id, user.id);
+      return { title: `Left ${c.code}`, detail: c.title, undo: { op: 'enroll', id: c.id } };
+    },
+
+    /** A campus post written in chat; students' posts go to moderation like any other. */
+    'campus.post'(user, a) {
+      if (!campusPosts) throw fail('Posting is not available here.');
+      const category = POST_CATEGORIES.includes(String(a.category)) && (a.category !== 'announcement' || user.role === 'admin') ? a.category : 'community';
+      let r;
+      try {
+        r = campusPosts.create(user, { title: a.title, body: a.body, category, location: a.location, event_start: a.event_start ? parseWhen(a.event_start).toISOString() : undefined, link: a.link, tags: a.tags });
+      } catch (error) {
+        if (error instanceof HttpError && error.status < 500) throw fail(error.message);
+        throw error;
+      }
+      return { title: r.status === 'published' ? 'Posted to the campus feed' : 'Post sent for review', detail: `${r.title} · ${r.note}`, link: '/campus', undo: { op: 'post_remove', id: r.id } };
+    },
+
+    'campus.rsvp'(user, a) {
+      const post = db.get("SELECT id, title FROM cx_posts WHERE id = ? AND institution_id = ? AND status = 'published' AND category = 'event'", Number(a.post), user.institution_id);
+      if (!post) throw fail('I could not find that event.');
+      const going = a.going === undefined ? true : yes(a.going);
+      const was = !!db.get('SELECT 1 FROM cx_rsvps WHERE post_id = ? AND user_id = ?', post.id, user.id);
+      if (going) db.run('INSERT OR IGNORE INTO cx_rsvps(post_id, user_id, created) VALUES(?, ?, ?)', post.id, user.id, new Date().toISOString());
+      else db.run('DELETE FROM cx_rsvps WHERE post_id = ? AND user_id = ?', post.id, user.id);
+      return { title: going ? 'You are going' : 'No longer going', detail: post.title, link: '/campus', undo: { op: 'rsvp', id: post.id, was } };
+    },
+
+    /** Campus notification level, topics and quiet hours. */
+    'notifications.set'(user, a) {
+      db.run('INSERT OR IGNORE INTO cx_preferences(user_id, updated) VALUES(?, ?)', user.id, new Date().toISOString());
+      const row = db.get('SELECT level, topics, quiet_start, quiet_end FROM cx_preferences WHERE user_id = ?', user.id);
+      const before = { ...row };
+      let topics = JSON.parse(row.topics);
+      const level = a.level === undefined ? row.level : String(a.level).toLowerCase();
+      if (!['all', 'personalized', 'essential', 'digest'].includes(level)) throw fail('Level can be all, personalized, essential or digest.');
+      const list = (v) => (Array.isArray(v) ? v : [v]).map(String).filter((t) => POST_CATEGORIES.includes(t));
+      if (a.follow !== undefined) topics = [...new Set([...topics, ...list(a.follow)])];
+      if (a.mute !== undefined) topics = topics.filter((t) => !list(a.mute).includes(t));
+      const time = (v, old) => {
+        if (v === undefined) return old;
+        if (!TIME.test(String(v))) throw fail('Quiet hours look like 22:00.');
+        return String(v);
+      };
+      const qs = time(a.quiet_start, row.quiet_start);
+      const qe = time(a.quiet_end, row.quiet_end);
+      db.run('UPDATE cx_preferences SET level = ?, topics = ?, quiet_start = ?, quiet_end = ?, updated = ? WHERE user_id = ?', level, JSON.stringify(topics), qs, qe, new Date().toISOString(), user.id);
+      return { title: 'Notifications updated', detail: `Level: ${level} · Topics: ${topics.join(', ') || 'none'} · Quiet ${qs}–${qe}`, link: '/inbox', undo: { op: 'cx_prefs', before } };
+    },
+
+    'notifications.read'(user) {
+      const n = db.get('SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0', user.id).n;
+      db.run('UPDATE notifications SET read = 1 WHERE user_id = ? AND read = 0', user.id);
+      return { title: 'Notifications marked as read', detail: `${n} ${n === 1 ? 'entry' : 'entries'}`, link: '/inbox' };
+    },
+
+    /** Feedback or a suggestion for the university's Campus OS administrators. */
+    'feedback.send'(user, a) {
+      const message = oneLine(a.message, 2000);
+      if (message.length < 5) throw fail('What would you like to tell the team?');
+      db.run('INSERT INTO suggestions(institution_id, user_id, message, created) VALUES(?, ?, ?, ?)', user.institution_id, user.id, message, new Date().toISOString());
+      return { title: 'Feedback sent', detail: message.slice(0, 140) };
+    },
+
     'calendar.add'(user, a) {
       const start = parseWhen(a.start);
       let end;
@@ -295,7 +469,7 @@ function createActionRunner({ db, config, access, timetable, audit }) {
     if (!fn) return { ...base, ok: false, error: 'I cannot do that yet.' };
     try {
       const result = fn(user, action.args || {});
-      if (action.name.startsWith('calendar.') || action.name === 'settings.update') audit(user, 'assistant_action', `${action.name}: ${result.detail || ''}`.slice(0, 200));
+      if (!['app.navigate', 'app.theme', 'link.open', 'quiz.start', 'groups.find'].includes(action.name)) audit(user, 'assistant_action', `${action.name}: ${result.detail || ''}`.slice(0, 200));
       return { ...base, ok: true, ...result };
     } catch (error) {
       if (error instanceof HttpError && error.status < 500) return { ...base, ok: false, error: error.message };
@@ -320,6 +494,29 @@ function createActionRunner({ db, config, access, timetable, audit }) {
       db.run('UPDATE users SET preferences = ? WHERE id = ?', JSON.stringify(restored), user.id);
       audit(user, 'assistant_action_undone', result.name);
       return { ...result, undone: true, client: { type: 'settings', prefs: restored, device: {} } };
+    } else if (u.op === 'group_close') {
+      studyGroups.close(user, { id: u.id });
+    } else if (u.op === 'group_reopen') {
+      studyGroups.reopen(user, u.id);
+    } else if (u.op === 'group_restore') {
+      studyGroups.restore(user, u.id, u.before);
+    } else if (u.op === 'memory_delete') {
+      db.run('DELETE FROM assistant_memories WHERE id = ? AND user_id = ?', u.id, user.id);
+    } else if (u.op === 'memory_restore') {
+      db.run('INSERT INTO assistant_memories(user_id, text, created) VALUES(?, ?, ?)', user.id, u.row.text, u.row.created);
+    } else if (u.op === 'profile') {
+      saveProfile(user, u.before);
+    } else if (u.op === 'unenroll') {
+      db.run('DELETE FROM enrollments WHERE course_id = ? AND user_id = ?', u.id, user.id);
+    } else if (u.op === 'enroll') {
+      db.run('INSERT OR IGNORE INTO enrollments(course_id, user_id) VALUES(?, ?)', u.id, user.id);
+    } else if (u.op === 'post_remove') {
+      db.run("UPDATE cx_posts SET status = 'removed' WHERE id = ? AND author_id = ?", u.id, user.id);
+    } else if (u.op === 'rsvp') {
+      if (u.was) db.run('INSERT OR IGNORE INTO cx_rsvps(post_id, user_id, created) VALUES(?, ?, ?)', u.id, user.id, new Date().toISOString());
+      else db.run('DELETE FROM cx_rsvps WHERE post_id = ? AND user_id = ?', u.id, user.id);
+    } else if (u.op === 'cx_prefs') {
+      db.run('UPDATE cx_preferences SET level = ?, topics = ?, quiet_start = ?, quiet_end = ? WHERE user_id = ?', u.before.level, u.before.topics, u.before.quiet_start, u.before.quiet_end, user.id);
     } else if (u.op === 'recreate') {
       timetable.insert(user, { ownerId: user.id }, { ...u.row, repeatWeeks: u.row.repeat_weeks });
     } else {

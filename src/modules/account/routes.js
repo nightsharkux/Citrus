@@ -123,7 +123,7 @@ function register(router, { db, config, sessions, audit }) {
         'DELETE FROM connector_tokens WHERE user_id = ?', 'DELETE FROM cx_nfc_bindings WHERE user_id = ?', 'DELETE FROM calendar_feeds WHERE user_id = ?',
         'DELETE FROM timetable_events WHERE owner_id = ?', 'DELETE FROM ai_chats WHERE user_id = ?', 'DELETE FROM responses WHERE user_id = ?',
         'DELETE FROM poll_answers WHERE user_id = ?', 'DELETE FROM cx_rsvps WHERE user_id = ?', 'DELETE FROM enrollments WHERE user_id = ?',
-        'DELETE FROM workspace_members WHERE user_id = ?', 'DELETE FROM recording_signals WHERE user_id = ?', 'DELETE FROM device_activations WHERE user_id = ?',
+        'DELETE FROM workspace_members WHERE user_id = ?', 'DELETE FROM recording_signals WHERE user_id = ?', 'DELETE FROM device_activations WHERE user_id = ?', 'DELETE FROM study_group_requests WHERE user_id = ?', 'DELETE FROM assistant_memories WHERE user_id = ?',
       ]) db.run(sql, uid);
       db.run('DELETE FROM meeting_reports WHERE owner_id = ?', uid);
       db.run('DELETE FROM meeting_reports WHERE recording_id IN (SELECT id FROM meeting_recordings WHERE owner_id = ?)', uid);

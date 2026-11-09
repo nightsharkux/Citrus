@@ -11,4 +11,5 @@ module.exports = [
   require('./008-assistant-attachments'),
   require('./009-ai-tools'),
   require('./010-quizzes'),
+  require('./011-study-groups'),
 ];

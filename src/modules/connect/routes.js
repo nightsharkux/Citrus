@@ -13,23 +13,12 @@ const CATEGORIES = ['announcement', 'event', 'job', 'housing', 'research', 'comm
 const LEVELS = ['all', 'personalized', 'essential', 'digest'];
 const TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
-function register(router, { db, notifier, audit }) {
+/**
+ * Creating and announcing posts, shared by the feed routes and the assistant (action campus.post), so a post made in
+ * chat goes through exactly the same moderation and notifications.
+ */
+function createCampusPosts({ db, notifier }) {
   const isoNow = () => new Date().toISOString();
-
-  function prefs(user) {
-    let p = db.get('SELECT * FROM cx_preferences WHERE user_id = ?', user.id);
-    if (!p) {
-      db.run('INSERT OR IGNORE INTO cx_preferences(user_id, updated) VALUES(?, ?)', user.id, isoNow());
-      p = db.get('SELECT * FROM cx_preferences WHERE user_id = ?', user.id);
-    }
-    return { level: p.level, topics: JSON.parse(p.topics), quiet_start: p.quiet_start, quiet_end: p.quiet_end };
-  }
-
-  function savePrefs(user, { level, topics, quiet_start: qs, quiet_end: qe }) {
-    db.run('UPDATE cx_preferences SET level = ?, topics = ?, quiet_start = ?, quiet_end = ?, updated = ? WHERE user_id = ?', level, JSON.stringify([...new Set(topics)]), qs, qe, isoNow(), user.id);
-    return prefs(user);
-  }
-
   const careerTop = (userId) => {
     const row = db.get('SELECT answers FROM career_interests WHERE user_id = ?', userId);
     if (!row) return [];
@@ -58,6 +47,57 @@ function register(router, { db, notifier, audit }) {
         if (m.score >= 3) notifier.notify(u.id, { kind: 'campus', category: post.category, priority: post.priority, title: `Matches your interests: ${post.title}`, body: `Because you’re into ${m.reasons.join(', ')}.`, link: '/campus?filter=for-you' });
       }
     }
+  }
+
+  /** Validate and store a post; students' posts wait for an administrator. */
+  function create(u, b) {
+    const title = text(b.title, { min: 4, max: 120, label: 'Title' });
+    const body = text(b.body, { min: 8, max: 2500, label: 'Details' });
+    const category = oneOf(b.category, CATEGORIES, 'Category');
+    const priority = Number(b.priority || 2);
+    if (![1, 2, 3, 4].includes(priority)) throw badRequest('Priority must be between 1 and 4');
+    const official = b.official === true || b.official === 'true';
+    const tags = (Array.isArray(b.tags) ? b.tags : []).filter((t) => INTEREST_TAGS.includes(t)).slice(0, 5).join(',');
+    const eventStart = category === 'event' && b.event_start ? isoDate(b.event_start, 'Event start') : null;
+    const location = text(b.location, { max: 120, optional: true });
+    const link = httpUrl(b.link);
+
+    const trusted = u.role === 'admin' || u.can_publish;
+    const status = trusted ? 'published' : 'pending';
+    const verified = u.role === 'admin' && official ? 1 : 0;
+    const postId = db.insert(
+      `INSERT INTO cx_posts(institution_id, author_id, title, body, category, priority, official, verified, status, created, tags, event_start, location, link)
+       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      u.institution_id, u.id, title, body, category, u.role === 'admin' ? priority : Math.min(priority, trusted ? 3 : 2), official ? 1 : 0, verified, status, isoNow(), tags, eventStart, location, link,
+    );
+    if (status === 'published') announce(db.get('SELECT * FROM cx_posts WHERE id = ?', postId), { publishedBy: u.id });
+    else {
+      const admins = db.all("SELECT id FROM users WHERE institution_id = ? AND role = 'admin' AND deleted = 0", u.institution_id).map((a) => a.id);
+      notifier.notify(admins, { kind: 'system', title: 'Post waiting for review', body: title, link: '/admin/moderation' });
+    }
+    return { id: postId, status, title, note: trusted ? 'Published.' : 'Sent for review. It appears once an administrator approves it.' };
+  }
+
+  return { create, announce, careerTop };
+}
+
+function register(router, { db, notifier, audit, campusPosts }) {
+  const posts = campusPosts || createCampusPosts({ db, notifier });
+  const { announce, careerTop } = posts;
+  const isoNow = () => new Date().toISOString();
+
+  function prefs(user) {
+    let p = db.get('SELECT * FROM cx_preferences WHERE user_id = ?', user.id);
+    if (!p) {
+      db.run('INSERT OR IGNORE INTO cx_preferences(user_id, updated) VALUES(?, ?)', user.id, isoNow());
+      p = db.get('SELECT * FROM cx_preferences WHERE user_id = ?', user.id);
+    }
+    return { level: p.level, topics: JSON.parse(p.topics), quiet_start: p.quiet_start, quiet_end: p.quiet_end };
+  }
+
+  function savePrefs(user, { level, topics, quiet_start: qs, quiet_end: qe }) {
+    db.run('UPDATE cx_preferences SET level = ?, topics = ?, quiet_start = ?, quiet_end = ?, updated = ? WHERE user_id = ?', level, JSON.stringify([...new Set(topics)]), qs, qe, isoNow(), user.id);
+    return prefs(user);
   }
 
   router.get('/api/connect/posts', (ctx) => {
@@ -96,34 +136,9 @@ function register(router, { db, notifier, audit }) {
   });
 
   router.post('/api/connect/posts', async (ctx) => {
-    const u = ctx.user;
-    const b = await ctx.json();
-    const title = text(b.title, { min: 4, max: 120, label: 'Title' });
-    const body = text(b.body, { min: 8, max: 2500, label: 'Details' });
-    const category = oneOf(b.category, CATEGORIES, 'Category');
-    const priority = Number(b.priority || 2);
-    if (![1, 2, 3, 4].includes(priority)) throw badRequest('Priority must be between 1 and 4');
-    const official = b.official === true || b.official === 'true';
-    const tags = (Array.isArray(b.tags) ? b.tags : []).filter((t) => INTEREST_TAGS.includes(t)).slice(0, 5).join(',');
-    const eventStart = category === 'event' && b.event_start ? isoDate(b.event_start, 'Event start') : null;
-    const location = text(b.location, { max: 120, optional: true });
-    const link = httpUrl(b.link);
-
-    const trusted = u.role === 'admin' || u.can_publish;
-    const status = trusted ? 'published' : 'pending';
-    const verified = u.role === 'admin' && official ? 1 : 0;
-    const postId = db.insert(
-      `INSERT INTO cx_posts(institution_id, author_id, title, body, category, priority, official, verified, status, created, tags, event_start, location, link)
-       VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      u.institution_id, u.id, title, body, category, u.role === 'admin' ? priority : Math.min(priority, trusted ? 3 : 2), official ? 1 : 0, verified, status, isoNow(), tags, eventStart, location, link,
-    );
-    if (status === 'published') announce(db.get('SELECT * FROM cx_posts WHERE id = ?', postId), { publishedBy: u.id });
-    else {
-      const admins = db.all("SELECT id FROM users WHERE institution_id = ? AND role = 'admin' AND deleted = 0", u.institution_id).map((a) => a.id);
-      notifier.notify(admins, { kind: 'system', title: 'Post waiting for review', body: title, link: '/admin/moderation' });
-    }
+    const result = posts.create(ctx.user, await ctx.json());
     ctx.status = 201;
-    return { id: postId, status, note: trusted ? 'Published.' : 'Sent for review. It appears once an administrator approves it.' };
+    return result;
   });
 
   router.delete('/api/connect/posts/:id', (ctx) => {
@@ -231,4 +246,4 @@ function register(router, { db, notifier, audit }) {
   });
 }
 
-module.exports = { register, CATEGORIES };
+module.exports = { register, CATEGORIES, createCampusPosts };

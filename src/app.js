@@ -30,6 +30,8 @@ const { createOidc } = require('./modules/auth/oidc');
 const { createPushSender } = require('./modules/notifications/webpush');
 const { createNotifier } = require('./modules/notifications/service');
 const { createTimetable } = require('./modules/timetable/service');
+const { createStudyGroups } = require('./modules/groups/service');
+const { createCampusPosts } = require('./modules/connect/routes');
 const { createReview } = require('./modules/study/review');
 const { createParticipation } = require('./modules/participation/service');
 const { createDeviceCommands } = require('./modules/devices/commands');
@@ -49,6 +51,7 @@ const MODULES = [
   require('./modules/insights/routes'),
   require('./modules/knowledge/routes'),
   require('./modules/connect/routes'),
+  require('./modules/groups/routes'),
   require('./modules/notifications/routes'),
   require('./modules/participation/routes'),
   require('./modules/careers/routes'),
@@ -77,6 +80,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
   const notifier = createNotifier({ db, bus, push, timeZone });
   const timetable = createTimetable({ db, timeZone });
+  const studyGroups = createStudyGroups({ db, notifier });
+  const campusPosts = createCampusPosts({ db, notifier });
   const review = createReview({ db });
   const participation = createParticipation({ db });
   const deviceCommands = createDeviceCommands({ db });
@@ -84,12 +89,12 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const sessions = createSessions({ db, config });
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
-  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes });
+  const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, studyGroups });
   const maintenance = createMaintenance({ db, config, settings });
 
   const deps = {
     db, config, site, env, access, bus, audit, settings, secretBox, nfcKey, ai, push, notifier,
-    timetable, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes,
+    timetable, studyGroups, campusPosts, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes,
   };
 
   const router = new Router();
