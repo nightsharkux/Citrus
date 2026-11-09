@@ -1,10 +1,12 @@
+import { openMicrophone } from './microphone.js';
+
 /** Deepgram stream adapted to the Web Speech result shape used by wake word, dictation and captions. */
 export const MICROPHONE_AUDIO = Object.freeze({ echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 });
 
 export class DeepgramRecognition {
   constructor({ requestSession, getUserMedia = (c) => navigator.mediaDevices.getUserMedia(c),
-    Recorder = globalThis.MediaRecorder, Socket = globalThis.WebSocket, onFailure = () => {} } = {}) {
-    Object.assign(this, { requestSession, getUserMedia, Recorder, Socket, onFailure });
+    Recorder = globalThis.MediaRecorder, Socket = globalThis.WebSocket, onFailure = () => {}, mediaDevices = globalThis.navigator?.mediaDevices } = {}) {
+    Object.assign(this, { requestSession, getUserMedia, Recorder, Socket, onFailure, mediaDevices });
     this.continuous = true;
     this.lang = 'multi';
     this.interimResults = true;
@@ -24,7 +26,7 @@ export class DeepgramRecognition {
 
   async open(generation) {
     try {
-      const stream = await this.getUserMedia({ audio: { ...MICROPHONE_AUDIO }, video: false });
+      const stream = await openMicrophone(this.getUserMedia, MICROPHONE_AUDIO, this.mediaDevices);
       if (!this.active || generation !== this.generation) { stream.getTracks().forEach((track) => track.stop()); return; }
       this.stream = stream;
       // Obtain the short-lived grant after microphone permission, which can take longer than its TTL.

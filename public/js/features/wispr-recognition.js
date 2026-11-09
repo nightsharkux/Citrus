@@ -1,4 +1,5 @@
 import { DeepgramRecognition, MICROPHONE_AUDIO } from './recognition.js';
+import { openMicrophone } from './microphone.js';
 
 /** Wispr edits the whole utterance. Commit on a natural pause, then emit its final text exactly once. */
 export class WisprRecognition extends DeepgramRecognition {
@@ -10,7 +11,7 @@ export class WisprRecognition extends DeepgramRecognition {
   async open(generation) {
     const live = () => this.active && generation === this.generation;
     try {
-      const stream = await this.getUserMedia({ audio: { ...MICROPHONE_AUDIO }, video: false });
+      const stream = await openMicrophone(this.getUserMedia, MICROPHONE_AUDIO, this.mediaDevices);
       if (!live()) { stream.getTracks().forEach((track) => track.stop()); return; }
       this.stream = stream;
       const context = this.context = new this.Audio({ sampleRate: 16000 });

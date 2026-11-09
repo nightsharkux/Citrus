@@ -23,6 +23,7 @@ import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
 import { api } from '../core/api.js';
 import { DeepgramRecognition } from './recognition.js';
 import { WisprRecognition } from './wispr-recognition.js';
+import { chooseMicrophone, microphoneRoute } from './microphone.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
@@ -62,6 +63,15 @@ export function recognitionLanguage() {
   return code === 'de' ? 'de-DE' : englishCode();
 }
 const lang = recognitionLanguage;
+
+/**
+ * True when listening would record from Bluetooth headphones, which then play everything in muffled call quality.
+ * Deepgram and Wispr record from the computer's own microphone instead when there is one (features/microphone.js);
+ * the browser's recogniser always uses the default microphone.
+ */
+export const microphoneMuffles = () => (useExternalRecognition() ? microphoneRoute().bluetooth : microphoneRoute().defaultBluetooth);
+chooseMicrophone().catch(() => {});
+navigator.mediaDevices?.addEventListener?.('devicechange', () => chooseMicrophone().catch(() => {}));
 
 /**
  * Tell the voice layer what the person just said, so automatic mode follows them from one language to the other.
@@ -564,6 +574,7 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble } 
     r.maxAlternatives = 1;
     r.onstart = () => {
       if (rec === r) onSession?.();
+      chooseMicrophone().catch(() => {}); // the browser names microphones once one is open
     };
     r.onresult = (e) => {
       if (rec !== r) return;

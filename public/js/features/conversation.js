@@ -18,7 +18,9 @@
  *   - on computers the microphone stays open while Campus talks, so you can
  *     interrupt by speaking; what it hears of Campus's own voice is recognised
  *     and ignored. Phones route speech to the earpiece while the microphone is
- *     open, so there the microphone pauses while Campus talks: tap to interrupt;
+ *     open, so there the microphone pauses while Campus talks: tap to interrupt.
+ *     So it does with Bluetooth headphones that are the only microphone: they
+ *     play everything in muffled call quality while it is open (microphone.js);
  *   - speech that stalls is detected (voice.js) and the conversation carries on;
  *   - after two quiet minutes the microphone turns itself off.
  * "Hey Campus" pauses while a conversation is open. Asking Campus to open a
@@ -33,7 +35,7 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker, microphoneMuffles } from './voice.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
@@ -97,7 +99,8 @@ function captionOf(text, max = 320) {
 
 function createConversation({ threadId: startThread }) {
   const touch = matchMedia('(pointer: coarse)').matches;
-  const listenWhileSpeaking = !touch;
+  // Checked each time: headphones can be connected during the conversation.
+  const listenWhileSpeaking = () => !touch && !microphoneMuffles();
   const name = assistantName();
   let threadId = startThread || null;
   let state = 'starting';
@@ -183,7 +186,7 @@ function createConversation({ threadId: startThread }) {
       listening: 'Listening',
       hearing: 'Listening',
       thinking: 'Thinking',
-      speaking: listenWhileSpeaking ? 'Speak or tap to interrupt' : 'Tap to interrupt',
+      speaking: listenWhileSpeaking() ? 'Speak or tap to interrupt' : 'Tap to interrupt',
       muted: 'Microphone off',
       error: 'Voice stopped',
     }[state];
@@ -295,7 +298,7 @@ function createConversation({ threadId: startThread }) {
   }
 
   /** Right after Campus stops, what the microphone still hears may be the end of its own sentence. */
-  const echoOfLastReply = (text) => listenWhileSpeaking && Date.now() - spokeAt < 1500 && isEcho(text, lastReply);
+  const echoOfLastReply = (text) => listenWhileSpeaking() && Date.now() - spokeAt < 1500 && isEcho(text, lastReply);
 
   function onHeard() {
     if (closed || muted || state === 'error') return;
@@ -304,7 +307,7 @@ function createConversation({ threadId: startThread }) {
     if (state === 'speaking') {
       // Listening in one language while Campus speaks the other: its own voice comes back as "new" words.
       const strict = recognitionLanguage() !== 'multi' && (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
-      if (listenWhileSpeaking && isInterruption(text, reply, { final, strict })) {
+      if (listenWhileSpeaking() && isInterruption(text, reply, { final, strict })) {
         interrupt();
         hear(text, final);
       } else if (final) skipFinals(); // Campus hearing itself
@@ -349,7 +352,7 @@ function createConversation({ threadId: startThread }) {
       setState('muted');
       return;
     }
-    if (!listenWhileSpeaking) preferLoudspeaker(false);
+    preferLoudspeaker(false);
     // A phone in the background cannot open the microphone; it reopens when the page is visible again.
     if (!(touch && document.hidden)) listener.start();
     setState('listening');
@@ -436,7 +439,7 @@ function createConversation({ threadId: startThread }) {
   }
 
   function speakerFor(mine) {
-    if (!listenWhileSpeaking) {
+    if (!listenWhileSpeaking()) {
       listener.stop(); // phones: release the microphone so speech plays on the loudspeaker
       preferLoudspeaker(true);
     }
@@ -617,7 +620,7 @@ function createConversation({ threadId: startThread }) {
     listener.stop();
     if (speaker) stopSpeaking();
     speaker = null;
-    if (!listenWhileSpeaking) preferLoudspeaker(false);
+    preferLoudspeaker(false);
     offs.forEach((off) => off());
     face.destroy();
     root.remove();
