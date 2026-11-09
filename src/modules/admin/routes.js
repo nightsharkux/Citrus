@@ -155,6 +155,7 @@ function register(router, deps) {
     const b = await ctx.json();
     const changes = {};
     if (b.allowRegistration !== undefined) changes.allowRegistration = !!b.allowRegistration;
+    if (b.lecturerApproval !== undefined) changes.lecturerApproval = !!b.lecturerApproval;
     if (b.ssoOnly !== undefined) {
       if (b.ssoOnly && !oidc.enabled()) throw badRequest('Configure single sign-on before requiring it');
       changes.ssoOnly = !!b.ssoOnly;

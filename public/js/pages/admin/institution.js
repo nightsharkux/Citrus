@@ -27,6 +27,7 @@ export default {
           </section>
           <section class="card"><h2>Access</h2>
             <div class="stack mt-16">
+              <label class="spread"><span><strong>Lecturers need approval</strong><br><span class="small muted">New lecturer accounts wait until an administrator approves them. When off, anyone can register as a lecturer and make courses.</span></span><span class="switch"><input type="checkbox" data-setting="lecturerApproval" ${s.lecturerApproval ? 'checked' : ''}><span></span></span></label>
               <label class="spread"><span><strong>Open registration</strong><br><span class="small muted">Anyone can create a student account.</span></span><span class="switch"><input type="checkbox" data-setting="allowRegistration" ${s.allowRegistration ? 'checked' : ''}><span></span></span></label>
               <label class="spread"><span><strong>Require university login</strong><br><span class="small muted">${i.sso.configured ? 'Only administrators may still use passwords.' : 'Configure single sign-on first (OIDC_* in .env).'}</span></span><span class="switch"><input type="checkbox" data-setting="ssoOnly" ${s.ssoOnly ? 'checked' : ''} ${i.sso.configured ? '' : 'disabled'}><span></span></span></label>
             </div>

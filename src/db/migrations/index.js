@@ -15,4 +15,5 @@ module.exports = [
   require('./012-ai-model-choice'),
   require('./013-faster-sol'),
   require('./014-live-lectures'),
+  require('./015-open-spaces'),
 ];

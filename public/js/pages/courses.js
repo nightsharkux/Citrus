@@ -54,7 +54,7 @@ export default {
 
     const isAdmin = role === 'admin';
     return html`
-      ${pageHead({ title: isAdmin ? 'Courses' : 'Teaching', subtitle: isAdmin ? 'Create courses and assign lecturers.' : 'Your courses, lectures and live understanding.', actions: isAdmin ? html`<button class="btn btn-primary" data-new-course>${icon('plus', 17)} New course</button>` : '' })}
+      ${pageHead({ title: isAdmin ? 'Courses' : 'Teaching', subtitle: isAdmin ? 'Create courses and assign lecturers.' : 'Your courses, lectures and live understanding.', actions: html`<button class="btn btn-primary" data-new-course>${icon('plus', 17)} New course</button>` })}
       <div class="stack stagger">
         <section class="card flush">
           ${courses.length ? html`<div class="list" style="padding:8px 0">${courses.map((c) => html`
@@ -62,7 +62,7 @@ export default {
               <a class="body" href="/courses/${c.id}" style="color:inherit;text-decoration:none"><span class="title">${c.title}</span><span class="sub">${c.code} · ${plural(c.enrolled_count || 0, 'student')}${isAdmin ? ` · ${c.lecturer || 'No lecturer'}` : ''}</span></a>
               <span class="trail">${isAdmin ? html`<button class="btn btn-sm" data-manage="${c.id}">Manage</button>` : ''}<a class="btn btn-sm btn-ghost btn-icon" href="/courses/${c.id}" aria-label="Open">${icon('chevron-right', 18)}</a></span>
             </div>`)}</div>`
-            : empty({ icon: 'book', title: isAdmin ? 'No courses yet' : 'No courses assigned to you', body: isAdmin ? 'Create the first course, then assign a lecturer.' : 'Ask an administrator to assign you as lecturer.', action: isAdmin ? html`<button class="btn btn-primary" data-new-course>Create a course</button>` : '' })}
+            : empty({ icon: 'book', title: 'No courses yet', body: isAdmin ? 'Create the first course, then assign a lecturer.' : 'Create your first course. Students can find it and join it themselves.', action: html`<button class="btn btn-primary" data-new-course>Create a course</button>` })}
         </section>
         ${moodleCard(data)}
       </div>`;

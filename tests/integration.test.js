@@ -15,6 +15,7 @@ test.after(async()=>{await new Promise(resolve=>server.close(resolve));db.close(
 const pw='TestAccountPassword!!123';
 test('Accounts, lecturer approvals, meeting rooms, recording isolation, analysis and knowledge controls',async()=>{
  let x=await request('admin','/login','POST',{institution_id:1,email:'admin@example.org',password:'Strong-demo-password-93872'});assert.equal(x.status,200);
+ x=await request('admin','/admin/settings','PATCH',{lecturerApproval:true});assert.equal(x.status,200); // this scenario is about approval
  x=await request('lecturer','/register','POST',{institution_id:1,name:'Faculty Applicant',email:'faculty@example.org',password:pw,role:'lecturer'});assert.equal(x.status,201);
  assert.equal(x.body.user.role,'student');assert.equal(x.body.user.requested_role,'lecturer');
  x=await request('student','/register','POST',{institution_id:1,name:'Student A',email:'student@example.org',password:pw,role:'student'});assert.equal(x.status,201);

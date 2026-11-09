@@ -79,12 +79,45 @@ function register(router, { db, config, access, ai, bus, audit }) {
     if (courseId && !access.teachingCourse(u, courseId)) throw forbidden('You cannot link this course');
     const code = crypto.randomBytes(5).toString('hex').toUpperCase();
     const wid = db.insert(
-      'INSERT INTO workspaces(institution_id, creator_id, title, kind, course_id, join_code, guidance, instructions, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      u.institution_id, u.id, title, kind, courseId, code, guidance, instructions, isoNow(),
+      'INSERT INTO workspaces(institution_id, creator_id, title, kind, course_id, join_code, guidance, instructions, open, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      u.institution_id, u.id, title, kind, courseId, code, guidance, instructions, b.open === true ? 1 : 0, isoNow(),
     );
     db.run('INSERT INTO workspace_members(workspace_id, user_id, joined) VALUES(?, ?, ?)', wid, u.id, isoNow());
     ctx.status = 201;
     return { id: wid, joinCode: code };
+  });
+
+  /** Spaces their creators opened to everyone at the university, that the person has not joined yet. */
+  router.get('/api/workspaces/open', (ctx) => {
+    const q = String(ctx.query.get('q') || '').trim().toLowerCase().slice(0, 80);
+    const rows = db.all(
+      `SELECT w.id, w.title, w.kind, w.created, u.name AS creator,
+              (SELECT COUNT(*) FROM workspace_members m WHERE m.workspace_id = w.id) AS member_count
+       FROM workspaces w JOIN users u ON u.id = w.creator_id
+       WHERE w.institution_id = ? AND w.open = 1 AND w.archived = 0
+         AND NOT EXISTS (SELECT 1 FROM workspace_members me WHERE me.workspace_id = w.id AND me.user_id = ?)
+       ORDER BY member_count DESC, w.id DESC LIMIT 60`,
+      ctx.user.institution_id, ctx.user.id,
+    );
+    return { rooms: q ? rows.filter((r) => `${r.title} ${r.creator}`.toLowerCase().includes(q)) : rows };
+  });
+
+  /** Join an open space without a code. */
+  router.post('/api/workspaces/:id/join-open', (ctx) => {
+    const w = db.get('SELECT * FROM workspaces WHERE id = ? AND institution_id = ? AND archived = 0', id(ctx.params.id), ctx.user.institution_id);
+    if (!w || !w.open) throw notFound('This space is not open to join');
+    db.run('INSERT OR IGNORE INTO workspace_members(workspace_id, user_id, joined) VALUES(?, ?, ?)', w.id, ctx.user.id, isoNow());
+    touch(w, 'members');
+    return { id: w.id };
+  });
+
+  /** The creator opens or closes a space to the whole university. Closing keeps the people who already joined. */
+  router.post('/api/workspaces/:id/open', async (ctx) => {
+    const w = access.workspaceOwner(ctx.user, id(ctx.params.id));
+    if (!w) throw forbidden('Only the creator of a space can change this');
+    const b = await ctx.json();
+    db.run('UPDATE workspaces SET open = ? WHERE id = ?', b.open === true ? 1 : 0, w.id);
+    return { open: b.open === true };
   });
 
   router.post('/api/workspaces/join', async (ctx) => {

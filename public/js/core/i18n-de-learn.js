@@ -146,6 +146,18 @@ export default {
   'Focus off': 'Fokus aus',
   'Focus can last up to 12 hours.': 'Der Fokus kann bis zu 12 Stunden dauern.',
   'Choose when Focus should end.': 'Wähle, wann der Fokus enden soll.',
+  // Courses and open spaces
+  'Create your first course. Students can find it and join it themselves.': 'Erstelle deinen ersten Kurs. Studierende können ihn selbst finden und beitreten.',
+  'Course created': 'Kurs erstellt',
+  'A course with this code already exists': 'Ein Kurs mit diesem Kürzel existiert bereits',
+  'Open spaces': 'Offene Räume',
+  'Open to everyone at my university': 'Offen für alle an meiner Hochschule',
+  'Anyone at your university can find this space and join it without a code.': 'Alle an deiner Hochschule können diesen Raum finden und ohne Code beitreten.',
+  'Search open spaces': 'Offene Räume suchen',
+  'No open spaces yet': 'Noch keine offenen Räume',
+  'Spaces that people open to everyone appear here.': 'Räume, die jemand für alle öffnet, erscheinen hier.',
+  'Lecturers need approval': 'Dozenten brauchen eine Freigabe',
+  'New lecturer accounts wait until an administrator approves them. When off, anyone can register as a lecturer and make courses.': 'Neue Dozentenkonten warten auf die Freigabe durch einen Administrator. Ist die Option aus, kann sich jeder als Dozent registrieren und Kurse anlegen.',
   // Live lecture
   'Live lecture': 'Live-Vorlesung',
   'Lecture': 'Vorlesung',

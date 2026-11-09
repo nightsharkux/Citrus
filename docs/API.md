@@ -125,8 +125,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 | Method | Path | Auth | Roles |
 |---|---|---|---|
 | GET | `/api/courses` | user | any |
-| POST | `/api/courses` | user | admin |
-| PATCH | `/api/courses/:id` | user | admin |
+| POST | `/api/courses` | user | lecturer, admin |
+| PATCH | `/api/courses/:id` | user | lecturer, admin |
 | GET | `/api/courses/:id` | user | any |
 | POST | `/api/courses/:id/enroll` | user | any |
 | POST | `/api/courses/:id/leave` | user | any |
@@ -388,6 +388,9 @@ State-changing browser requests must be same-origin (CSRF protection).
 |---|---|---|---|
 | GET | `/api/workspaces` | user | any |
 | POST | `/api/workspaces` | user | any |
+| GET | `/api/workspaces/open` | user | any |
+| POST | `/api/workspaces/:id/join-open` | user | any |
+| POST | `/api/workspaces/:id/open` | user | any |
 | POST | `/api/workspaces/join` | user | any |
 | GET | `/api/workspaces/:id` | user | any |
 | PATCH | `/api/workspaces/:id` | user | any |

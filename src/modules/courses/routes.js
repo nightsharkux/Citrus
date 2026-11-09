@@ -7,7 +7,7 @@
  * 3 = got it). Lecturers only ever see aggregate counts.
  */
 const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
-const { badRequest, forbidden, notFound } = require('../../http/errors');
+const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
 
 function register(router, { db, access, bus, notifier, audit, rooms }) {
@@ -94,22 +94,26 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     const b = await ctx.json();
     const title = text(b.title, { min: 3, max: 160, label: 'Course title' });
     const code = text(b.code, { min: 2, max: 30, label: 'Course code' }).toUpperCase();
-    const courseId = db.insert('INSERT INTO courses(institution_id, title, code) VALUES(?, ?, ?)', ctx.user.institution_id, title, code);
+    if (db.get('SELECT id FROM courses WHERE institution_id = ? AND code = ?', ctx.user.institution_id, code)) throw conflict('A course with this code already exists');
+    // A lecturer who makes a course teaches it; an administrator can assign a lecturer afterwards.
+    const lecturerId = ctx.user.role === 'lecturer' ? ctx.user.id : null;
+    const courseId = db.insert('INSERT INTO courses(institution_id, title, code, lecturer_id) VALUES(?, ?, ?, ?)', ctx.user.institution_id, title, code, lecturerId);
     audit(ctx.user, 'course_created', courseId);
     ctx.status = 201;
     return { id: courseId };
-  }, { roles: ['admin'] });
+  }, { roles: ['lecturer', 'admin'] });
 
   router.patch('/api/courses/:id', async (ctx) => {
-    const course = db.get('SELECT * FROM courses WHERE id = ? AND institution_id = ?', id(ctx.params.id), ctx.user.institution_id);
+    const course = access.teachingCourse(ctx.user, id(ctx.params.id));
     if (!course) throw notFound('Course not found');
     const b = await ctx.json();
     const title = b.title !== undefined ? text(b.title, { min: 3, max: 160, label: 'Course title' }) : course.title;
     const code = b.code !== undefined ? text(b.code, { min: 2, max: 30, label: 'Course code' }).toUpperCase() : course.code;
+    if (code !== course.code && db.get('SELECT id FROM courses WHERE institution_id = ? AND code = ? AND id != ?', ctx.user.institution_id, code, course.id)) throw conflict('A course with this code already exists');
     db.run('UPDATE courses SET title = ?, code = ? WHERE id = ?', title, code, course.id);
     audit(ctx.user, 'course_updated', course.id);
     return { ok: true };
-  }, { roles: ['admin'] });
+  }, { roles: ['lecturer', 'admin'] });
 
   router.get('/api/courses/:id', (ctx) => {
     const course = access.course(ctx.user, id(ctx.params.id));

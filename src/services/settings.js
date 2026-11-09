@@ -5,6 +5,7 @@
  */
 const DEFAULTS = Object.freeze({
   allowRegistration: true,
+  lecturerApproval: false, // true: new lecturers wait for an administrator; false: anyone may register as a lecturer
   ssoOnly: false,
   recordingRetentionDays: 0, // 0 = keep until the owner deletes them
 });

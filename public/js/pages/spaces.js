@@ -4,7 +4,8 @@ import { api } from '../core/api.js';
 import { isStaff } from '../core/store.js';
 import { pageHead, empty } from '../core/components.js';
 import { ago, plural } from '../core/format.js';
-import { sheet, onSubmit } from '../core/ui.js';
+import { sheet, onSubmit, toastError } from '../core/ui.js';
+import { debounce } from '../core/live.js';
 
 export const KIND = {
   study: ['users', 'Study group'],
@@ -29,12 +30,13 @@ export function newSpaceSheet(ctx, courses = []) {
       <div class="field"><span>Type</span><div class="choice-grid">${kinds.map(([k, [glyph, label]], i) => html`<label class="choice"><input type="radio" name="kind" value="${k}" ${i === 0 ? 'checked' : ''}>${icon(glyph, 18)}${label}</label>`)}</div></div>
       ${courses.length ? html`<label class="field"><span>Link to a course (optional)</span><select class="select" name="course_id"><option value="">None</option>${courses.map((c) => html`<option value="${c.id}">${c.code} · ${c.title}</option>`)}</select><span class="hint">Linked lecture spaces can add live topics to the course.</span></label>` : ''}
       <label class="field"><span>Assistant approach</span><select class="select" name="guidance">${Object.entries(GUIDANCE).map(([k, [label, desc]]) => html`<option value="${k}">${label} — ${desc}</option>`)}</select></label>
+      <label class="spread"><span><strong>Open to everyone at my university</strong><br><span class="small muted">Anyone at your university can find this space and join it without a code.</span></span><span class="switch"><input type="checkbox" name="open"><span></span></span></label>
       <label class="field"><span>Instructions for the assistant (optional)</span><textarea class="textarea" name="instructions" maxlength="2000" placeholder="Goals, rules or boundaries for this space"></textarea></label>
       <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Create space</button></div>
     </form>`,
     onMount(el, close) {
       onSubmit($('#space-form', el), async (v) => {
-        const r = await api.post('/workspaces', { ...v, course_id: v.course_id ? Number(v.course_id) : undefined });
+        const r = await api.post('/workspaces', { ...v, open: !!v.open, course_id: v.course_id ? Number(v.course_id) : undefined });
         close();
         ctx.navigate(`/spaces/${r.id}`);
         return 'Space created — share the code to invite people';
@@ -49,8 +51,43 @@ export function joinSheet(ctx) {
     content: html`<form class="form" id="join-form">
       <label class="field"><span>Invite code</span><input class="input mono" name="code" required minlength="4" maxlength="25" placeholder="A3F5C91021" autocapitalize="characters" autocomplete="off" autofocus style="letter-spacing:.12em;font-size:18px"></label>
       <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Join</button></div>
-    </form>`,
+    </form>
+    <h3 class="mt-24">Open spaces</h3>
+    <div class="search-input mt-8">${icon('search', 16)}<input class="input" data-open-q placeholder="Search open spaces" aria-label="Search open spaces"></div>
+    <div class="list mt-8" data-open-list></div>`,
     onMount(el, close) {
+      const list = $('[data-open-list]', el);
+      const show = async (q = '') => {
+        try {
+          const { rooms } = await api.get(`/workspaces/open?q=${encodeURIComponent(q)}`);
+          list.innerHTML = '';
+          if (!rooms.length) {
+            list.append(Object.assign(document.createElement('p'), { className: 'small muted', textContent: q ? 'No open spaces match.' : 'No open spaces yet. Spaces that people open to everyone appear here.' }));
+            return;
+          }
+          for (const r of rooms) {
+            const row = document.createElement('div');
+            row.className = 'list-row';
+            row.innerHTML = '<span class="body"><span class="title"></span><span class="sub"></span></span><span class="trail"><button class="btn btn-sm btn-primary">Join</button></span>';
+            row.querySelector('.title').textContent = r.title;
+            row.querySelector('.sub').textContent = `${(KIND[r.kind] || ['', r.kind])[1]} · ${plural(r.member_count, 'member')} · ${r.creator}`;
+            row.querySelector('button').addEventListener('click', async () => {
+              try {
+                await api.post(`/workspaces/${r.id}/join-open`);
+                close();
+                ctx.navigate(`/spaces/${r.id}`);
+              } catch (error) {
+                toastError(error);
+              }
+            });
+            list.append(row);
+          }
+        } catch (error) {
+          toastError(error);
+        }
+      };
+      show();
+      $('[data-open-q]', el).addEventListener('input', debounce((e) => show(e.target.value.trim()), 250));
       onSubmit($('#join-form', el), async (v) => {
         const r = await api.post('/workspaces/join', v);
         close();

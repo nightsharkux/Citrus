@@ -61,10 +61,13 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     if (password.length < 12) throw badRequest('Use a password with at least 12 characters');
     if (db.get('SELECT id FROM users WHERE institution_id = ? AND email = ?', institutionId, mail)) throw conflict('An account with this email already exists');
 
-    const requested = b.role === 'lecturer' ? 'lecturer' : null;
+    // A lecturer account is active at once unless the university turned on approval (Admin → Institution).
+    const wantsLecturer = b.role === 'lecturer';
+    const needsApproval = wantsLecturer && settings.get(institutionId, 'lecturerApproval');
+    const requested = needsApproval ? 'lecturer' : null;
     const userId = db.insert(
       'INSERT INTO users(institution_id, name, email, pass, role, requested_role, created) VALUES(?, ?, ?, ?, ?, ?, ?)',
-      institutionId, name, mail, hashPassword(password), 'student', requested, new Date().toISOString(),
+      institutionId, name, mail, hashPassword(password), wantsLecturer && !needsApproval ? 'lecturer' : 'student', requested, new Date().toISOString(),
     );
     const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
     sessions.start(user, ctx.req, ctx.res);
