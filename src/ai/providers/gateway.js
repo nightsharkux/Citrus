@@ -5,6 +5,13 @@ const { readSse, safeJson } = require('./stream');
 const key = (env) => String(env.AI_GATEWAY_API_KEY || '').trim();
 const defaultModel = (env) => String(env.CAMPUS_AI_DEFAULT_MODEL || '').trim() || 'openai/gpt-6.1-terra/medium';
 const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() || 'openai/gpt-6-luna/low';
+/** Text to speech (beta on the gateway). "off" turns natural voices off; the browser's voices are used instead. */
+const speechModel = (env) => {
+  const value = String(env.CAMPUS_AI_SPEECH_MODEL || '').trim();
+  return value.toLowerCase() === 'off' ? null : value || 'openai/tts-1';
+};
+/** A spoken conversation wants a quick answer: a reasoning model thinks briefly there (CAMPUS_AI_VOICE_REASONING). */
+const voiceEffort = (env) => String(env.CAMPUS_AI_VOICE_REASONING || '').trim() || 'low';
 const reasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 
 /** Campus OS configuration: provider/model[/effort]. The gateway receives the base ID. */
@@ -25,8 +32,17 @@ module.exports = {
   label: 'Cloud · Vercel AI Gateway',
   location: 'cloud',
   timeoutMs: 60_000,
-  model: (env, task) => task === 'summary' ? summaryModel(env) : defaultModel(env),
+  model(env, task) {
+    if (task === 'summary') return summaryModel(env);
+    // Voice: same model, shorter thinking, but only when the configured model is a reasoning model (has a level).
+    if (task === 'voice') {
+      const parts = defaultModel(env).split('/');
+      return parts.length === 3 && reasoningEfforts.has(voiceEffort(env)) ? `${parts[0]}/${parts[1]}/${voiceEffort(env)}` : defaultModel(env);
+    }
+    return defaultModel(env);
+  },
   summaryModel,
+  speechModel,
   missing(env) {
     if (!key(env)) return 'AI_GATEWAY_API_KEY is missing on the server';
     try {
@@ -39,7 +55,11 @@ module.exports = {
   },
   describe: () => 'Cloud AI selected (Vercel AI Gateway). Summaries use a separate model.',
 
-  request({ env, model, system, messages, stream, maxTokens }) {
+  /**
+   * `web`: 'auto' lets the model search the web when it needs to, 'required' makes it search first. The gateway
+   * runs the search itself (Perplexity) and returns only the final answer, so the model cites pages as links.
+   */
+  request({ env, model, system, messages, stream, maxTokens, web }) {
     return {
       url: 'https://ai-gateway.vercel.sh/v1/chat/completions',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key(env)}` },
@@ -48,11 +68,28 @@ module.exports = {
         messages: [{ role: 'system', content: system }, ...messages],
         max_tokens: maxTokens,
         stream,
+        ...(web ? { tools: [{ type: 'vercel:perplexity_search', config: { max_results: 6 } }], tool_choice: web === 'required' ? 'required' : 'auto' } : {}),
         // Choose the least expensive provider for this model; no model escalation.
         provider: { sort: 'cost' },
       },
     };
   },
+
+  /** One piece of speech. The gateway answers with the audio as base64 in JSON (no streaming for most models). */
+  speechRequest({ env, model, text, voice, format, speed, instructions, language }) {
+    return {
+      url: 'https://ai-gateway.vercel.sh/v4/ai/speech-model',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key(env)}`,
+        'ai-gateway-protocol-version': '0.0.1',
+        'ai-speech-model-specification-version': '4',
+        'ai-model-id': model,
+      },
+      body: { text, outputFormat: format, ...(voice ? { voice } : {}), ...(speed ? { speed } : {}), ...(instructions ? { instructions } : {}), ...(language ? { language } : {}) },
+    };
+  },
+  parseSpeech: (json) => (typeof json?.audio === 'string' && json.audio ? Buffer.from(json.audio, 'base64') : null),
 
   parse: (json) => json?.choices?.[0]?.message?.content,
 

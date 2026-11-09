@@ -41,6 +41,16 @@ export default {
           </form>
         </section>
 
+        <section class="card">
+          <h2>Tools</h2>
+          <div class="stack mt-16" style="--gap:18px">
+            <label class="spread"><span><strong>Web search</strong><br><span class="small muted">The assistant can look things up on the web when your knowledge library and its own knowledge are not enough, and links the pages it used. Students can also ask it to search. Searches go to Perplexity through the AI Gateway (about $5 per 1,000 searches).${s.webSearchAllowed && s.aiEnabled && !s.webSearch ? html` <span style="color:var(--warning)">The gateway refused the last search, so it is paused for a few minutes.</span>` : ''}</span></span>
+              <span class="switch"><input type="checkbox" data-tool="web_search" ${s.webSearchAllowed ? 'checked' : ''} ${s.aiEnabled ? '' : 'disabled'} aria-label="Web search"><span></span></span></label>
+            <label class="spread"><span><strong>Natural voices</strong><br><span class="small muted">Answers are read aloud by the AI Gateway’s speech model${s.speechModel ? html` (${s.speechModel})` : ''} instead of the browser’s voices. Set the model with CAMPUS_AI_SPEECH_MODEL. Text to speech is in beta on the gateway; until it is enabled for your team, browsers use their own voices.${s.speechAllowed && s.aiEnabled && !s.speech ? html` <span style="color:var(--warning)">Not available right now, so browsers use their own voices.</span>` : ''}</span></span>
+              <span class="switch"><input type="checkbox" data-tool="speech" ${s.speechAllowed ? 'checked' : ''} ${s.aiEnabled ? '' : 'disabled'} aria-label="Natural voices"><span></span></span></label>
+          </div>
+        </section>
+
         <section class="card flush">
           <div class="card-head" style="flex-wrap:wrap">
             <div><h2>Knowledge library</h2><p class="small muted">${plural(d.knowledge.length, 'entry', 'entries')} · the assistant cites these as numbered sources</p></div>
@@ -71,6 +81,17 @@ export default {
       return s.aiEnabled ? `Using ${s.label}` : s.description;
     });
     const offs = [
+      on(root, 'change', '[data-tool]', async (e) => {
+        const input = e.target;
+        try {
+          const s = await api.patch('/ai/settings', { [input.dataset.tool]: input.checked });
+          setSession({ ai: s });
+          toast(input.dataset.tool === 'speech' ? (input.checked ? 'Natural voices on' : 'Natural voices off') : input.checked ? 'Web search on' : 'Web search off', 'success');
+        } catch (error) {
+          input.checked = !input.checked;
+          toastError(error);
+        }
+      }),
       on(root, 'click', '[data-test]', (e, b) => busy(b, async () => {
         try {
           const r = await api.post('/ai/test');

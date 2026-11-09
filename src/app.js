@@ -43,6 +43,7 @@ const MODULES = [
   require('./modules/study/routes'),
   require('./modules/timetable/routes'),
   require('./modules/assistant/routes'),
+  require('./modules/speech/routes'),
   require('./modules/workspaces/routes'),
   require('./modules/insights/routes'),
   require('./modules/knowledge/routes'),

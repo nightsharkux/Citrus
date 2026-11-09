@@ -14,8 +14,12 @@
  *   event: error    { message }
  * Without that header it returns the whole answer as JSON.
  *
- * Body: { prompt, thread_id?, attachments?, mode? }. mode 'voice' (the spoken
+ * Body: { prompt, thread_id?, attachments?, mode?, web? }. mode 'voice' (the spoken
  * conversation) asks for short answers written to be read aloud; default 'text'.
+ * web: 'auto' (default: the model searches the web when it needs to), 'on' (search
+ * first; the stream then starts with `event: searching`) or 'off'. Web search only
+ * runs when the institution allows it. Pages the answer links to from a search are
+ * added to the sources with { web: true, site }.
  */
 const { text, id, optionalId, oneOf } = require('../../lib/validate');
 const { notFound, unavailable, badRequest } = require('../../http/errors');
@@ -165,6 +169,9 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const files = attachments.claim(user, b.attachments);
     const prompt = files.length ? text(b.prompt, { max: 4000, optional: true, label: 'Message' }) : text(b.prompt, { min: 1, max: 4000, label: 'Message' });
     const voice = oneOf(b.mode ?? 'text', ['text', 'voice'], 'Mode') === 'voice';
+    // Web search: 'auto' lets the model search when it needs to, 'on' (the globe button) searches first, 'off' never.
+    const webChoice = oneOf(b.web ?? 'auto', ['auto', 'on', 'off'], 'Web search');
+    const web = !ai.status(user).webSearch || webChoice === 'off' ? null : webChoice === 'on' ? 'required' : 'auto';
     if (!ai.status(user).aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
 
     const threadId = optionalId(b.thread_id, 'Conversation');
@@ -180,11 +187,34 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const { sources, references } = ai.retrieveContext(user, [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'));
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match', ...readHeard(b) } });
+    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice, web, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match', ...readHeard(b) } });
+
+    // Pages from the web that the answer links to become sources too, numbered after the library's.
+    let searched = false;
+    const onMeta = (meta) => { searched = !!meta?.searched; };
+    const webSources = (answer, from) => {
+      if (!searched) return [];
+      const known = new Set(sources.map((s) => s.url).filter(Boolean));
+      const found = [];
+      for (const m of answer.matchAll(/\[([^\]\n]{1,140})\]\((https?:\/\/[^\s)]+)\)/g)) {
+        const url = m[2].replace(/[.,;]+$/, '');
+        if (known.has(url) || found.some((f) => f.url === url)) continue;
+        let host = '';
+        try {
+          host = new URL(url).hostname.replace(/^www\./, '');
+        } catch {
+          continue;
+        }
+        found.push({ n: from + found.length + 1, title: m[1].replace(/[*_`]/g, '').trim() || host, url, web: true, site: host });
+        if (found.length >= 8) break;
+      }
+      return found;
+    };
 
     const save = (raw, visual = null, results = []) => {
       const answer = raw.trim();
-      const used = sources.filter((s) => answer.includes(`[${s.n}]`));
+      const cited = sources.filter((s) => answer.includes(`[${s.n}]`));
+      const used = [...cited, ...webSources(answer, sources.length)];
       const messageId = db.insert(
         'INSERT INTO assistant_messages(thread_id, role, content, sources, visual, actions, created) VALUES(?, ?, ?, ?, ?, ?, ?)',
         thread.id, 'assistant', answer, JSON.stringify(used), visual ? JSON.stringify(visual) : null, results.length ? JSON.stringify(results) : null, isoNow(),
@@ -196,7 +226,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const wantsStream = String(ctx.req.headers.accept || '').includes('text/event-stream');
     if (!wantsStream) {
       const results = [];
-      const lead = extractLead(await ai.complete({ user, system, prompt: turn, history, maxTokens: ANSWER_TOKENS }), (action) => results.push(runner.run(user, action)));
+      const lead = extractLead(await ai.complete({ user, system, prompt: turn, history, maxTokens: ANSWER_TOKENS, task: voice ? 'voice' : 'chat', web, onMeta }), (action) => results.push(runner.run(user, action)));
       const answer = lead.text.trim() || summarise(results);
       const { messageId, used } = save(answer, lead.visual, results);
       return { thread: { id: thread.id, title: thread.title }, message: { id: messageId, role: 'assistant', content: answer, sources: used, visual: lead.visual, actions: results.map(runner.publicView) } };
@@ -211,6 +241,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
 
     send('thread', { id: thread.id, title: thread.title });
     send('sources', { sources });
+    if (web === 'required') send('searching', {}); // the page says "Searching the web" until the answer starts
     let answer = '';
     const results = [];
     const cues = createLeadExtractor({
@@ -227,7 +258,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     };
     try {
       let announced = false;
-      for await (const delta of ai.stream({ user, system, prompt: turn, history, signal: controller.signal, maxTokens: ANSWER_TOKENS })) {
+      for await (const delta of ai.stream({ user, system, prompt: turn, history, signal: controller.signal, maxTokens: ANSWER_TOKENS, task: voice ? 'voice' : 'chat', web, onMeta })) {
         emit(cues.push(delta));
         if (!announced && cues.visual) {
           announced = true;

@@ -97,8 +97,10 @@ test('a CampusOS 0.6 database upgrades in place without losing data', () => {
 
   const db = openDatabase(file);
   try {
-    assert.equal(runMigrations(db), 8);
+    assert.equal(runMigrations(db), 9);
     assert.equal(runMigrations(db), 0, 'idempotent');
+    const tools = db.get('SELECT web_search, speech FROM institution_ai_settings WHERE institution_id = 1');
+    assert.deepEqual({ ...tools }, { web_search: 1, speech: 1 }, 'web search and natural voices default to on for existing institutions');
     assert.equal(db.get('SELECT name FROM users WHERE id = 1').name, 'Old Admin');
     assert.ok(db.columns('users').includes('requested_role') && db.columns('users').includes('preferences'));
     assert.ok(db.columns('career_interests').includes('reflection'));

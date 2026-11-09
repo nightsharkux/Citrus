@@ -59,33 +59,50 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     ];
   }
 
-  async function call(mode, system, input, history, { stream, signal, maxTokens = 1200, task = 'chat' }) {
+  // Web search is a gateway tool that may not be enabled for the account. When a request with it is refused, the
+  // same request is sent again without it and search rests for a while, so the assistant itself never breaks.
+  let webRestsUntil = 0;
+  const webAvailable = () => Date.now() >= webRestsUntil;
+
+  async function call(mode, system, input, history, { stream, signal, maxTokens = 1200, task = 'chat', web = null }) {
     const provider = BY_ID.get(providerName(mode));
     if (!provider || provider.missing(env)) throw new AiError(NOT_CONFIGURED);
-    const req = provider.request({ env, model: provider.model(env, task), system: String(system).slice(0, 64_000), messages: buildMessages(input, history), stream, maxTokens });
-    const timeout = AbortSignal.timeout(provider.timeoutMs);
-    let response;
-    try {
-      response = await fetchImpl(req.url, {
-        method: 'POST',
-        headers: req.headers,
-        body: JSON.stringify(req.body),
-        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      });
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      throw new AiError(provider.errors.unreachable);
+    const messages = buildMessages(input, history);
+    const send = async (withWeb) => {
+      const req = provider.request({ env, model: provider.model(env, task), system: String(system).slice(0, 64_000), messages, stream, maxTokens, web: withWeb });
+      const timeout = AbortSignal.timeout(provider.timeoutMs * (withWeb ? 1.5 : 1));
+      try {
+        return await fetchImpl(req.url, {
+          method: 'POST',
+          headers: req.headers,
+          body: JSON.stringify(req.body),
+          signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+        });
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        throw new AiError(provider.errors.unreachable);
+      }
+    };
+    const withWeb = web && webAvailable() ? web : null;
+    let response = await send(withWeb);
+    let searched = !!withWeb;
+    if (!response.ok && withWeb && response.status >= 400 && response.status < 500 && response.status !== 429) {
+      console.error('Campus OS web search refused, answering without it:', provider.id, response.status);
+      webRestsUntil = Date.now() + 15 * 60_000;
+      response = await send(null);
+      searched = false;
     }
     if (!response.ok) {
       console.error('Campus OS AI provider status:', provider.id, response.status);
       throw new AiError(provider.errors.status(response.status));
     }
-    return { provider, response };
+    return { provider, response, searched };
   }
 
   /** Complete a prompt and return the full text. */
   async function generate(mode, system, input, history = [], options = {}) {
-    const { provider, response } = await call(mode, system, input, history, { ...options, stream: false });
+    const { provider, response, searched } = await call(mode, system, input, history, { ...options, stream: false });
+    options.onMeta?.({ searched });
     let json;
     try {
       json = await response.json();
@@ -104,7 +121,8 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
 
   /** Stream a completion as text deltas. */
   async function* stream(mode, system, input, history = [], options = {}) {
-    const { provider, response } = await call(mode, system, input, history, { ...options, stream: true });
+    const { provider, response, searched } = await call(mode, system, input, history, { ...options, stream: true });
+    options.onMeta?.({ searched });
     let total = 0;
     try {
       for await (const delta of provider.parseStream(response)) {
@@ -120,7 +138,51 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     }
   }
 
-  return { status, list, generate, stream, providerName, modes: MODES };
+  // Natural voices are in beta on the gateway. A refusal (no access yet, unknown model) rests them for a while,
+  // and clients use the browser's voices meanwhile; a passing network problem does not.
+  let speechRestsUntil = 0;
+
+  /** The speech model for a mode, or null when natural voices are off, unsupported or resting. */
+  function speechModel(mode) {
+    const provider = BY_ID.get(providerName(mode));
+    if (!provider?.speechModel || provider.missing(env)) return null;
+    return Date.now() < speechRestsUntil ? null : provider.speechModel(env);
+  }
+
+  /**
+   * Turn text into audio. `options` come from voices.js speechOptions (voice, format, speed, instructions,
+   * language). Returns a Buffer.
+   */
+  async function speech(mode, text, options, { signal } = {}) {
+    const provider = BY_ID.get(providerName(mode));
+    const model = speechModel(mode);
+    if (!provider || !model) throw new AiError('Natural voices are not available right now.');
+    const req = provider.speechRequest({ env, model, text: String(text).slice(0, 1200), ...options });
+    const timeout = AbortSignal.timeout(20_000);
+    let response;
+    try {
+      response = await fetchImpl(req.url, { method: 'POST', headers: req.headers, body: JSON.stringify(req.body), signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw new AiError(provider.errors.unreachable);
+    }
+    if (!response.ok) {
+      console.error('Campus OS speech status:', provider.id, model, response.status);
+      if (response.status >= 400 && response.status < 500 && response.status !== 429) speechRestsUntil = Date.now() + 10 * 60_000;
+      throw new AiError(response.status === 429 ? 'Natural voices are busy. Please try again in a moment.' : 'Natural voices are not available right now.');
+    }
+    let json;
+    try {
+      json = await response.json();
+    } catch {
+      throw new AiError('Invalid audio from the speech model');
+    }
+    const audio = provider.parseSpeech(json);
+    if (!audio?.length) throw new AiError('The speech model returned no audio');
+    return audio;
+  }
+
+  return { status, list, generate, stream, speech, speechModel, webAvailable, providerName, modes: MODES };
 }
 
 module.exports = { makeProviders, AiError, MODES };

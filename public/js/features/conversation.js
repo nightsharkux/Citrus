@@ -33,7 +33,7 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage } from './voice.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
@@ -302,7 +302,9 @@ function createConversation({ threadId: startThread }) {
     const { text, final } = readTurn();
     if (!text) return;
     if (state === 'speaking') {
-      if (listenWhileSpeaking && isInterruption(text, reply, { final })) {
+      // Listening in one language while Campus speaks the other: its own voice comes back as "new" words.
+      const strict = (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
+      if (listenWhileSpeaking && isInterruption(text, reply, { final, strict })) {
         interrupt();
         hear(text, final);
       } else if (final) skipFinals(); // Campus hearing itself

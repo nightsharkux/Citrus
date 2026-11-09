@@ -18,10 +18,9 @@
  * "Hey Campus" on its own is fine: it waits (about nine seconds) for the command.
  */
 import { toast } from '../core/ui.js';
-import { speakable } from '../core/math.js';
-import { getVoiceSettings, chooseVoice, voiceTuning } from './voices.js';
-import { speakBoundary, detectLanguage } from './turns.js';
+import { detectLanguage } from './turns.js';
 import { session } from '../core/store.js';
+import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
 
 const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -32,7 +31,6 @@ const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 // switch), while a fixed choice always listens in that language. Answers are read in the language they are written in.
 
 let heardLanguage = null; // 'en' | 'de': the language of the last thing the person said
-let writtenLanguage = null; // the language of the last piece of text read aloud
 const uiLanguage = () => (document.documentElement.lang === 'de' ? 'de' : 'en');
 const englishCode = () => (/^en\b/i.test(navigator.language || '') ? navigator.language : 'en-GB');
 const speechPreference = () => session.user?.preferences?.speechLanguage || 'auto';
@@ -483,245 +481,18 @@ export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () =
   return { stop: () => { try { rec.stop(); } catch { /* ended */ } } };
 }
 
-let speakToken = 0;
-let currentEnd = null;
-let stopCurrent = null;
-
-// Chrome never fires `end` for an utterance that was garbage-collected while queued, which would
-// leave a conversation waiting forever. Queued utterances are kept here until they finish.
-const queuedUtterances = new Set();
-
-/** One utterance with the user's chosen voice, speed and pitch. */
-function utteranceFor(text) {
-  const settings = getVoiceSettings();
-  const utterance = new SpeechSynthesisUtterance(text);
-  queuedUtterances.add(utterance);
-  const release = () => queuedUtterances.delete(utterance);
-  utterance.addEventListener('end', release);
-  utterance.addEventListener('error', release);
-  // Read in the language the text is written in; short or unclear pieces ("Okay.") keep the language before them.
-  const found = detectLanguage(text);
-  if (found) writtenLanguage = found;
-  const language = found || writtenLanguage || heardLanguage || uiLanguage();
-  const code = language === 'de' ? 'de-DE' : englishCode();
-  const voice = chooseVoice(settings, code);
-  if (voice) {
-    utterance.voice = voice;
-    utterance.lang = voice.lang;
-  } else {
-    utterance.lang = code;
-  }
-  const { rate, pitch, volume } = voiceTuning(settings);
-  utterance.rate = rate;
-  utterance.pitch = pitch;
-  utterance.volume = volume;
-  return utterance;
-}
-
-/** Sentences grouped into pieces the browser will read without stalling (long utterances stop after ~15 s in Chrome). */
-function pieces(text) {
-  const sentences = text.match(/[^.!?\n]+[.!?]*\s*/g) || [text];
-  const out = [];
-  let current = '';
-  for (const s of sentences) {
-    // The first piece is short so speech starts at once; the rest are longer so it does not stutter.
-    if (current && (current + s).length > (out.length === 0 ? 90 : 220)) {
-      out.push(current.trim());
-      current = '';
-    }
-    current += s;
-  }
-  if (current.trim()) out.push(current.trim());
-  return out;
-}
-
-/** Read an answer aloud: formulas become words, Markdown and citation numbers are dropped. The wake word ignores what it hears meanwhile. */
-export function speak(text, { onStart, onEnd } = {}) {
-  if (!('speechSynthesis' in window)) {
-    toast('Read-aloud isn’t available in this browser.', 'error');
-    return;
-  }
-  const clean = speakable(text).slice(0, 4000);
-  stopSpeaking();
-  const token = ++speakToken;
-  const parts = pieces(clean);
-  if (!parts.length) {
-    onEnd?.();
-    return;
-  }
-  currentEnd = onEnd || null;
-  const finish = () => {
-    if (token !== speakToken) return;
-    speaking = false;
+// Speaking (answers, read-aloud, samples) lives in speaker.js. The wake word only needs to know when Campus is
+// talking, so it does not take Campus's own voice for a command.
+onSpeakingChange((on) => {
+  speaking = on;
+  if (!on) {
     mutedUntil = Date.now() + 700;
     ignoreBefore = resultCount;
-    const done = currentEnd;
-    currentEnd = null;
-    done?.();
-  };
-  parts.forEach((part, index) => {
-    const utterance = utteranceFor(part);
-    if (index === 0) {
-      utterance.onstart = () => {
-        if (token !== speakToken) return;
-        speaking = true;
-        onStart?.();
-      };
-    }
-    utterance.onend = index === parts.length - 1 ? finish : null;
-    utterance.onerror = finish;
-    speechSynthesis.speak(utterance);
-  });
-}
-
-/**
- * Speak an answer while it is still being written. `feed(text)` with each piece
- * that arrives, `end()` when the answer is complete. `onEnd(reason)` fires once,
- * after the last word ('done'), on `cancel()` or `stopSpeaking()` ('cancelled'),
- * or when the browser refused to speak ('blocked': no click on the page yet).
- * A watchdog ends it if the browser's speech engine goes quiet without saying
- * so, which some engines do. Returns { feed, end, cancel, active }.
- */
-export function createSpeaker({ onStart, onEnd } = {}) {
-  if (!('speechSynthesis' in window)) return { feed() {}, end() { onEnd?.('blocked'); }, cancel() {}, get active() { return false; } };
-  stopSpeaking();
-  const token = ++speakToken;
-  let buffer = '';
-  let queued = 0;
-  let fed = false;
-  let begun = false;
-  let over = false;
-  let blocked = false;
-  let quietSince = 0;
-  let watchdog = 0;
-
-  const finish = (reason = 'done') => {
-    if (over) return;
-    over = true;
-    clearInterval(watchdog);
-    if (token === speakToken) {
-      speaking = false;
-      mutedUntil = Date.now() + 700;
-      ignoreBefore = resultCount;
-      stopCurrent = null;
-    }
-    onEnd?.(reason);
-  };
-  // Queued pieces but nothing playing or pending for two seconds: the engine dropped them.
-  const check = () => {
-    if (over) return;
-    if (speechSynthesis.speaking || speechSynthesis.pending || queued <= 0) {
-      quietSince = 0;
-      return;
-    }
-    quietSince ||= Date.now();
-    if (Date.now() - quietSince < 2000) return;
-    queued = 0;
-    quietSince = 0;
-    if (fed) finish(blocked ? 'blocked' : 'done');
-  };
-  const say = (text) => {
-    const clean = speakable(text).trim();
-    if (!clean || over) return;
-    queued += 1;
-    const utterance = utteranceFor(clean);
-    utterance.onstart = () => {
-      if (token !== speakToken || begun) return;
-      begun = true;
-      speaking = true;
-      onStart?.();
-    };
-    let counted = false;
-    const done = (e) => {
-      if (counted) return;
-      counted = true;
-      if (e?.error === 'not-allowed') blocked = true;
-      queued -= 1;
-      if (fed && queued <= 0) finish(blocked && !begun ? 'blocked' : 'done');
-    };
-    utterance.onend = done;
-    utterance.onerror = done;
-    speechSynthesis.speak(utterance);
-    // Chrome sometimes leaves the queue paused after a cancel(); resuming is harmless otherwise.
-    speechSynthesis.resume();
-    watchdog ||= setInterval(check, 500);
-  };
-  const drain = (final) => {
-    for (;;) {
-      const at = speakBoundary(buffer, final);
-      if (at <= 0) break;
-      say(buffer.slice(0, at));
-      buffer = buffer.slice(at);
-      if (!buffer.trim()) break;
-    }
-  };
-  stopCurrent = () => {
-    if (over) return;
-    queued = 0;
-    finish('cancelled');
-  };
-  return {
-    feed(text) {
-      if (over) return;
-      buffer += text;
-      drain(false);
-    },
-    end() {
-      if (over) return;
-      fed = true;
-      drain(true);
-      if (queued <= 0) finish();
-    },
-    cancel() {
-      if (token === speakToken) stopSpeaking();
-      else if (!over) finish();
-    },
-    get active() {
-      return !over;
-    },
-  };
-}
-
-/**
- * Call from a click or tap that will lead to speech later (an answer that takes a few seconds).
- * Safari only lets a page speak after it has spoken once inside a user gesture; a silent
- * utterance now unlocks the voice for the rest of the visit.
- */
-export function primeSpeech() {
-  if (!('speechSynthesis' in window) || speaking) return;
-  try {
-    const silent = new SpeechSynthesisUtterance(' ');
-    silent.volume = 0;
-    speechSynthesis.speak(silent);
-  } catch {
-    /* nothing to unlock */
   }
-}
+});
+setLanguageHint(() => heardLanguage || uiLanguage());
 
-/** Say a short sample (the voice picker). */
-export function previewVoice(text = 'Hi, I’m Campus. This is how I sound.') {
-  speak(text);
-}
-
-export function stopSpeaking() {
-  if (!('speechSynthesis' in window)) return;
-  const wasSpeaking = speaking;
-  speakToken += 1;
-  speechSynthesis.cancel();
-  if (wasSpeaking) {
-    speaking = false;
-    mutedUntil = Date.now() + 500;
-    ignoreBefore = resultCount;
-  }
-  const done = currentEnd;
-  currentEnd = null;
-  done?.();
-  const stop = stopCurrent;
-  stopCurrent = null;
-  stop?.();
-}
-
-export const isSpeaking = () => speaking;
+export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoice, speechLevel, speakingLanguage } from './speaker.js';
 
 // ------------------------------------------------------------------ conversation microphone
 

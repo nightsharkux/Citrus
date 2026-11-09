@@ -80,10 +80,22 @@ function register(router, { db, config, ai, audit }) {
 
   router.get('/api/ai/settings', (ctx) => ({ ...ai.status(ctx.user), providers: ai.providers() }), { roles: ['admin'] });
 
+  /** { provider?, web_search?, speech? }: the provider, and whether the assistant may search the web and use natural voices. */
   router.patch('/api/ai/settings', async (ctx) => {
     const b = await ctx.json();
-    const status = ai.setProvider(ctx.user, String(b.provider || ''));
-    audit(ctx.user, 'ai_provider_changed', status.provider);
+    const flag = (value, label) => {
+      if (value === undefined) return undefined;
+      if (typeof value !== 'boolean') throw badRequest(`${label} must be true or false`);
+      return value;
+    };
+    const tools = { webSearch: flag(b.web_search, 'Web search'), speech: flag(b.speech, 'Natural voices') };
+    if (b.provider === undefined && tools.webSearch === undefined && tools.speech === undefined) throw badRequest('Nothing to change');
+    let status = b.provider === undefined ? ai.status(ctx.user) : ai.setProvider(ctx.user, String(b.provider || ''));
+    if (b.provider !== undefined) audit(ctx.user, 'ai_provider_changed', status.provider);
+    if (tools.webSearch !== undefined || tools.speech !== undefined) {
+      status = ai.setTools(ctx.user, tools);
+      audit(ctx.user, 'ai_tools_changed', `web search ${status.webSearchAllowed ? 'on' : 'off'}, natural voices ${status.speechAllowed ? 'on' : 'off'}`);
+    }
     return { ...status, providers: ai.providers() };
   }, { roles: ['admin'] });
 

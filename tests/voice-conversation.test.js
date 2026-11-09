@@ -33,8 +33,14 @@ test('Campus hearing its own voice is not mistaken for the user', async () => {
   assert.equal(isInterruption('actually what about Tuesday instead', spoken), true, 'new words while Campus talks');
   assert.equal(isInterruption('wait', spoken), true, 'a stop word interrupts at once');
   assert.equal(isInterruption('Campus, stop.', spoken), true);
-  assert.equal(isInterruption('no thanks', spoken), false, 'two words in flight are not enough yet');
-  assert.equal(isInterruption('no thanks', spoken, { final: true }), true, 'but they are once the phrase is complete');
+  assert.equal(isInterruption('no thanks', spoken), false, 'two words in flight are not enough');
+  assert.equal(isInterruption('no thanks', spoken, { final: true }), false, 'nor two finished ones: an echo often has two misheard words');
+  assert.equal(isInterruption('no thanks I have plans', spoken, { final: true }), true, 'a finished phrase of new words is');
+  assert.equal(isInterruption('the libretto opens hate in them warning', spoken), false, 'a badly misheard echo still has too few new words in flight');
+  // Campus speaks German while the microphone listens for English: its echo comes back as English nonsense.
+  const german = 'Die Bibliothek öffnet morgen um acht Uhr und schließt um zehn.';
+  assert.equal(isInterruption('the beauty of tech often morgan room act true', german, { strict: true }), false, 'strict: nonsense words do not cut Campus off');
+  assert.equal(isInterruption('stop', german, { strict: true }), true, 'strict: a stop word still does');
   assert.equal(isInterruption('wait', 'Wait for the bus at the main gate.'), false, 'a stop word Campus just said is an echo');
   assert.equal(isInterruption('', spoken), false);
 });

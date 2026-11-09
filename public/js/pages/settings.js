@@ -151,15 +151,24 @@ function mountIdentity(root) {
 
 /** How the assistant sounds. Voices belong to the browser and system, so the choice is kept on this device (features/voices.js). */
 function voiceCard() {
-  if (!('speechSynthesis' in window)) return html`<section class="card"><h2>Voice</h2><p class="small muted mt-8">This browser can’t read answers aloud.</p></section>`;
   const v = getVoiceSettings();
+  const device = 'speechSynthesis' in window;
   return html`<section class="card"><h2>Voice</h2>
-    <p class="small muted mt-8">How ${assistantName()} sounds on this device. Each language has its own voice, so German sentences are read by a German voice and English ones by an English voice, even in the same answer. Talk hands-free with the waveform button in the assistant, or say “Hey ${assistantName()}, let’s talk”.</p>
+    <p class="small muted mt-8">How ${assistantName()} sounds. Talk hands-free with the waveform button in the assistant, or say “Hey ${assistantName()}, let’s talk”.</p>
     <form class="form mt-16" id="voice-form">
-      <label class="field"><span>English voice</span><select class="select" name="voice-en" data-voice-list="en"><option value="">Automatic</option></select></label>
-      <label class="field"><span>German voice (Deutsch)</span><select class="select" name="voice-de" data-voice-list="de"><option value="">Automatic</option></select>
-        <span class="hint">Voices come from your browser and system. Natural voices sound most like a person; Edge and Safari have the most. If a language has no voice here, install one in your system settings.</span></label>
-      <div class="field"><span>Automatic should prefer</span><div class="cluster">${[['any', 'Any voice'], ['female', 'Female'], ['male', 'Male']].map(([id, label]) => html`<label class="chip-radio"><input type="radio" name="gender" value="${id}" ${(v.gender || 'any') === id ? 'checked' : ''}><span>${label}</span></label>`)}</div></div>
+      <div class="field" data-natural-block hidden><span>Voice type</span>
+        <div class="cluster">${[['natural', 'Natural voices'], ['device', 'This device’s voices']].map(([id, label]) => html`<label class="chip-radio"><input type="radio" name="engine" value="${id}" ${(v.engine || 'natural') === id ? 'checked' : ''}><span>${label}</span></label>`)}</div>
+        <span class="hint">Natural voices are made by your university’s AI service and sound like a person. This device’s voices come from your browser and also work without it.</span></div>
+      <div class="field" data-natural-voices hidden><span>Natural voice</span><div class="choice-grid voice-grid" data-natural-list></div>
+        <span class="hint">Every natural voice reads both German and English answers.</span></div>
+      <div class="stack" style="--gap:18px" data-device-block>
+        ${device ? html`
+        <label class="field"><span>English voice</span><select class="select" name="voice-en" data-voice-list="en"><option value="">Automatic</option></select></label>
+        <label class="field"><span>German voice (Deutsch)</span><select class="select" name="voice-de" data-voice-list="de"><option value="">Automatic</option></select>
+          <span class="hint">Each language has its own voice, so German sentences are read by a German voice and English ones by an English voice. Edge and Safari have the most natural-sounding ones; install more in your system settings.</span></label>
+        <div class="field"><span>Automatic should prefer</span><div class="cluster">${[['any', 'Any voice'], ['female', 'Female'], ['male', 'Male']].map(([id, label]) => html`<label class="chip-radio"><input type="radio" name="gender" value="${id}" ${(v.gender || 'any') === id ? 'checked' : ''}><span>${label}</span></label>`)}</div></div>`
+        : html`<p class="small muted">This browser has no voices of its own.</p>`}
+      </div>
       <div class="field"><span>Style</span><div class="cluster">${PRESETS.map((p) => html`<label class="chip-radio"><input type="radio" name="preset" value="${p.id}" ${v.preset === p.id ? 'checked' : ''}><span>${p.label}</span></label>`)}</div></div>
       <label class="field"><span>Speed <output data-rate-label>${Number(v.rate).toFixed(2)}×</output></span><input type="range" name="rate" min="0.7" max="1.7" step="0.05" value="${v.rate}" aria-label="Speaking speed"></label>
       <label class="field"><span>Read answers aloud</span><select class="select" name="readAloud">${READ_ALOUD.map(([value, label]) => html`<option value="${value}" ${v.readAloud === value ? 'selected' : ''}>${label}</option>`)}</select></label>
@@ -171,19 +180,47 @@ function voiceCard() {
 function mountVoice(root) {
   const form = $('#voice-form', root);
   if (!form) return () => {};
-  const sample = (code) => previewVoice(code === 'de' ? `Hallo, ich bin ${assistantName()}. So klinge ich auf Deutsch.` : `Hi, I’m ${assistantName()}. This is how I sound.`);
-  voicesReady().then(() => {
-    const all = listVoices();
-    const saved = getVoiceSettings();
-    for (const list of form.querySelectorAll('[data-voice-list]')) {
-      if (!list.isConnected) continue;
-      const code = list.dataset.voiceList;
-      const shown = all.filter((x) => x.lang.toLowerCase().startsWith(code));
-      const chosen = saved.voices?.[code] || (saved.uri && shown.some((x) => x.uri === saved.uri) ? saved.uri : '');
-      const groups = ['natural', 'online', 'standard'].map((q) => [q, shown.filter((x) => x.quality === q)]).filter(([, items]) => items.length);
-      render(list, html`<option value="">${shown.length ? 'Automatic' : 'No voice installed for this language'}</option>${groups.map(([q, items]) => html`<optgroup label="${QUALITY_LABEL[q]}">${items.map((x) => html`<option value="${x.uri}" ${x.uri === chosen ? 'selected' : ''}>${x.name} · ${x.accent}${x.gender === 'other' ? '' : ` · ${x.gender === 'female' ? 'Female' : 'Male'}`}</option>`)}</optgroup>`)}`);
-    }
-  });
+  let natural = null; // the server's natural voices, once known
+  const engine = () => (natural?.enabled && getVoiceSettings().engine !== 'device' ? 'natural' : 'device');
+  const sample = (code, voice) => previewVoice(
+    code === 'de' ? `Hallo, ich bin ${assistantName()}. Schön, dass du da bist. So klinge ich auf Deutsch.` : `Hi, I’m ${assistantName()}. Great to meet you. This is how I sound.`,
+    { engine: engine(), ...(voice !== undefined ? { voice } : {}) },
+  );
+  const showEngine = () => {
+    const nat = engine() === 'natural';
+    $('[data-natural-voices]', form).hidden = !nat;
+    $('[data-device-block]', form).hidden = nat;
+  };
+
+  api.get('/speech').then((info) => {
+    natural = info;
+    if (!form.isConnected || !info.enabled || !info.voices.length) return;
+    $('[data-natural-block]', form).hidden = false;
+    const chosen = getVoiceSettings().natural || info.default;
+    render($('[data-natural-list]', form), html`${info.voices.map((x) => html`<label class="choice voice-choice">
+      <input type="radio" name="natural" value="${x.id}" ${x.id === chosen ? 'checked' : ''}>
+      <span class="grow"><strong style="display:block">${x.label}</strong><span class="small muted">${x.tone}${x.language ? ` · ${x.language === 'de' ? 'Deutsch' : 'English'}` : ''}</span></span>
+      <button type="button" class="btn btn-ghost btn-icon btn-sm" data-voice-play="${x.id}" aria-label="Play ${x.label}" title="Play">${icon('play', 14)}</button>
+    </label>`)}`);
+    showEngine();
+  }).catch(() => {});
+
+  if ('speechSynthesis' in window) {
+    voicesReady().then(() => {
+      const all = listVoices();
+      const saved = getVoiceSettings();
+      for (const list of form.querySelectorAll('[data-voice-list]')) {
+        if (!list.isConnected) continue;
+        const code = list.dataset.voiceList;
+        const shown = all.filter((x) => x.lang.toLowerCase().startsWith(code));
+        const chosen = saved.voices?.[code] || (saved.uri && shown.some((x) => x.uri === saved.uri) ? saved.uri : '');
+        const groups = ['natural', 'online', 'standard'].map((q) => [q, shown.filter((x) => x.quality === q)]).filter(([, items]) => items.length);
+        render(list, html`<option value="">${shown.length ? 'Automatic' : 'No voice installed for this language'}</option>${groups.map(([q, items]) => html`<optgroup label="${QUALITY_LABEL[q]}">${items.map((x) => html`<option value="${x.uri}" ${x.uri === chosen ? 'selected' : ''}>${x.name} · ${x.accent}${x.gender === 'other' ? '' : ` · ${x.gender === 'female' ? 'Female' : 'Male'}`}</option>`)}</optgroup>`)}`);
+      }
+    });
+  }
+
+  const here = () => (document.documentElement.lang === 'de' ? 'de' : 'en');
   const offs = [
     on(form, 'change', 'select, input', (e) => {
       const { name, value } = e.target;
@@ -192,6 +229,11 @@ function mountVoice(root) {
         saveVoiceSettings({ preset: p.id, rate: p.rate, pitch: p.pitch });
         form.rate.value = p.rate;
         $('[data-rate-label]', form).textContent = `${p.rate.toFixed(2)}×`;
+      } else if (name === 'engine') {
+        saveVoiceSettings({ engine: value });
+        showEngine();
+      } else if (name === 'natural') {
+        saveVoiceSettings({ natural: value });
       } else if (name.startsWith('voice-')) {
         const code = name.slice(6);
         saveVoiceSettings({ voices: { ...getVoiceSettings().voices, [code]: value } });
@@ -202,11 +244,15 @@ function mountVoice(root) {
         $('[data-rate-label]', form).textContent = `${Number(value).toFixed(2)}×`;
         return;
       } else saveVoiceSettings({ [name]: value });
-      if (name !== 'readAloud') sample(document.documentElement.lang === 'de' ? 'de' : 'en');
+      if (name !== 'readAloud') sample(here());
     }),
     // The slider plays a sample when it is let go, not on every step.
-    on(form, 'pointerup', 'input[name="rate"]', () => sample(document.documentElement.lang === 'de' ? 'de' : 'en')),
+    on(form, 'pointerup', 'input[name="rate"]', () => sample(here())),
     on(form, 'click', '[data-voice-preview]', (e, b) => sample(b.dataset.voicePreview)),
+    on(form, 'click', '[data-voice-play]', (e, b) => {
+      e.preventDefault(); // play without choosing
+      sample(here(), b.dataset.voicePlay);
+    }),
   ];
   return () => offs.forEach((off) => off());
 }

@@ -44,6 +44,24 @@ const SUGGESTIONS = {
   ],
 };
 const THANKS = /\b(thanks|thank you|thx|danke|cheers|great|perfect|awesome)\b/i;
+const FUNNY = /\b(haha|hehe|lol|joke|funny|witz|lustig)\b/i;
+
+/** The globe button: when on, every message is looked up on the web first. Kept on this device. */
+const WEB_KEY = 'campus-web';
+function webForced() {
+  try {
+    return localStorage.getItem(WEB_KEY) === 'on';
+  } catch {
+    return false;
+  }
+}
+function setWebForced(on) {
+  try {
+    localStorage.setItem(WEB_KEY, on ? 'on' : 'auto');
+  } catch {
+    /* private mode */
+  }
+}
 
 async function load(ctx) {
   const overview = await api.get('/assistant');
@@ -55,7 +73,7 @@ async function load(ctx) {
 function sourceList(sources) {
   if (!sources?.length) return '';
   return html`<div class="sources">${sources.map((s) => (s.url
-    ? html`<a class="source" id="src-${s.n}" href="${s.url}" target="_blank" rel="noopener noreferrer"><b>${s.n}</b><span class="truncate">${s.title}</span>${s.checkLive ? html`<em>Check live</em>` : ''}${icon('external', 13)}</a>`
+    ? html`<a class="source ${s.web ? 'is-web' : ''}" id="src-${s.n}" href="${s.url}" target="_blank" rel="noopener noreferrer" title="${s.web ? `From the web: ${s.site}` : s.title}">${s.web ? icon('globe', 13) : html`<b>${s.n}</b>`}<span class="truncate">${s.title}</span>${s.web ? html`<em>${s.site}</em>` : ''}${s.checkLive ? html`<em>Check live</em>` : ''}${icon('external', 13)}</a>`
     : html`<span class="source" id="src-${s.n}"><b>${s.n}</b><span class="truncate">${s.title}</span>${s.checkLive ? html`<em>Check live</em>` : ''}</span>`))}</div>`;
 }
 
@@ -73,7 +91,7 @@ function actionCard(a, messageId, index) {
       ${a.ok && a.warning && !a.undone ? html`<em class="action-warn">${icon('alert', 13)} ${a.warning}</em>` : ''}
     </span>
     <span class="action-tools">
-      ${a.ok && a.link && !a.undone ? (/^https?:/.test(a.link) ? html`<a class="btn btn-sm" href="${a.link}" target="_blank" rel="noopener noreferrer">${icon('external', 14)} Open</a>` : html`<a class="btn btn-sm" href="${a.link}">View</a>`) : ''}
+      ${a.ok && a.link && !a.undone ? (/^https?:/.test(a.link) ? html`<a class="btn btn-sm" href="${a.link}" target="_blank" rel="noopener noreferrer">${icon('external', 14)} Open</a>` : html`<a class="btn btn-sm" href="${a.link}">${a.name === 'quiz.start' ? 'Start quiz' : 'View'}</a>`) : ''}
       ${a.undoable && messageId ? html`<button class="btn btn-sm btn-ghost" data-undo="${index}" data-message="${messageId}">${icon('undo', 14)} Undo</button>` : ''}
     </span>
   </div>`;
@@ -167,6 +185,7 @@ export default {
               <button type="button" class="btn btn-ghost btn-icon composer-attach" data-attach aria-label="Attach a picture or file" title="Attach a picture or file" ${ready ? '' : 'disabled'}>${icon('plus', 20)}</button>
               <textarea name="prompt" rows="1" placeholder="Message Campus, or paste a picture" aria-label="Message Campus" maxlength="4000" ${ready ? '' : 'disabled'}></textarea>
               <div class="composer-actions">
+                ${ready && data.status.webSearch ? html`<button type="button" class="btn btn-ghost btn-icon composer-web ${webForced() ? 'is-on' : ''}" data-web aria-pressed="${webForced()}" aria-label="Search the web" title="Search the web: on means every message is looked up online">${icon('globe', 19)}</button>` : ''}
                 <button type="button" class="btn btn-ghost btn-icon" data-dictate aria-label="Dictate" title="Dictate" ${ready ? '' : 'disabled'}>${icon('mic', 19)}</button>
                 <button class="btn btn-primary btn-icon composer-send" aria-label="Send" ${ready ? '' : 'disabled'}>${icon('arrow-up', 19)}</button>
               </div>
@@ -356,6 +375,7 @@ export default {
       field.blur();
       faces.stopTyping();
       faces.setMood('thinking');
+      if (/\?\s*$/.test(question)) faces.react('curious', 650);
 
       controller = new AbortController();
       setSending(true);
@@ -383,10 +403,11 @@ export default {
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
-        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), device: deviceSettings(), ...(spoken ? { heard: detectLanguage(question), recogniser: recognitionLanguage(), spoken: true } : {}) }, {
+        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), device: deviceSettings(), web: webForced() ? 'on' : 'auto', ...(spoken ? { heard: detectLanguage(question), recogniser: recognitionLanguage(), spoken: true } : {}) }, {
           signal: controller.signal,
           onEvent(type, payload) {
             if (type === 'thread') attach.sent();
+            if (type === 'searching' && !answer) render($('.prose', holder), html`<span class="searching">${icon('globe', 15)} Searching the web</span><span class="typing"><i></i><i></i><i></i></span>`);
             if (type === 'thread' && !threadId) {
               threadId = payload.id;
               history.replaceState({}, '', `/assistant/${threadId}`);
@@ -420,7 +441,7 @@ export default {
               const finalVisual = payload.visual || visual || null;
               holder.outerHTML = messageView({ id: payload.messageId, role: 'assistant', content: answer, sources: payload.sources || [], visual: finalVisual, actions: payload.actions || results }).value;
               if (faces.showingVisual) hideTimer = setTimeout(() => faces.hideVisual(), 5200);
-              faces.react('happy', THANKS.test(question) ? 2600 : 1400);
+              faces.react(THANKS.test(question) ? 'excited' : FUNNY.test(question) ? 'laugh' : 'happy', THANKS.test(question) ? 2200 : 1400);
               const effects = (payload.actions || results).filter((a) => a.ok && a.client).map((a) => a.client);
               const applyEffects = () => effects.forEach(runClientEffect);
               if (speaker?.active) {
@@ -549,6 +570,13 @@ export default {
         ...(touch ? [{ label: 'Take a photo', hint: 'Use the camera', icon: 'camera', onSelect: () => choose(ACCEPT.picture, true) }] : []),
       ], { above: true, align: 'start' })),
       on(root, 'click', '[data-zoom]', (e, b) => zoomPicture(b.dataset.zoom, b.dataset.name)),
+      on(root, 'click', '[data-web]', (e, b) => {
+        const next = !webForced();
+        setWebForced(next);
+        b.classList.toggle('is-on', next);
+        b.setAttribute('aria-pressed', String(next));
+        toast(next ? 'Web search on: messages are looked up online first' : `Web search automatic: ${assistantName()} searches when it needs to`, 'info', { duration: 2200 });
+      }),
       on(root, 'click', '[data-dictate]', (e, b) => {
         if (dictation) {
           dictation.stop();

@@ -106,16 +106,19 @@ const INTERRUPT = /^(?:(?:hey|ok|okay)\s+)?(?:campus\s+)?(?:stop(?: it| talking|
 
 /**
  * The user is talking over Campus (and it is not Campus hearing itself).
- * A short stop word counts at once, unless Campus just said that word; other
- * speech needs a few words that Campus did not say.
+ * A short stop word counts at once, unless Campus just said that word. Other speech must be clearly new:
+ * a misheard echo of Campus easily has a word or two it did not say, and cutting Campus off by mistake is
+ * worse than letting it finish a sentence. `strict`: the microphone listens in another language than Campus
+ * speaks, so its echo comes back as nonsense words that all look new; only a stop word counts then.
  */
-export function isInterruption(heard, spoken, { final = false } = {}) {
+export function isInterruption(heard, spoken, { final = false, strict = false } = {}) {
   const phrase = words(heard).join(' ');
   if (!phrase) return false;
   const { total, novel } = overlap(heard, spoken);
   if (INTERRUPT.test(phrase)) return novel > 0;
-  if (novel >= 3 && novel / total >= 0.4) return true;
-  return final && novel >= 2 && novel / total >= 0.5;
+  if (strict) return false;
+  if (final) return novel >= 3 && novel / total >= 0.6;
+  return novel >= 5 && novel / total >= 0.7;
 }
 
 const END = /^(?:(?:ok|okay|alright|right|thanks|thank you|cheers|great|perfect|that was helpful)\s+)*(?:(?:good ?)?bye(?: bye)?|see you(?: later)?|thats all|that is all|thats it|thats everything|im done|i am done|were done|end(?: the)? (?:conversation|call|chat|voice mode)|stop(?: the)? conversation|hang up|exit(?: voice mode)?|close(?: voice mode)?|stop listening|go to sleep|tschuss|tschau|ciao|auf wiedersehen|auf wiederhoren|bis spater|bis bald|das wars|das ist alles|das war alles|ende|schluss|mach schluss|gesprach beenden|beende das gesprach)(?:\s+(?:campus|then|now|for now|thanks|thank you))*$/;

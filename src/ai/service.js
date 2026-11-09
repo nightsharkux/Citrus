@@ -11,24 +11,58 @@
  * Every request is attributed to a user so institution settings, quotas and
  * data boundaries are always applied.
  */
+const crypto = require('node:crypto');
 const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
+const { voiceCatalog, speechOptions } = require('./voices');
 const { createRateLimiter } = require('../http/rate-limit');
-const { tooMany, badRequest } = require('../http/errors');
+const { tooMany, badRequest, unavailable } = require('../http/errors');
 
 function createAiService({ db, env = process.env, fetchImpl, packs = [], readPack, academic = null }) {
   const providers = makeProviders({ env, ...(fetchImpl ? { fetchImpl } : {}) });
   const retrieval = createRetrieval(db, { packs, read: readPack, academic });
   const quota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_RATE_PER_MINUTE || 12) });
+  // Speech is requested one sentence at a time, so it has its own, larger allowance.
+  const speechQuota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_SPEECH_PER_MINUTE || 240) });
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
-  function selected(institutionId) {
-    const row = db.get('SELECT provider FROM institution_ai_settings WHERE institution_id = ?', institutionId);
-    return providers.providerName(row?.provider || defaultProvider());
+  /** The institution's choices: provider, and whether web search and natural voices are allowed (both on by default). */
+  function settingsFor(institutionId) {
+    const row = db.get('SELECT * FROM institution_ai_settings WHERE institution_id = ?', institutionId);
+    return {
+      mode: providers.providerName(row?.provider || defaultProvider()),
+      webSearch: row?.web_search === undefined || row?.web_search === null ? true : !!row.web_search,
+      speech: row?.speech === undefined || row?.speech === null ? true : !!row.speech,
+    };
+  }
+  const selected = (institutionId) => settingsFor(institutionId).mode;
+
+  function status(user) {
+    const s = settingsFor(user.institution_id);
+    const base = providers.status(s.mode);
+    const speechModel = base.aiEnabled && s.speech ? providers.speechModel(s.mode) : null;
+    return {
+      ...base,
+      webSearch: base.aiEnabled && s.webSearch && providers.webAvailable(),
+      webSearchAllowed: s.webSearch,
+      speech: !!speechModel,
+      speechAllowed: s.speech,
+      ...(speechModel ? { speechModel } : {}),
+    };
   }
 
-  const status = (user) => providers.status(selected(user.institution_id));
+  /** Turn web search and natural voices on or off for the institution. */
+  function setTools(user, { webSearch, speech }) {
+    const s = settingsFor(user.institution_id);
+    const next = { webSearch: webSearch === undefined ? s.webSearch : !!webSearch, speech: speech === undefined ? s.speech : !!speech };
+    db.run(
+      `INSERT INTO institution_ai_settings(institution_id, provider, web_search, speech, updated) VALUES(?, ?, ?, ?, ?)
+       ON CONFLICT(institution_id) DO UPDATE SET web_search = excluded.web_search, speech = excluded.speech, updated = excluded.updated`,
+      user.institution_id, s.mode, next.webSearch ? 1 : 0, next.speech ? 1 : 0, new Date().toISOString(),
+    );
+    return status(user);
+  }
 
   function setProvider(user, mode) {
     if (!providers.modes.includes(mode)) throw badRequest(`Choose one of: ${providers.modes.join(', ')}`);
@@ -44,14 +78,59 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     if (!quota.hit(user.id)) throw tooMany('Please allow a minute before sending more AI requests');
   }
 
-  async function complete({ user, system, prompt, history = [], maxTokens, task = 'chat' }) {
+  /** 'auto' | 'required' when the institution allows web search, otherwise null. */
+  const webFor = (user, web) => (web && settingsFor(user.institution_id).webSearch ? web : null);
+
+  /** `web`: 'auto' (the model decides) or 'required' (search first); ignored when the institution turned search off. */
+  async function complete({ user, system, prompt, history = [], maxTokens, task = 'chat', web = null, onMeta }) {
     checkQuota(user);
-    return providers.generate(selected(user.institution_id), system, prompt, history, { maxTokens, task });
+    return providers.generate(selected(user.institution_id), system, prompt, history, { maxTokens, task, web: webFor(user, web), onMeta });
   }
 
-  function stream({ user, system, prompt, history = [], signal, maxTokens }) {
+  /** `onMeta({ searched })` says whether the web was searched for this answer. */
+  function stream({ user, system, prompt, history = [], signal, maxTokens, task = 'chat', web = null, onMeta }) {
     checkQuota(user);
-    return providers.stream(selected(user.institution_id), system, prompt, history, { signal, maxTokens });
+    return providers.stream(selected(user.institution_id), system, prompt, history, { signal, maxTokens, task, web: webFor(user, web), onMeta });
+  }
+
+  // Recently made audio, so samples and repeated sentences cost nothing the second time.
+  const audioCache = new Map();
+  let audioCacheBytes = 0;
+  const remember = (key, value) => {
+    audioCache.set(key, value);
+    audioCacheBytes += value.audio.length;
+    while (audioCacheBytes > 24_000_000 || audioCache.size > 400) {
+      const [oldest, entry] = audioCache.entries().next().value;
+      audioCache.delete(oldest);
+      audioCacheBytes -= entry.audio.length;
+    }
+  };
+
+  /** Voices of the institution's speech model, for the settings screen. */
+  function speechInfo(user) {
+    const s = status(user);
+    if (!s.speech) return { enabled: false, voices: [], default: '' };
+    return { enabled: true, model: s.speechModel, ...voiceCatalog(s.speechModel) };
+  }
+
+  /** One piece of speech in a natural voice: { audio: Buffer, mime }. */
+  async function speak({ user, text, voice = '', speed = 1, language = null, signal }) {
+    const s = status(user);
+    if (!s.speech) throw unavailable('Natural voices are not available. Campus uses this device’s voices.');
+    if (!speechQuota.hit(user.id)) throw tooMany('Campus is speaking a lot right now. Please wait a moment.');
+    const options = speechOptions(s.speechModel, { voice, language, speed });
+    const key = crypto.createHash('sha256').update(JSON.stringify([s.speechModel, options, text])).digest('hex');
+    const hit = audioCache.get(key);
+    if (hit) {
+      audioCache.delete(key);
+      audioCache.set(key, hit);
+      return hit;
+    }
+    const { mime, ...request } = options;
+    const audio = await providers.speech(selected(user.institution_id), text, request, { signal });
+    const result = { audio, mime };
+    remember(key, result);
+    return result;
   }
 
   function retrieve(user, query, limit = 4) {
@@ -79,8 +158,11 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   return {
     status,
     setProvider,
+    setTools,
     complete,
     stream,
+    speak,
+    speechInfo,
     retrieve,
     retrieveContext,
     bundledCount: retrieval.bundledCount,
