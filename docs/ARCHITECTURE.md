@@ -25,11 +25,11 @@ Errors: throw HttpError (src/http/errors.js) → { error } JSON with that status
 | `server.js` | Loads config, opens the DB, runs migrations, seeds, starts HTTP. Requiring it builds the app without listening (the tests rely on this). |
 | `src/config.js` | **Every** environment variable the server reads, with its default. AI keys are the exception: providers read them lazily. |
 | `src/app.js` | The composition root. It builds shared services once, puts them in `deps`, and calls `register(router, deps)` on each module in `MODULES`. |
-| `src/http/` | Router, body parsing, errors, security headers, rate limiting, static serving. |
+| `src/http/` | Router, body parsing, errors, security headers, rate limiting, static serving (Brotli or gzip for text files, ETags per encoding). |
 | `src/db/` | `database.js` (helpers `get/all/run/insert/transaction`, local SQLite file), `remote.js` (the same API against hosted Turso), `migrate.js`, `migrations/NNN-*.js`, `seed.js`. |
 | `src/services/` | Cross-cutting services: `access` (all permission checks), `audit`, `settings`, `rooms`, `maintenance`. |
 | `src/modules/<area>/` | One folder per feature. `routes.js` exports `register(router, deps)`. Stateful logic lives in `service.js`. |
-| `src/ai/` | Providers, prompts, retrieval, personal context, and `service.js` (the single AI entry point). See [AI.md](AI.md). |
+| `src/ai/` | Providers (chat, web search and text to speech through the AI Gateway), prompts, retrieval, personal context, the natural-voice catalog (`voices.js`), and `service.js` (the single AI entry point). See [AI.md](AI.md). |
 | `src/realtime/bus.js` | Server-Sent Events pub/sub. The channels are `user:<id>`, `institution:<id>`, `course:<id>` and `workspace:<id>`. |
 | `src/connectors/` | Integrations with external systems (Moodle today). |
 | `src/lib/` | Pure helpers: crypto, validation, time zones, ICS, BM25 search, local network addresses. |
@@ -68,7 +68,8 @@ public/js/routes.js        URL → page module (lazy-loaded)
 public/js/core/            dom (safe html``), api (+SSE stream), router, store, live (SSE), ui (toasts, sheets,
                            confirm, menus, onSubmit), components, icons, brand (wordmark, ring), format,
                            markdown + math (Markdown and LaTeX → HTML/MathML for answers)
-public/js/features/        face (Campus's animated eye), face-visuals (its illustrations), voice (dictation,
+public/js/features/        face (Campus's animated eye), face-visuals (its illustrations), speaker (everything
+                           Campus says: natural voices from the server or the browser's), voice (dictation,
                            "Hey Campus" wake word, read-aloud, captions, conversation microphone),
                            voices (voice choice), conversation (hands-free voice conversation),
                            turns (its turn-taking rules, tested in Node), commands (spoken commands

@@ -49,7 +49,9 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 | Task | Default model | Environment override |
 |---|---|---|
 | Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-terra/medium` | `CAMPUS_AI_DEFAULT_MODEL` |
-| Meeting minutes, live-caption summaries and feedback themes | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
+| Meeting minutes, live-caption summaries, feedback themes and marking written quiz answers | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
+| Spoken conversations (`task: 'voice'`): the default model with a shorter reasoning level, so answers start quickly. Applies only when the default model slug has a level | `low` | `CAMPUS_AI_VOICE_REASONING` |
+| Natural voices (text to speech, see [Voice](#voice)) | `openai/tts-1` | `CAMPUS_AI_SPEECH_MODEL` (`off` uses browser voices) |
 
 Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
 
@@ -69,7 +71,7 @@ The gateway key stays on the server. Uploaded audio is never sent to a provider.
 
 Model settings use role-based names: `CAMPUS_AI_DEFAULT_MODEL` for the default model and `CAMPUS_AI_SUMMARY_MODEL` for summaries. Replace the earlier model variable names in your hosting settings, then redeploy.
 
-The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_DEFAULT_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`) and `CAMPUS_AI_RATE_PER_MINUTE`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
+The AI settings are `AI_GATEWAY_API_KEY`, `CAMPUS_AI_DEFAULT_MODEL`, `CAMPUS_AI_SUMMARY_MODEL`, `CAMPUS_AI_PROVIDER` (`gateway` or `off`), `CAMPUS_AI_RATE_PER_MINUTE`, `CAMPUS_AI_SPEECH_MODEL`, `CAMPUS_AI_SPEECH_PER_MINUTE` (speech requests per user, default 240, because each sentence is one request) and `CAMPUS_AI_VOICE_REASONING`. Only the key is required to configure the gateway; the other values have defaults. The key stays in the server environment. Do not expose it through a browser variable or commit `.env`.
 
 Retired direct-provider and local-provider environment variables are ignored and can be removed. Saved institution choices for a retired provider resolve to Off until an administrator explicitly selects Gateway. Existing conversations and knowledge stay intact; no database migration is required.
 
@@ -100,6 +102,9 @@ Gateway access is separate from website hosting. See [DEPLOYMENT.md](DEPLOYMENT.
 | Meeting minutes | `modules/workspaces` (`/analyze`) | `meetingPrompt`. Falls back to a labelled text extractor when AI is off |
 | Live-caption summary | `modules/workspaces` | `captionsSummaryPrompt` |
 | Practice sets | `modules/study` | `revisionPrompt`. Validated JSON; falls back to the lecturer's own checks |
+| Quizzes: writing them, marking written answers, the tutor | `modules/quiz` | `quizPrompt`, `quizGradePrompt` (summary model), `quizTutorPrompt` |
+| Web search | `modules/assistant`, `ai/providers/gateway.js` | `WEB_GUIDE` |
+| Natural voices | `modules/speech`, `ai/voices.js` | none (text to speech) |
 | Feedback themes | `modules/admin` | `suggestionsPrompt` |
 | Voice puck answers | `modules/devices` | `voicePrompt` |
 
@@ -112,14 +117,18 @@ The assistant is called **Campus** (`site.assistant` in `config/editions/*.js`).
 | `idle` | breathes, blinks, glances around, now and then tilts curiously, squints or hops; drowsy (heavy lid) after a minute without activity |
 | `listening` | opens wide and pulses |
 | `thinking` | looks up to the side while a gap circles the ring |
-| `speaking` | squashes in a talking rhythm |
+| `speaking` | opens and closes with the loudness of Campus's voice (`speechLevel()` from `speaker.js`), or a talking rhythm when no voice plays |
 | `happy` | becomes an upturned arc and hops |
+| `excited` | a wide smile that bounces (several right answers in a row, thanks) |
+| `laugh` | a smile that shakes (jokes) |
+| `curious` | tilts with a raised lid (a question going out, a hint) |
+| `wink` | closes on one side for a moment (also an occasional idle gesture) |
 | `surprised` | pops open, wide and thin |
 | `confused` | tilts and wobbles with a slanted lid |
 | `sad` | shrinks, droops and loses some colour (used when a request fails) |
 | `asleep` | closes to a downturned arc (no model connected) |
 
-Shapes live in `MOODS` in `face.js` (width, upper and lower height, slant, tilt, gap), so a new expression is one line.
+Shapes live in `MOODS` in `face.js` (width, upper and lower height, slant, tilt, gap), so a new expression is one line. The springs settle a change of mood in about a fifth of a second with a little overshoot, a blink takes 140 ms, and `face.pulse()` widens the eye briefly each time the person's words come in during a voice conversation.
 
 ```js
 import { createFace, faceGroup, watchTyping } from '/js/features/face.js';
@@ -195,6 +204,23 @@ Academic questions use the user-supplied `resources/CampusOS_OTH_AW_Academic_Dat
 - To refresh, provide a new public snapshot in the same format, review its dates and coverage, then update `academicSnapshot` in `config/editions/oth.js` and the literal reader in `src/lib/bundled.js`. The general website crawler remains available for non-schedule information. Existing private caches and storage are not accessed or removed by this change.
 - `CAMPUS_BUNDLED_KNOWLEDGE=off` disables the snapshot as well as the other bundled packs. The general edition does not load OTH academic data.
 
+## Web search
+
+The assistant can search the web through the AI Gateway's Perplexity search tool, which works with any model. `providers/gateway.js` adds `{"type":"vercel:perplexity_search","config":{"max_results":6}}` to the Chat Completions request; the gateway runs the search, gives the results to the model and returns only the final answer, so `WEB_GUIDE` in `prompts.js` tells the model when to search (current or changing facts, things it does not reliably know, or when asked), to prefer the university's own SOURCES and CONTEXT, and to link every page it used as a Markdown link without inventing addresses.
+
+- **When.** By default (`web: 'auto'`) the model decides. The globe button in the message box makes every message search first (`web: 'on'` → `tool_choice: 'required'`; the stream then starts with `event: searching` and the page shows "Searching the web"). `web: 'off'` never searches. Voice conversations use automatic search.
+- **Sources.** Pages the answer links to after a search are added to the message's sources with `{ web: true, site }` and shown with a globe and the site's name, after the library's numbered sources.
+- **Switch and fallback.** Administrators turn it off in Admin → AI & knowledge → Tools (`institution_ai_settings.web_search`, migration 009). If the gateway refuses a request because of the tool (search not enabled for the account), the same request is sent again without it, so the assistant still answers, and search rests for 15 minutes. Searches cost about $5 per 1,000 on the gateway.
+
+## Quizzes
+
+`/quiz` (`public/js/pages/quiz.js`, `src/modules/quiz`) makes practice quizzes like a tutor's, from a topic, one of the person's courses (its topics and the ones they found hard) or their own pasted notes. Topic quizzes are grounded in the knowledge library when it has something on the topic. Saying "quiz me on…" to the assistant runs the `quiz.start` action, which opens `/quiz/new?topic=…` and writes the quiz at once. In a voice conversation Campus quizzes out loud instead, one question at a time.
+
+- **Eight kinds** (`questions.js`): multiple choice, select all that apply (partial credit, a wrong pick costs a right one), true or false, fill in the blank (a one-letter typo in a long word still counts), short answer (marked by the summary model with feedback, or by its key points if the model is unavailable), put in order, match, and calculations (with a tolerance and unit; German decimal commas work).
+- **Honest by construction.** The model's JSON is checked kind by kind; broken or duplicate questions are dropped. The page never receives an answer before the question is answered; order items and match descriptions are shuffled the same way on every visit. Each question is answered once; the server marks it and returns the score, the explanation and the right answer.
+- **Like a tutor.** Every question has a hint, an explanation and *Ask the tutor*: a short chat about that question (`quizTutorPrompt`) that guides without giving the answer away until the question is answered. The student's written answer reaches the marking model fenced as data, never as instructions.
+- **Afterwards.** Results with a review of every answer, *Practise my mistakes* (a new quiz from the questions not fully right), and for students the missed questions also join the spaced review queue.
+
 ## Languages
 
 People here use German and English together, often in one sentence. `LANGUAGE_GUIDE` in `src/ai/prompts.js` tells the model that this is normal: mixed sentences, German words and place names inside English ("Banhof", "Schirmitzer Weg"), missing umlauts, broken grammar and speech-recognition errors in both languages. It answers in the language of the latest message, keeps official German terms with a short gloss and understands German dates ("halb drei", "übermorgen"). The same guide is in the classroom voice and workspace prompts.
@@ -219,9 +245,19 @@ The browser handles voice (`public/js/features/voice.js`):
 
 - `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Campus"*, one microphone session stays open on every page and reads phrases as they are spoken (interim results, so there is no wait). "Hey Campus, …" works anywhere in a phrase; a bare "Campus, …" only at its start, so "the campus library" never wakes it. Common mishearings (Compass, Campos, Kampus) are accepted. On hearing it, a chime plays, a "Listening" pill shows the words live, and after a short pause the command is sent. Saying the name alone waits about nine seconds for the command. While Campus talks, it ignores what it hears except "Campus, stop".
 - The command goes first to `wake.setInterceptor` (the shell's local commands in `features/commands.js`: "open schedule", "dark mode", "new chat", "stop", "stop listening". They run instantly, even with AI off, and only match whole short sentences), then to the page that registered `wake.onCommand(fn)`, otherwise to the assistant.
-- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `speak`/`stopSpeaking` (read-aloud, in sentence-sized pieces), `createSpeaker` (speaks an answer while it streams in) and `createCaptioner` (live captions in spaces).
-- Read-aloud follows Settings → Assistant → *Read answers aloud*: when the question was spoken (the default), every answer, or never. The voice, a style (speed and pitch) and that choice are stored per device in `features/voices.js`, because voices belong to the browser and system.
-- Speech is reliable by construction: queued utterances are kept in memory (Chrome drops the `end` event of one that is garbage-collected), and a watchdog ends speech the engine silently dropped, so nothing waits forever.
+- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `createCaptioner` gives live captions in spaces.
+- Read-aloud follows Settings → Assistant → *Read answers aloud*: when the question was spoken (the default), every answer, or never. The voice, a style (speed and pitch) and that choice are stored per device in `features/voices.js`.
+
+### Campus's voice (speaking)
+
+Everything Campus says goes through `public/js/features/speaker.js` (`speak`, `createSpeaker`, `stopSpeaking`, re-exported by `voice.js`). An answer is spoken while it streams in, cut at sentence ends (`speakBoundary` in `turns.js`, never inside formulas or code). There are two engines:
+
+- **Natural voices** (default when available). `POST /api/speech` (`src/modules/speech`) turns a piece of text into audio with the AI Gateway's text-to-speech endpoint (`https://ai-gateway.vercel.sh/v4/ai/speech-model`, model in the `ai-model-id` header, audio back as base64). The first sentence goes alone so speech starts quickly; later ones go two or three at a time, which sounds more natural. The next piece is fetched while the current one plays, and all pieces are scheduled back to back on one Web Audio clock, so there are no gaps. An analyser gives `speechLevel()`, which the face's mouth follows.
+- **Device voices** (`speechSynthesis`), when natural voices are off, unavailable or the person prefers them. One sentence at a time, never a queue (Chrome skips some of a long queue and drops the first utterance after a cancel). Each sentence has a watchdog: one that never starts (9 s) or never ends is skipped, not the rest of the answer. Pieces over 170 characters are split (Chrome's online voices stop after about 15 seconds).
+- If natural speech fails mid-answer, the rest continues in the device voice from exactly where it stopped, and natural voices rest for a while (10 minutes after a refusal, 1 minute after a network error). One answer keeps one language: it switches only for a long passage clearly in the other language, so a stray "Okay." in a German answer does not change the voice.
+- **Voices.** `src/ai/voices.js` lists the voices of each speech model family (OpenAI `tts-1`: Coral, Nova, Sage, Shimmer, Alloy, Ash, Echo, Fable, Onyx; Gemini: Kore, Puck, Zephyr, Charon, Aoede, Leda; Microsoft MAI-Voice: Harper, Ethan, Mia; ElevenLabs: Bella). Only voices from the providers' documentation are listed, a voice the server does not know becomes the default, and a German sentence is never sent to an English-only voice. Gemini also gets spoken directions (warm, upbeat tutor). People choose the voice in Settings → Assistant → Voice, with a sample for each.
+- **Cost and limits.** Each sentence is one request, so speech has its own allowance (`CAMPUS_AI_SPEECH_PER_MINUTE`, default 240 per user). Recently made audio is cached in memory (24 MB), so samples and repeated sentences cost nothing the second time. Administrators turn natural voices off in Admin → AI & knowledge → Tools. Text to speech is in beta on the gateway and access is rolling out gradually; until the account has it, the server's first refusal rests natural voices and browsers use their own.
+- `tests/speaker.test.js` runs `speaker.js` against simulated browser engines: one sentence at a time and in order, a dropped sentence skipped, stopping at once, one language per answer, natural audio back to back without gaps or overlaps, and the hand-over to the device voice without losing words.
 
 ### Voice conversation
 
@@ -233,7 +269,7 @@ listening → hearing (live words) → thinking → speaking → listening …
 
 - **Answers for the ear.** Questions go to `POST /api/assistant/messages` with `mode: 'voice'`, which swaps `FORMAT_GUIDE` for `VOICE_GUIDE`: one to three spoken sentences, no Markdown, lists or LaTeX, numbers as they are said, at most one question. Speech starts with the first sentence of the stream. Actions, citations and illustrations still work; everything is saved in the open thread (or a new one), and the assistant shows it when the conversation ends.
 - **Turn-taking** (`features/turns.js`, tested in `tests/voice-conversation.test.js`). A turn ends after a pause: about a second once the speech service closes the phrase, longer when the sentence ends on "and", "because", "um" or "the", shorter for "yes" or "thanks". Tapping the eye (or Space) sends at once.
-- **Interrupting.** On computers the microphone stays open while Campus talks. What it hears is compared with what Campus is saying: its own voice is ignored, and a stop word ("wait", "stop") or a few new words cut Campus off and become the next question. Phones send speech to the earpiece while the microphone is open, so there the microphone pauses while Campus talks and a tap interrupts. Speaking while Campus is still thinking replaces the question.
+- **Interrupting.** On computers the microphone stays open while Campus talks. What it hears is compared with what Campus is saying: its own voice is ignored, and a stop word ("wait", "stop") or clearly new speech (at least three new words in a finished phrase, five while it is still being said) cuts Campus off and becomes the next question. When the microphone listens in one language while Campus speaks the other, its own voice comes back as nonsense words that all look new, so then only a stop word interrupts. Cutting Campus off by mistake was the main cause of answers stopping halfway. Phones send speech to the earpiece while the microphone is open, so there the microphone pauses while Campus talks and a tap interrupts. Speaking while Campus is still thinking replaces the question.
 - **Spoken controls.** "Goodbye", "that's all" or "stop listening" end it; "stop" or "never mind" just quiets Campus. The local commands from `features/commands.js` work too ("open schedule", "dark mode", "new chat").
 - **Microphone.** `createListener` in `voice.js` keeps one continuous recognition session and reopens it whenever the browser ends it, with back-off. It gives up only with a reason (blocked, no microphone, speech service unreachable, unsupported language, keeps stopping), shown with a *Try again* button. Words heard across a reopened session are kept, and Android's repeated phrases are merged. After two quiet minutes the microphone turns itself off. "Hey Campus" pauses during a conversation and resumes afterwards.
 - Errors are explicit: a blocked microphone, no microphone, or a browser whose speech service cannot be reached (some privacy browsers and embedded webviews) turn the wake word off with a message instead of failing silently.

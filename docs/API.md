@@ -285,6 +285,18 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/push/unsubscribe` | user | any |
 | POST | `/api/push/test` | user | any |
 
+## quizzes
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/quizzes` | user | any |
+| POST | `/api/quizzes` | user | any |
+| GET | `/api/quizzes/:id` | user | any |
+| DELETE | `/api/quizzes/:id` | user | any |
+| POST | `/api/quizzes/:id/answers` | user | any |
+| POST | `/api/quizzes/:id/tutor` | user | any |
+| POST | `/api/quizzes/:id/retry` | user | any |
+
 ## register
 
 | Method | Path | Auth | Roles |
@@ -307,6 +319,13 @@ State-changing browser requests must be same-origin (CSRF protection).
 | DELETE | `/api/revision/:id` | user | any |
 | POST | `/api/revision` | user | any |
 | POST | `/api/revision/:id/result` | user | any |
+
+## speech
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/speech` | user | any |
+| POST | `/api/speech` | user | any |
 
 ## study
 

@@ -34,6 +34,17 @@ Recordings are the only files the app writes, and they need a disk. On Vercel, u
 
 If NFC readers and classroom pucks matter soon, the VPS option in `DEPLOYMENT.md` avoids most of this table.
 
+## Natural voices and web search
+
+Both run through the AI Gateway and are tested against a stand-in, not the real gateway yet.
+
+| Item | What to do |
+|---|---|
+| Natural voices | Text to speech is in beta on the gateway. In Settings → Assistant → Voice, play a sample of a natural voice. If browsers keep using their own voices, the gateway is refusing speech for the account (see the server log line `Campus OS speech status`): request access in Vercel or set `CAMPUS_AI_SPEECH_MODEL` to a model you can use. |
+| Voice choice | Listen to the voices with real answers in German and English. Gemini (`google/gemini-3.8-flash-tts`) is the most expressive and gets spoken directions; Microsoft (`microsoft/mai-voice-2.1-flash`) has the lowest delay and a native German voice. |
+| Web search | Ask something current ("what happened in the news today?") and check that the answer links real pages. If the log shows `web search refused`, Perplexity search is not enabled for the gateway account. |
+| Cost | Watch gateway spending for a week: speech is billed per character and searches at about $5 per 1,000. Admin → AI & knowledge → Tools turns either off. |
+
 ## Voice conversation
 
 The turn-taking rules have automated tests. The browser parts (microphone, speech, echo) can only be checked by hand.
