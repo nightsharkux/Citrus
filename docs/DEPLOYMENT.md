@@ -12,6 +12,12 @@ Campus OS runs on a machine that keeps its `storage/` folder (a SQLite database 
 
 ---
 
+## Accounts disappear and people must register again
+
+This means the database is not being kept. Campus OS stores everything in a database; on a hosting platform that runs the app as short-lived instances (Vercel, Netlify, Cloud Run, Render's free tier and similar) a local file starts empty after every restart or deploy. The server now says so: the log shows `WARNING: running on <platform> without a hosted database`, the sign-in page shows a notice, and administrators see a banner.
+
+Fix: set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see the Turso section above) and redeploy. Existing accounts made before that are gone and must be registered once more. Set the encryption keys as secrets too (`CAMPUS_MASTER_KEY`, `CAMPUS_NFC_KEY`), or stored connector tokens become unreadable after a restart. If the app runs on your own machine or a server whose `storage/` folder is on a permanent volume, set `CAMPUS_PERSISTENT_DISK=1` to silence the warning.
+
 ## Vercel hosting and environment variables
 
 Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Campus OS at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/campusos.db` as before.

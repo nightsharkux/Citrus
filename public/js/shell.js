@@ -20,6 +20,13 @@ import { showTranslation } from './features/translate.js';
 const app = () => document.getElementById('app');
 const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
 
+/** Shown when the server cannot keep data (no hosted database): accounts will disappear on restart. */
+const storageWarning = (who) => (session.durable === false && who
+  ? html`<div class="notice warning storage-warning" role="alert">${icon('alert', 18)}<span>${who === 'admin'
+    ? 'This server is not saving data permanently. Accounts, courses and messages disappear whenever it restarts. Connect a hosted database (TURSO_DATABASE_URL) to fix this.'
+    : 'This server is not saving accounts permanently right now. If you can’t sign in later, you will need to register again. Please tell the administrator.'}</span></div>`
+  : '');
+
 function brand(href = '/home') {
   return html`<a class="brand" href="${href}" aria-label="Campus OS home">
     <span class="brand-text">${wordmark()}<small>${session.site.tagline || ''}</small></span>
@@ -35,6 +42,7 @@ export function mountPublic() {
   render(app(), html`${ambient}
     <div class="public">
       <header class="public-top">${brand('/')}<nav class="cluster" id="public-nav"></nav><button type="button" class="btn btn-ghost btn-sm" data-lang-toggle aria-label="Language" data-no-translate>${getLanguage() === 'de' ? 'EN' : 'DE'}</button></header>
+      ${storageWarning('user')}
       <main id="view" class="view"></main>
       <footer class="public-foot"><span>${session.site.conceptNotice || ''}</span><span>${session.site.name} ${session.site.version || ''}</span></footer>
     </div>`);
@@ -60,6 +68,7 @@ export function mountApp() {
       </div>
     </aside>
     <div class="main">
+      ${storageWarning(u.role === 'admin' ? 'admin' : null)}
       <header class="topbar" id="topbar">
         <a class="topbar-mobile-brand" href="/home" aria-label="Campus OS home">${wordmark()}</a>
         <span class="topbar-title" id="topbar-title"></span>

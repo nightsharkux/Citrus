@@ -40,6 +40,20 @@ function resolveAddress(env, port) {
   return { url: `http://localhost:${port}`, hosted: false };
 }
 
+/**
+ * Will accounts and data survive a restart? Hosting platforms that run the app as short-lived instances (Vercel and
+ * similar) have no permanent disk, so a local SQLite file starts empty again after every restart or deploy: people
+ * "forget" their account and have to register again. Durable means a hosted database is set, or the owner says the
+ * disk is permanent (CAMPUS_PERSISTENT_DISK=1, for a mounted volume), or the app is not on such a platform.
+ */
+function persistence(env, database) {
+  if (database.url) return { durable: true };
+  if (bool(env.CAMPUS_PERSISTENT_DISK, false)) return { durable: true };
+  const platform = [['VERCEL', 'Vercel'], ['NETLIFY', 'Netlify'], ['AWS_LAMBDA_FUNCTION_NAME', 'AWS Lambda'], ['K_SERVICE', 'Google Cloud Run'], ['RENDER', 'Render'], ['DYNO', 'Heroku'], ['RAILWAY_ENVIRONMENT', 'Railway']].find(([name]) => env[name]);
+  if (!platform) return { durable: true };
+  return { durable: false, platform: platform[1] };
+}
+
 function loadConfig(env = process.env) {
   const dbPath = env.DB_PATH || path.join(ROOT, 'storage', 'campusos.db');
   const storageDir = env.CAMPUS_STORAGE_DIR || (env.DB_PATH ? path.dirname(dbPath) : path.join(ROOT, 'storage'));
@@ -59,6 +73,7 @@ function loadConfig(env = process.env) {
     dbPath,
     // A hosted database (Turso) replaces the local file when TURSO_DATABASE_URL is set. See src/db/remote.js.
     database: { url: (env.TURSO_DATABASE_URL || '').trim(), authToken: (env.TURSO_AUTH_TOKEN || '').trim() },
+    persistence: persistence(env, { url: (env.TURSO_DATABASE_URL || '').trim() }),
     storageDir,
     audioDir: path.join(storageDir, 'audio'),
     cookieSecure: bool(env.COOKIE_SECURE, publicUrl.startsWith('https://')),

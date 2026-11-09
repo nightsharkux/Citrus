@@ -44,6 +44,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       configured: !!db.get("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"),
       site: publicSite(config.site),
       sso: { enabled: oidc.enabled(), label: oidc.label() },
+      durable: config.persistence.durable,
       registration: firstInstitution ? settings.get(user?.institution_id || firstInstitution, 'allowRegistration') : false,
       ...(user ? { ai: ai.status(user), unread: notifier.unread(user.id) } : {}),
     };

@@ -158,6 +158,9 @@ export default {
   'Spaces that people open to everyone appear here.': 'Räume, die jemand für alle öffnet, erscheinen hier.',
   'Lecturers need approval': 'Dozenten brauchen eine Freigabe',
   'New lecturer accounts wait until an administrator approves them. When off, anyone can register as a lecturer and make courses.': 'Neue Dozentenkonten warten auf die Freigabe durch einen Administrator. Ist die Option aus, kann sich jeder als Dozent registrieren und Kurse anlegen.',
+  // Storage warning
+  'This server is not saving data permanently. Accounts, courses and messages disappear whenever it restarts. Connect a hosted database (TURSO_DATABASE_URL) to fix this.': 'Dieser Server speichert Daten nicht dauerhaft. Konten, Kurse und Nachrichten gehen bei jedem Neustart verloren. Verbinde eine gehostete Datenbank (TURSO_DATABASE_URL), um das zu beheben.',
+  'This server is not saving accounts permanently right now. If you can’t sign in later, you will need to register again. Please tell the administrator.': 'Dieser Server speichert Konten derzeit nicht dauerhaft. Wenn die Anmeldung später nicht klappt, musst du dich neu registrieren. Bitte informiere den Administrator.',
   // Live lecture
   'Live lecture': 'Live-Vorlesung',
   'Lecture': 'Vorlesung',

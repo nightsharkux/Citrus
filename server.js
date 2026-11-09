@@ -20,6 +20,10 @@ const standalone = require.main === module;
 const onVercel = !!process.env.VERCEL;
 const log = standalone || onVercel ? console.log : () => {};
 
+if (!config.persistence.durable) {
+  console.warn(`WARNING: running on ${config.persistence.platform} without a hosted database. Accounts and data are lost whenever the server restarts or is redeployed. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (see docs/DEPLOYMENT.md), or CAMPUS_PERSISTENT_DISK=1 if the storage folder is on a permanent volume.`);
+}
+
 let db;
 let app;
 let startupError;
