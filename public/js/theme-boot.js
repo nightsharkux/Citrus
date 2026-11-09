@@ -4,6 +4,11 @@
   try {
     var mode = localStorage.getItem('campus-theme');
     if (mode === 'light' || mode === 'dark') document.documentElement.dataset.theme = mode;
+    // Dark unless someone chose light or "match system": the sign-in page and the app start dark.
+    else if (mode !== 'system') {
+      document.documentElement.dataset.theme = 'dark';
+      document.documentElement.dataset.themeDefault = '1';
+    }
   } catch (e) { /* storage unavailable */ }
   try {
     var saved = localStorage.getItem('campus-lang');

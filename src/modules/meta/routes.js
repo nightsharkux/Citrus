@@ -56,9 +56,9 @@ function register(router, { db, config }) {
       start_url: '/home',
       scope: '/',
       display: 'standalone',
-      // Neutral, so the installed app has no coloured bar or splash edge; the page sets light or dark at run time.
-      background_color: '#F2F1F7',
-      theme_color: '#F2F1F7',
+      // Neutral, so the installed app has no coloured bar or splash edge; dark like the app by default; the page sets light or dark at run time.
+      background_color: '#0C0A17',
+      theme_color: '#0C0A17',
       icons: [
         { src: `/icons/${config.site.id}-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
         { src: `/icons/${config.site.id}-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },

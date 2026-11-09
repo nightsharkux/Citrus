@@ -28,7 +28,9 @@ async function boot() {
   });
 
   const theme = data.user?.preferences?.theme;
-  if (theme && theme !== 'system' && !document.documentElement.dataset.theme) setTheme(theme);
+  // An account's saved theme applies unless this device already has its own choice (the dark default does not count).
+  const own = document.documentElement.dataset.theme && !document.documentElement.dataset.themeDefault;
+  if (theme && theme !== 'system' && !own) setTheme(theme);
 
   // Language and the assistant's name first, so nothing flashes in the wrong language.
   await startTranslating({ language: data.user?.preferences?.language, assistantName: data.user?.preferences?.assistantName });

@@ -295,6 +295,7 @@ export function setTheme(mode) {
   const rootEl = document.documentElement;
   if (mode === 'light' || mode === 'dark') rootEl.dataset.theme = mode;
   else delete rootEl.dataset.theme;
+  delete rootEl.dataset.themeDefault; // an explicit choice replaces the dark default
   window.campusThemeColor?.(); // the bar around the app follows the theme
   try {
     localStorage.setItem('campus-theme', mode || 'system');
