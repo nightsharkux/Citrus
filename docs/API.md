@@ -204,6 +204,20 @@ State-changing browser requests must be same-origin (CSRF protection).
 | PATCH | `/api/lectures/:id` | user | any |
 | POST | `/api/lectures/:id/topics` | user | any |
 
+## live
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| POST | `/api/live/sessions` | user | any |
+| GET | `/api/live/mine` | user | any |
+| GET | `/api/live/courses/:id/active` | user | any |
+| GET | `/api/live/sessions/:id` | user | any |
+| POST | `/api/live/sessions/:id/signal` | user | any |
+| POST | `/api/live/sessions/:id/transcript` | user | any |
+| POST | `/api/live/sessions/:id/notes` | user | any |
+| POST | `/api/live/sessions/:id/ask` | user | any |
+| POST | `/api/live/sessions/:id/end` | user | any |
+
 ## login
 
 | Method | Path | Auth | Roles |

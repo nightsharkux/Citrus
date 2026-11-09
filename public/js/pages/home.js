@@ -20,13 +20,13 @@ async function load() {
     const [overview, events] = await Promise.all([api.get('/admin/overview'), schedule]);
     return { role, overview, events: events.events };
   }
-  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] })];
+  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] }), soft(api.get('/live/mine'), { running: [], courses: [] })];
   if (role === 'student') {
-    const [events, courses, participation, feed, review] = await Promise.all([...shared, soft(api.get('/review'), { stats: { dueNow: 0 }, due: [] })]);
-    return { role, events: events.events, courses: courses.courses.filter((c) => c.enrolled), participation: participation.sessions, posts: feed.posts, review };
+    const [events, courses, participation, feed, live, review] = await Promise.all([...shared, soft(api.get('/review'), { stats: { dueNow: 0 }, due: [] })]);
+    return { role, events: events.events, courses: courses.courses.filter((c) => c.enrolled), participation: participation.sessions, posts: feed.posts, live, review };
   }
-  const [events, courses, participation, feed, activations] = await Promise.all([...shared, soft(api.get('/activations'), { activations: [] })]);
-  return { role, events: events.events, courses: courses.courses, participation: participation.sessions, posts: feed.posts, activations: activations.activations };
+  const [events, courses, participation, feed, live, activations] = await Promise.all([...shared, soft(api.get('/activations'), { activations: [] })]);
+  return { role, events: events.events, courses: courses.courses, participation: participation.sessions, posts: feed.posts, live, activations: activations.activations };
 }
 
 function heroFor(data) {
@@ -118,6 +118,20 @@ function campusCard(posts) {
     ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((p) => row({ href: `/campus?post=${p.id}`, icon: { event: 'calendar', job: 'briefcase', housing: 'home', research: 'target', announcement: 'bell', community: 'users', product: 'sparkle' }[p.category], title: p.title, sub: `${humanize(p.category)} · ${ago(p.created)}`, trail: p.match?.length ? html`<span class="chip accent">For you</span>` : '' }))}</div>`
       : empty({ icon: 'compass', title: 'Quiet on campus', body: 'Announcements, events and opportunities will show up here.' })}
   </section>`;
+}
+
+/** The lecture in progress (students) or the way to start one (lecturers). Quiet until it is relevant. */
+function liveCard(live) {
+  if (!live) return '';
+  const running = live.running[0];
+  if (running) {
+    return html`<a class="card live-card is-running" href="/live/${running.course_id}"><span class="live-dot"></span>
+      <span class="grow"><strong>${running.title}</strong><span class="small muted" style="display:block">${running.code} · in progress. Tell your lecturer how you’re following.</span></span>${icon('arrow-right', 18)}</a>`;
+  }
+  const mine = live.courses || [];
+  if (!mine.length) return '';
+  return html`<section class="card live-card"><div class="spread"><div><strong>Lecture</strong><span class="small muted" style="display:block">Start a live lecture with your class pulse and notes.</span></div></div>
+    <div class="cluster mt-16">${mine.map((c) => html`<a class="btn ${c.running ? 'btn-primary' : ''}" href="/live/${c.id}">${icon('presentation', 16)} ${c.code}${c.running ? ' · resume' : ''}</a>`)}</div></section>`;
 }
 
 function studentBody(data) {
@@ -213,7 +227,7 @@ export default {
       <nav class="actions-row home-actions stagger" aria-label="Quick actions">
         ${quickActions(data).map(([href, glyph, label, count]) => html`<a class="action" href="${href}"><span class="action-circle">${icon(glyph, 22)}${count ? html`<span class="count">${count}</span>` : ''}</span>${label}</a>`)}
       </nav>
-      <div class="stagger">${data.role === 'admin' ? adminBody(data) : data.role === 'lecturer' ? lecturerBody(data) : studentBody(data)}</div>`;
+      <div class="stagger">${data.role === 'admin' ? '' : liveCard(data.live)}${data.role === 'admin' ? adminBody(data) : data.role === 'lecturer' ? lecturerBody(data) : studentBody(data)}</div>`;
   },
   mount(root, data, ctx) {
     $$('[data-count]', root).forEach((el) => countUp(el, Number(el.dataset.count)));

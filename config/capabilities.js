@@ -21,6 +21,7 @@ module.exports = Object.freeze([
     group: 'Study',
     items: [
       item('courses', 'Courses and lectures', 'available', '/courses', 'Your modules, lectures and topics in one place.'),
+      item('live-lecture', 'Live lecture', 'limited', '/home', 'Students signal from their phones whether they follow, are unsure or are lost; the lecturer sees the class pulse and a minute-by-minute timeline live. Campus follows the lecture through the browser microphone, knows the prepared notes (pictures and PDFs are read) and answers questions such as “explain the last thing I said”. Nothing is recorded on the server; the transcript can be saved on the lecturer’s device. Speech recognition needs Chrome, Edge or Safari. The room light is not yet driven by the pulse.'),
       item('comprehension', 'Understanding checks', 'available', '/courses', 'Tell your lecturer privately how well a topic landed.'),
       item('quizzes', 'Concept checks', 'available', '/courses', 'Short multiple-choice checks published during a lecture.'),
       item('review', 'Spaced review queue', 'available', '/learning', 'Revisit difficult topics and missed checks at the right time.'),

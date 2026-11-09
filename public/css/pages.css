@@ -442,3 +442,38 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
   .quiz-match-row { grid-template-columns: minmax(0, 1fr); }
   .quiz-dot { width: 16px; }
 }
+
+/* ---------- Live lecture (pages/live.js) ---------- */
+.live-card { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; text-decoration: none; color: inherit; }
+.live-card:not(.is-running) { display: block; }
+.live-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--text-3); }
+.live-card.is-running .live-dot { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); animation: pulse 1.8s ease-in-out infinite; }
+.live-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.live-pulse-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.live-pulse-head .small { margin-left: auto; }
+.live-pulse.is-good .live-dot { background: var(--success); box-shadow: 0 0 0 4px var(--success-soft); }
+.live-pulse.is-watch .live-dot { background: var(--warning); box-shadow: 0 0 0 4px var(--warning-soft); }
+.live-pulse.is-trouble .live-dot { background: var(--danger); box-shadow: 0 0 0 4px var(--danger-soft); }
+.live-pulse .bar { height: 14px; }
+.live-counts { display: flex; gap: 16px; margin-top: 10px; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.live-line { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 10px; }
+.live-line i { width: 14px; height: 26px; border-radius: 4px; background: var(--fill-2); }
+.live-line i.is-good { background: var(--success); }
+.live-line i.is-watch { background: var(--warning); }
+.live-line i.is-trouble { background: var(--danger); }
+.live-answer { padding: 14px 16px; border-radius: var(--radius); background: var(--accent-soft); }
+.live-notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 14px; }
+.live-notes li { display: flex; align-items: center; gap: 8px; }
+.live-student { max-width: 520px; margin: 0 auto; display: grid; gap: 16px; }
+.live-buttons { display: grid; gap: 12px; }
+.live-signal { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 16px; align-items: center; min-height: 96px; padding: 16px 20px; border: 2px solid var(--hairline); border-radius: var(--radius-lg); background: var(--fill); color: var(--text); text-align: left; cursor: pointer; transition: transform var(--fast) var(--ease), border-color var(--fast), background var(--fast); }
+.live-signal:active { transform: scale(0.98); }
+.live-signal-icon { grid-row: span 2; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 50%; background: var(--fill-2); }
+.live-signal strong { font-size: 18px; }
+.live-signal-1.is-active { border-color: var(--success); background: var(--success-soft); }
+.live-signal-1.is-active .live-signal-icon { color: var(--success); }
+.live-signal-2.is-active { border-color: var(--warning); background: var(--warning-soft); }
+.live-signal-2.is-active .live-signal-icon { color: var(--warning); }
+.live-signal-3.is-active { border-color: var(--danger); background: var(--danger-soft); }
+.live-signal-3.is-active .live-signal-icon { color: var(--danger); }
+@media (max-width: 860px) { .live-grid { grid-template-columns: minmax(0, 1fr); } }

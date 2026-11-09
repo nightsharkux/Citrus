@@ -12,6 +12,7 @@ export function registerRoutes() {
   route('/courses/:id', () => import('./pages/course.js'));
   route('/learning/packs/:id', () => import('./pages/pack.js'));
   route('/learning/:tab?', () => import('./pages/learning.js'));
+  route('/live/:id', () => import('./pages/live.js'));
   route('/quiz/:id?', () => import('./pages/quiz.js'));
   route('/groups', () => import('./pages/groups.js'));
   route('/schedule', () => import('./pages/schedule.js'));
