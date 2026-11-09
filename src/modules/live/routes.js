@@ -25,11 +25,12 @@ const { assistantNameFor } = require('../account/preferences');
 const { createAttachments } = require('../assistant/attachments');
 const { createTranscripts } = require('./transcript');
 const { pulse, timeline, roughPatches } = require('./pulse');
+const { buildFeed } = require('./lectures');
 
 const SIGNAL_GAP_MS = 15_000;
 const LEVELS = { 1: 'following', 2: 'unsure', 3: 'lost' };
 
-function register(router, { db, ai, access, bus, site }) {
+function register(router, { db, ai, access, bus, site, notifier }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
   const isoNow = () => new Date().toISOString();
@@ -98,10 +99,23 @@ function register(router, { db, ai, access, bus, site }) {
     const running = activeOf(course.id);
     if (running) return { ...lecturerView(running), resumed: true };
 
-    const title = text(b.title, { max: 120, optional: true, label: 'Title' }) || `${course.code} lecture`;
-    const sessionId = db.insert('INSERT INTO live_sessions(institution_id, course_id, lecturer_id, title, started) VALUES(?, ?, ?, ?, ?)', user.institution_id, course.id, user.id, title, isoNow());
+    // A live session belongs to a lecture: the scheduled one the lecturer chose, or a new one made right now.
+    let lecture = null;
+    if (b.lecture_id !== undefined && b.lecture_id !== null && b.lecture_id !== '') {
+      lecture = db.get('SELECT * FROM lectures WHERE id = ? AND course_id = ?', id(b.lecture_id, 'Lecture'), course.id);
+      if (!lecture) throw notFound('Lecture not found');
+    }
+    const title = text(b.title, { max: 120, optional: true, label: 'Title' }) || lecture?.topic || `${course.code} lecture`;
+    if (!lecture) {
+      const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, created) VALUES(?, ?, ?, ?, ?)', course.id, title, isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), isoNow());
+      lecture = db.get('SELECT * FROM lectures WHERE id = ?', lectureId);
+    }
+    db.run("UPDATE lectures SET status = 'active' WHERE id = ?", lecture.id);
+    const sessionId = db.insert('INSERT INTO live_sessions(institution_id, course_id, lecturer_id, lecture_id, title, started) VALUES(?, ?, ?, ?, ?, ?)', user.institution_id, course.id, user.id, lecture.id, title, isoNow());
     attachNotes(user, sessionId, b.notes);
     bus.publish(`course:${course.id}`, 'live.started', { session: sessionId, title });
+    const students = db.all('SELECT user_id FROM enrollments WHERE course_id = ?', course.id).map((r) => r.user_id);
+    notifier.notify(students, { kind: 'course', title: `${title} is live`, body: `${course.code}. Tell your lecturer how you're following.`, link: `/live/${course.id}` });
     ctx.status = 201;
     return lecturerView(sessionFor(user, sessionId));
   });
@@ -131,6 +145,14 @@ function register(router, { db, ai, access, bus, site }) {
       .map((c) => ({ ...c, running: activeOf(c.id)?.id || null }));
     return { running: [], courses };
   });
+
+  /**
+   * The lectures a person can see: live now, coming up and recent. scope=mine limits it to their own courses.
+   * Students also see other courses' lectures at their university and can join the course from the list.
+   */
+  router.get('/api/lectures/feed', (ctx) => ({
+    lectures: buildFeed(db, ctx.user, { scope: ctx.query.get('scope') === 'mine' ? 'mine' : 'all' }),
+  }));
 
   router.get('/api/live/courses/:id/active', (ctx) => {
     const course = access.course(ctx.user, id(ctx.params.id, 'Course'));
@@ -205,6 +227,7 @@ function register(router, { db, ai, access, bus, site }) {
     const s = teaching(ctx.user, ctx.params.id);
     if (!s.ended) db.run('UPDATE live_sessions SET ended = ? WHERE id = ?', isoNow(), s.id);
     transcripts.clear(s.id); // the lecture was never recorded; forget what was heard
+    if (s.lecture_id) db.run("UPDATE lectures SET status = 'ended', ends = CASE WHEN ends IS NULL OR ends > ? THEN ? ELSE ends END WHERE id = ?", isoNow(), isoNow(), s.lecture_id);
     const summary = lecturerView(sessionFor(ctx.user, s.id));
     bus.publish(`course:${s.course_id}`, 'live.ended', { session: s.id });
     return summary;

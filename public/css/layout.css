@@ -159,15 +159,11 @@
 .tabbar {
   display: none;
   position: fixed; z-index: 50;
-  left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom));
-  height: var(--tabbar-h);
-  padding: 6px;
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: var(--blur);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--glass-border);
-  border-radius: 26px;
-  box-shadow: var(--shadow-lg);
+  left: 0; right: 0; bottom: 0;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding: 6px 8px env(safe-area-inset-bottom);
+  background: var(--bg-solid);
+  border-top: 1px solid var(--hairline);
 }
 .tab {
   position: relative;
@@ -248,14 +244,14 @@
   .sidebar { display: none; }
   .main { margin-left: 0; }
   .tabbar { display: flex; }
-  .topbar { padding: 10px 16px 0; height: 58px; }
+  .topbar { padding: calc(10px + env(safe-area-inset-top)) 16px 0; height: calc(58px + env(safe-area-inset-top)); }
   .topbar-mobile-brand { display: flex; align-items: center; color: var(--text); }
   .topbar-mobile-brand:hover { text-decoration: none; }
   .topbar-mobile-brand .wordmark { font-size: 19px; }
   .topbar-title { display: none; }
   .search-pill { min-width: 0; width: 40px; padding: 0; justify-content: center; border-radius: 50%; }
   .search-pill span, .search-pill kbd { display: none; }
-  .view { padding: 12px 16px calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom)); }
+  .view { padding: 12px 16px calc(var(--tabbar-h) + 24px + env(safe-area-inset-bottom)); }
   .landing { grid-template-columns: 1fr; }
   .preview { height: 480px; }
 }

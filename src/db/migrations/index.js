@@ -16,4 +16,5 @@ module.exports = [
   require('./013-faster-sol'),
   require('./014-live-lectures'),
   require('./015-open-spaces'),
+  require('./016-lecture-schedule'),
 ];

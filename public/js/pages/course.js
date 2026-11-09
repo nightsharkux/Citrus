@@ -7,6 +7,7 @@ import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { session } from '../core/store.js';
 import { pageHead, empty } from '../core/components.js';
+import { whenLine } from './lectures.js';
 import { shortDate, plural } from '../core/format.js';
 import { sheet, onSubmit, toast, toastError, confirm, menu, busy } from '../core/ui.js';
 import { debounce } from '../core/live.js';
@@ -59,8 +60,9 @@ function topicView(t, teacher) {
 function lectureView(l, teacher) {
   return html`<section class="card lecture">
     <div class="card-head">
-      <div><h2>${l.topic}</h2><p class="small muted">${shortDate(l.created)} · ${plural(l.topics.length, 'topic')}</p></div>
-      <div class="cluster">${l.status === 'active' ? html`<span class="chip success"><span class="dot live"></span>Active</span>` : html`<span class="chip">Ended</span>`}
+      <div><h2>${l.topic}</h2><p class="small muted">${l.starts ? whenLine(l) : shortDate(l.created)} · ${plural(l.topics.length, 'topic')}</p></div>
+      <div class="cluster">${l.live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course_id}">${teacher ? 'Resume' : 'Join'}</a><span class="chip success"><span class="dot live"></span>Live</span>`
+        : teacher && l.status === 'active' && l.starts ? html`<a class="btn btn-sm" href="/live/${l.course_id}?lecture=${l.id}">Start</a>` : ''}${l.live ? '' : l.status === 'active' ? html`<span class="chip success"><span class="dot live"></span>Active</span>` : html`<span class="chip">Ended</span>`}
         ${teacher ? html`<button class="btn btn-sm btn-ghost btn-icon" data-lecture-menu="${l.id}" data-status="${l.status}" aria-label="Lecture options">${icon('more', 18)}</button>` : ''}</div>
     </div>
     ${l.topics.length ? html`<div class="topics">${l.topics.map((t) => topicView(t, teacher))}</div>` : html`<p class="muted small">${teacher ? 'Add the topics you’ll cover so students can tell you how it’s going.' : 'Topics appear here as your lecturer adds them.'}</p>`}
@@ -126,10 +128,13 @@ export default {
       on(root, 'click', '[data-new-lecture]', () => sheet({
         title: 'New lecture',
         content: html`<form class="form" id="lecture-form"><label class="field"><span>Title</span><input class="input" name="topic" required minlength="3" placeholder="Week 5 · Sorting algorithms" autofocus></label>
+          <div class="input-row"><label class="field"><span>Date and time (optional)</span><input class="input" type="datetime-local" name="starts"></label><label class="field" style="max-width:160px"><span>Length</span><select class="select" name="duration_minutes">${[[45, '45 min'], [60, '1 hour'], [90, '1.5 hours'], [120, '2 hours'], [180, '3 hours']].map(([m, label]) => html`<option value="${m}" ${m === 90 ? 'selected' : ''}>${label}</option>`)}</select></label></div>
+          <label class="field"><span>Room (optional)</span><input class="input" name="room" maxlength="60" placeholder="HSG 001"><span class="hint">Students see the date, time and room in Lectures and get a notification.</span></label>
           <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Create</button></div></form>`,
         onMount(el, close) {
           onSubmit($('#lecture-form', el), async (v) => {
-            await api.post(`/courses/${id}/lectures`, v);
+            // The field gives the viewer's local time; the server stores it as an exact moment.
+            await api.post(`/courses/${id}/lectures`, { topic: v.topic, room: v.room, ...(v.starts ? { starts: new Date(v.starts).toISOString(), duration_minutes: Number(v.duration_minutes) } : {}) });
             close();
             ctx.refresh();
           });

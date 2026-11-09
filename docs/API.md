@@ -203,6 +203,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 |---|---|---|---|
 | PATCH | `/api/lectures/:id` | user | any |
 | POST | `/api/lectures/:id/topics` | user | any |
+| GET | `/api/lectures/feed` | user | any |
 
 ## live
 

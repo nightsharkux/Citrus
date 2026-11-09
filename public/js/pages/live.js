@@ -125,7 +125,8 @@ function mountStart(root, d, ctx) {
       button.disabled = true;
       try {
         await attach.settled();
-        const body = { course_id: d.courseId, title: $('[data-title]', root).value.trim(), notes: attach.ready().map((a) => a.id) };
+        const lecture = Number(ctx.query.get('lecture')) || undefined; // chosen from Lectures: start that scheduled lecture
+        const body = { course_id: d.courseId, lecture_id: lecture, title: $('[data-title]', root).value.trim(), notes: attach.ready().map((a) => a.id) };
         await api.post('/live/sessions', body);
         attach.sent();
         ctx.refresh();

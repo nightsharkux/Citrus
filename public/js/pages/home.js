@@ -8,6 +8,7 @@ import { row, empty, courseTile } from '../core/components.js';
 import { countUp } from '../core/ui.js';
 import { debounce } from '../core/live.js';
 import { createFace, watchTyping } from '../features/face.js';
+import { whenLine } from './lectures.js';
 
 const soft = (promise, fallback) => promise.catch(() => fallback);
 const DAY = 86_400_000;
@@ -20,7 +21,7 @@ async function load() {
     const [overview, events] = await Promise.all([api.get('/admin/overview'), schedule]);
     return { role, overview, events: events.events };
   }
-  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] }), soft(api.get('/live/mine'), { running: [], courses: [] })];
+  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] }), soft(api.get('/lectures/feed?scope=mine'), { lectures: [] })];
   if (role === 'student') {
     const [events, courses, participation, feed, live, review] = await Promise.all([...shared, soft(api.get('/review'), { stats: { dueNow: 0 }, due: [] })]);
     return { role, events: events.events, courses: courses.courses.filter((c) => c.enrolled), participation: participation.sessions, posts: feed.posts, live, review };
@@ -62,7 +63,7 @@ function quickActions(data) {
   const openSessions = (data.participation || []).filter((s) => s.open && !s.mine).length;
   if (data.role === 'lecturer') {
     return [
-      ['/courses', 'presentation', 'Lecture', 0],
+      ['/lectures', 'presentation', 'Lectures', 0],
       ['/participation?new=1', 'clipboard', 'Check-in', 0],
       ['/classroom', 'door', 'Room status', 0],
       ['/schedule', 'calendar', 'Schedule', 0],
@@ -71,7 +72,7 @@ function quickActions(data) {
   }
   return [
     ['/participation', 'clipboard', 'Check in', openSessions],
-    ['/courses', 'presentation', 'Lectures', 0],
+    ['/lectures', 'presentation', 'Lectures', 0],
     ['/learning', 'graduation', 'Review', data.review?.stats?.dueNow || 0],
     ['/schedule', 'calendar', 'Schedule', 0],
     ['/assistant', 'campus', 'Ask', 0],
@@ -120,18 +121,21 @@ function campusCard(posts) {
   </section>`;
 }
 
-/** The lecture in progress (students) or the way to start one (lecturers). Quiet until it is relevant. */
-function liveCard(live) {
-  if (!live) return '';
-  const running = live.running[0];
-  if (running) {
-    return html`<a class="card live-card is-running" href="/live/${running.course_id}"><span class="live-dot"></span>
-      <span class="grow"><strong>${running.title}</strong><span class="small muted" style="display:block">${running.code} · in progress. Tell your lecturer how you’re following.</span></span>${icon('arrow-right', 18)}</a>`;
-  }
-  const mine = live.courses || [];
-  if (!mine.length) return '';
-  return html`<section class="card live-card"><div class="spread"><div><strong>Lecture</strong><span class="small muted" style="display:block">Start a live lecture with your class pulse and notes.</span></div></div>
-    <div class="cluster mt-16">${mine.map((c) => html`<a class="btn ${c.running ? 'btn-primary' : ''}" href="/live/${c.id}">${icon('presentation', 16)} ${c.code}${c.running ? ' · resume' : ''}</a>`)}</div></section>`;
+/**
+ * The next lectures: the one live now first, then what is coming up, with date, time and room. A calm list, not a
+ * banner: a live lecture only gets a small dot.
+ */
+function lecturesCard(feed) {
+  const items = (feed?.lectures || []).filter((l) => l.state !== 'past').slice(0, 3);
+  const lecturer = session.user.role !== 'student';
+  const action = (l) => (lecturer ? html`<a class="btn btn-sm ${l.state === 'live' ? 'btn-primary' : ''}" href="/live/${l.course.id}${l.state === 'live' ? '' : `?lecture=${l.id}`}">${l.state === 'live' ? 'Resume' : 'Start'}</a>`
+    : l.state === 'live' ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course.id}">Join</a>` : '');
+  return html`<section class="card flush lectures-card"><div class="card-head"><h2>Lectures</h2><a class="btn btn-sm btn-ghost" href="/lectures">All ${icon('chevron-right', 16)}</a></div>
+    ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((l) => html`<div class="list-row">${courseTile(l.course.code)}
+      <a class="body" href="/lectures" style="color:inherit;text-decoration:none"><span class="title">${l.topic}${l.state === 'live' ? html` <span class="chip success"><span class="dot live"></span>Live</span>` : ''}</span><span class="sub">${whenLine(l)} · ${l.course.code}</span></a>
+      <span class="trail">${action(l)}</span></div>`)}</div>`
+      : html`<p class="muted small" style="padding:0 20px 18px">${lecturer ? 'Nothing scheduled. Schedule a lecture in a course, or start one live.' : 'No lectures coming up in your courses. Browse lectures to find one to join.'}</p>`}
+  </section>`;
 }
 
 function studentBody(data) {
@@ -227,7 +231,7 @@ export default {
       <nav class="actions-row home-actions stagger" aria-label="Quick actions">
         ${quickActions(data).map(([href, glyph, label, count]) => html`<a class="action" href="${href}"><span class="action-circle">${icon(glyph, 22)}${count ? html`<span class="count">${count}</span>` : ''}</span>${label}</a>`)}
       </nav>
-      <div class="stagger">${data.role === 'admin' ? '' : liveCard(data.live)}${data.role === 'admin' ? adminBody(data) : data.role === 'lecturer' ? lecturerBody(data) : studentBody(data)}</div>`;
+      <div class="stagger">${data.role === 'admin' ? '' : lecturesCard(data.live)}${data.role === 'admin' ? adminBody(data) : data.role === 'lecturer' ? lecturerBody(data) : studentBody(data)}</div>`;
   },
   mount(root, data, ctx) {
     $$('[data-count]', root).forEach((el) => countUp(el, Number(el.dataset.count)));

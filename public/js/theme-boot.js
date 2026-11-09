@@ -18,3 +18,20 @@
     }
   } catch (e) { /* storage unavailable */ }
 })();
+
+// The browser or installed-app bar takes the page's own background colour, light or dark, never the accent.
+(function () {
+  function sync() {
+    var dark = document.documentElement.dataset.theme === 'dark'
+      || (document.documentElement.dataset.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+    var color = dark ? '#0C0A17' : '#F2F1F7';
+    document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+    var meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = color;
+    document.head.appendChild(meta);
+  }
+  window.campusThemeColor = sync;
+  sync();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', sync);
+})();

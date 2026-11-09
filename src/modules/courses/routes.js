@@ -10,6 +10,21 @@ const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
 
+/**
+ * The optional time and room of a lecture: starts (an ISO time), duration_minutes (default 60, up to 8 hours), room.
+ * Times are stored in UTC; browsers show them in the viewer's time zone.
+ */
+function readSchedule(b) {
+  const room = text(b.room, { max: 60, optional: true, label: 'Room' }) || '';
+  if (b.starts === undefined || b.starts === null || b.starts === '') return { starts: null, ends: null, room };
+  const at = Date.parse(b.starts);
+  if (!Number.isFinite(at)) throw badRequest('Choose a valid start time');
+  if (at < Date.now() - 366 * 86_400_000 || at > Date.now() + 2 * 366 * 86_400_000) throw badRequest('That date looks wrong. Please check it.');
+  const minutes = b.duration_minutes === undefined || b.duration_minutes === null || b.duration_minutes === '' ? 60 : Number(b.duration_minutes);
+  if (!Number.isInteger(minutes) || minutes < 10 || minutes > 480) throw badRequest('A lecture lasts between 10 minutes and 8 hours');
+  return { starts: new Date(at).toISOString(), ends: new Date(at + minutes * 60_000).toISOString(), room };
+}
+
 function register(router, { db, access, bus, notifier, audit, rooms }) {
   const now = () => new Date().toISOString();
   const touchCourse = (courseId) => bus.publish(`course:${courseId}`, 'course.updated', { courseId });
@@ -70,7 +85,7 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     return {
       course: { ...course, lecturer, enrolled },
       isTeacher,
-      lectures: lectures.map((l) => ({ ...l, topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) })),
+      lectures: lectures.map((l) => ({ ...l, live: !!db.get('SELECT 1 AS live FROM live_sessions WHERE lecture_id = ? AND ended IS NULL', l.id), topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) })),
     };
   }
 
@@ -139,9 +154,15 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     if (!course) throw forbidden('Not your course');
     const b = await ctx.json();
     const topic = text(b.topic, { min: 3, max: 160, label: 'Lecture title' });
-    const lectureId = db.insert('INSERT INTO lectures(course_id, topic, created) VALUES(?, ?, ?)', course.id, topic, now());
+    const when = readSchedule(b);
+    const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, room, created) VALUES(?, ?, ?, ?, ?, ?)', course.id, topic, when.starts, when.ends, when.room, now());
     audit(ctx.user, 'lecture_created', lectureId);
     touchCourse(course.id);
+    if (when.starts) {
+      // Students find it in Lectures; this only tells the ones already in the course.
+      const students = db.all('SELECT user_id FROM enrollments WHERE course_id = ?', course.id).map((r) => r.user_id);
+      notifier.notify(students, { kind: 'course', title: `Lecture scheduled: ${topic}`, body: `${course.code}${when.room ? ` · ${when.room}` : ''}`, link: '/lectures' });
+    }
     ctx.status = 201;
     return { id: lectureId };
   });
@@ -150,8 +171,12 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     const lecture = access.lecture(ctx.user, id(ctx.params.id), { teach: true });
     if (!lecture) throw forbidden('Not your lecture');
     const b = await ctx.json();
-    const status = oneOf(b.status, ['active', 'ended'], 'Status');
-    db.run('UPDATE lectures SET status = ? WHERE id = ?', status, lecture.id);
+    if (b.status === undefined && b.starts === undefined && b.room === undefined) throw badRequest('Nothing to change');
+    if (b.status !== undefined) db.run('UPDATE lectures SET status = ? WHERE id = ?', oneOf(b.status, ['active', 'ended'], 'Status'), lecture.id);
+    if (b.starts !== undefined || b.room !== undefined || b.duration_minutes !== undefined) {
+      const when = readSchedule({ starts: b.starts ?? lecture.starts, duration_minutes: b.duration_minutes ?? (lecture.starts && lecture.ends ? Math.round((Date.parse(lecture.ends) - Date.parse(lecture.starts)) / 60000) : undefined), room: b.room ?? lecture.room });
+      db.run('UPDATE lectures SET starts = ?, ends = ?, room = ? WHERE id = ?', when.starts, when.ends, when.room, lecture.id);
+    }
     touchCourse(lecture.course_id);
     return { ok: true };
   });

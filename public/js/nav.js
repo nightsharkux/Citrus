@@ -10,6 +10,7 @@ export const NAV = {
   student: {
     primary: [
       item('/home', 'Home', 'home'),
+      item('/lectures', 'Lectures', 'presentation'),
       item('/courses', 'Courses', 'book'),
       item('/participation', 'Check-in', 'clipboard'),
       item('/assistant', 'Ask Campus', 'campus'),
@@ -20,11 +21,12 @@ export const NAV = {
     ],
     secondary: [item('/quiz', 'Quizzes', 'target'), item('/groups', 'Study groups', 'users'), item('/campus', 'Campus life', 'compass'), item('/campus/map', 'Campus map', 'map-pin'), item('/career', 'Career explorer', 'briefcase')],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/courses', '/participation', '/assistant', 'more'],
+    tabs: ['/home', '/lectures', '/courses', '/participation', 'more'],
   },
   lecturer: {
     primary: [
       item('/home', 'Home', 'home'),
+      item('/lectures', 'Lectures', 'presentation'),
       item('/courses', 'Teaching', 'book'),
       item('/classroom', 'Classroom', 'door'),
       item('/participation', 'Participation', 'clipboard'),
@@ -35,7 +37,7 @@ export const NAV = {
     ],
     secondary: [item('/quiz', 'Quizzes', 'target'), item('/campus', 'Campus life', 'compass'), item('/campus/map', 'Campus map', 'map-pin')],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/courses', '/classroom', '/participation', 'more'],
+    tabs: ['/home', '/lectures', '/courses', '/classroom', 'more'],
   },
   admin: {
     primary: [
