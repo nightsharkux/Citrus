@@ -47,9 +47,10 @@ test('exam terms, curriculum cohorts, calendar conflicts and page citations stay
   assert.ok(result.references.length);
   assert.equal(result.references[0].sourcePage, 3);
   assert.match(result.sources[0].url, /#page=3$/);
-  assert.match(result.references[0].excerpt, /DTM,BA,Sem\. 1/);
+  assert.match(result.references[0].excerpt, /TIMETABLE read from the printed grid/, 'the parsed grid comes first');
+  assert.match(result.references[1].excerpt, /DTM,BA,Sem\. 1/, 'the raw page stays behind it as the citation');
   const original = academic.load().docs.find((d) => d.source_id === 'S077' && d.source_page === 3);
-  assert.equal(result.references[0].excerpt, original.content, 'fixed-width layout is never shortened or flattened');
+  assert.equal(result.references[1].excerpt, original.content, 'the raw fixed-width layout stays behind it, never shortened or flattened');
   const cal = ai.retrieveContext({ id: 1, institution_id: 1 }, 'Fronleichnam 2027');
   assert.match(JSON.stringify(cal.references), /SOURCE_CONFLICT/);
   assert.match(JSON.stringify(cal.references), /20270531/);
