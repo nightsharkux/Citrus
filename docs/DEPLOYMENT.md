@@ -35,7 +35,7 @@ Vercel Functions have no persistent disk, so the SQLite file cannot live there. 
 **Set up the database**
 
 1. In the Vercel Marketplace, search for **Turso Cloud**, create a database and connect it to the project. Vercel then adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for you. Without the integration, create a database at turso.tech and add both variables by hand (`TURSO_DATABASE_URL` looks like `libsql://name-org.turso.io`; store the token as a Secret).
-2. Pick the database region closest to your Vercel function region. Every query is a network round trip.
+2. Keep the database and the functions in the same region. Every query is a network round trip, and a chat message makes about twenty. `vercel.json` pins the functions to Frankfurt (`fra1`), next to the users; create the Turso database in Frankfurt too, or change `regions` to the database's region (for example `dub1` for Ireland). A response header `X-Vercel-Id: fra1::fra1::…` shows where a request ran.
 3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Campus OS creates its tables and the administrator. Deploying again never repeats this.
 4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Campus OS generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
 
@@ -60,6 +60,7 @@ Run the tests against the hosted-database code path with `CAMPUS_TEST_DB=turso n
 | `AI_GATEWAY_API_KEY` | Your Vercel AI Gateway key | Required for AI; store as Secret |
 | `CAMPUS_AI_DEFAULT_MODEL` | `openai/gpt-6.1-terra/medium` | Optional; shown default |
 | `CAMPUS_AI_SUMMARY_MODEL` | `openai/gpt-6-luna/low` | Optional; shown default |
+| `CAMPUS_AI_SEARCH_MODEL` | `google/gemini-3.8-flash/low` | Optional; lookups (web, files, university documents); `off` uses the default model |
 | `CAMPUS_AI_PROVIDER` | `gateway` | Optional; `gateway` or `off`; saved Admin choice wins |
 | `CAMPUS_AI_RATE_PER_MINUTE` | `12` | Optional; per-user request quota, not a spending cap |
 

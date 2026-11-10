@@ -114,7 +114,10 @@ function createStaticServer({ publicDir, site }) {
   function sendShell(req, res) {
     const body = Buffer.from(renderShell());
     const encoding = encodingFor(req);
-    const headers = { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache', Vary: 'Accept-Encoding' };
+    // The shell is the same for everyone and carries no cookie, so on Vercel the CDN keeps it (each deployment
+    // clears it) and a page load does not wait for the server. Browsers still revalidate.
+    const headers = { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-cache', Vary: 'Accept-Encoding',
+      ...(process.env.VERCEL ? { 'Vercel-CDN-Cache-Control': 'max-age=86400' } : {}) };
     if (!encoding) {
       res.writeHead(200, headers);
       res.end(body);
