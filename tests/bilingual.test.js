@@ -20,14 +20,14 @@ test('German and English are told apart, including mixed sentences and misspelli
   assert.equal(detectLanguage("can't do Deutsch broken"), 'en', 'a German word does not switch an English remark about difficulty to German');
 });
 
-test('turn-taking understands German stop and goodbye phrases, and waits less than before', async () => {
+test('turn-taking understands German stop and goodbye phrases, and allows thinking pauses', async () => {
   const { conversationCommand, isInterruption, endOfTurnDelay } = await load('features/turns.js');
   assert.equal(conversationCommand('Tschüss'), 'end');
   assert.equal(conversationCommand('das war alles'), 'end');
   assert.equal(conversationCommand('Ruhe'), 'interrupt');
   assert.equal(conversationCommand('warte mal'), 'interrupt');
   assert.equal(isInterruption('warte mal', 'Die Bibliothek öffnet um acht Uhr'), true);
-  assert.ok(endOfTurnDelay('what is on my schedule tomorrow', { final: true }) <= 700, 'a finished phrase is sent quickly');
+  assert.ok(endOfTurnDelay('what is on my schedule tomorrow', { final: true }) >= 1200, 'a provider final is not permission to interrupt a thinking pause');
   assert.ok(endOfTurnDelay('was ist morgen und', { final: false }) > endOfTurnDelay('was ist morgen', { final: false }), 'a German sentence ending in "und" is still going');
 });
 

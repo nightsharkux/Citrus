@@ -20,7 +20,7 @@ function createRecognitionProvider({ env, fetchImpl = (...args) => fetch(...args
     if (selected() === 'wispr') return wispr.session({ user, language, dictionary, signal });
     if (selected() === 'gateway') return {
       ...await audioSession({ env, fetchImpl, kind: 'transcription', model: TRANSCRIPTION_MODEL, signal }),
-      options: { openai: { ...(language !== 'multi' ? { language } : {}), streaming: { delay: 'low' } } },
+      options: { openai: { ...(language !== 'multi' ? { language } : {}), streaming: { delay: 'medium' } } },
     };
     let response;
     try {

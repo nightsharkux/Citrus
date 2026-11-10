@@ -118,6 +118,8 @@ function createConversation({ threadId: startThread }) {
   let carry = ''; // words of this turn heard in an earlier session
   let heard = '';
   let heardFinal = false;
+  let speechActive = false;
+  let sendRequested = false;
   let turnTimer = 0;
   let quietTimer = 0;
 
@@ -238,11 +240,18 @@ function createConversation({ threadId: startThread }) {
 
   // ---- Microphone
   const listener = createListener({
+    onActivity({ speaking }) {
+      speechActive = speaking;
+      if (state !== 'hearing') return;
+      clearTimeout(turnTimer);
+      if (!speaking) onHeard();
+    },
     onResult(list) {
       results = list;
       onHeard();
     },
     onSession() {
+      speechActive = false;
       // Result numbering restarts; keep what was already said in this turn.
       carry = heard;
       turnFrom = 0;
@@ -299,6 +308,7 @@ function createConversation({ threadId: startThread }) {
     carry = '';
     heard = '';
     heardFinal = false;
+    sendRequested = false;
     clearTimeout(turnTimer);
   }
 
@@ -308,7 +318,13 @@ function createConversation({ threadId: startThread }) {
   function onHeard() {
     if (closed || muted || state === 'error') return;
     const { text, final } = readTurn();
-    if (!text) return;
+    if (!text) {
+      if (state === 'hearing' && results?.requiresFinal && !results.audioPending) {
+        showYou('');
+        listen();
+      }
+      return;
+    }
     if (state === 'speaking') {
       // Listening in one language while Campus speaks the other: its own voice comes back as "new" words.
       const strict = recognitionLanguage() !== 'multi' && (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
@@ -339,7 +355,11 @@ function createConversation({ threadId: startThread }) {
     else paint();
     showYou(text);
     clearTimeout(turnTimer);
-    turnTimer = setTimeout(endTurn, endOfTurnDelay(heard, { final: heardFinal, silenceMs: results?.silenceMs }) ?? 1200);
+    // Provider partials can still change, and speech can resume before its next transcript arrives.
+    const delay = endOfTurnDelay(heard, { final, silenceMs: results?.silenceMs, requiresFinal: results?.requiresFinal, audioPending: results?.audioPending, speaking: speechActive });
+    if (delay === null) return;
+    if (sendRequested) { endTurn(); return; }
+    turnTimer = setTimeout(endTurn, delay);
   }
 
   /** Back to listening for the next turn. */
@@ -392,6 +412,12 @@ function createConversation({ threadId: startThread }) {
 
   function endTurn() {
     clearTimeout(turnTimer);
+    const current = readTurn();
+    if (results?.requiresFinal && (!current.final || results.audioPending)) {
+      sendRequested = true;
+      listener.finalize();
+      return;
+    }
     const text = heard.trim();
     skipHeard();
     if (!text) {

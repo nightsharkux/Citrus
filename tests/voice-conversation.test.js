@@ -21,6 +21,19 @@ test('a turn ends after a pause that depends on how the sentence ends', async ()
   assert.ok(endOfTurnDelay('Tuesday') > endOfTurnDelay('yes'), 'a single word that is not a reply may be followed by more');
 });
 
+test('turn completion allows breathing and thinking pauses and never submits an uncorrected cloud partial', async () => {
+  const { endOfTurnDelay } = await load('features/turns.js');
+  assert.ok(endOfTurnDelay('Can you explain this topic') >= 2200);
+  assert.ok(endOfTurnDelay('Can you explain this topic', { final: true }) >= 1800, 'browser finals also allow a breathing pause');
+  assert.ok(endOfTurnDelay('Can you explain this because') >= 4000);
+  assert.ok(endOfTurnDelay('Ich möchte wissen, wie') >= 4000);
+  assert.ok(endOfTurnDelay('I was thinking ummm') >= 4000);
+  assert.equal(endOfTurnDelay('Please explain it', { requiresFinal: true, final: false }), null);
+  assert.equal(endOfTurnDelay('Please explain it', { requiresFinal: true, final: true, audioPending: true }), null);
+  assert.equal(endOfTurnDelay('Please explain it', { final: true, speaking: true }), null);
+  assert.equal(endOfTurnDelay('Please explain it', { requiresFinal: true, final: true, silenceMs: 2200 }), 100);
+});
+
 test('Campus hearing its own voice is not mistaken for the user', async () => {
   const { isEcho, isInterruption } = await load('features/turns.js');
   const spoken = 'The library opens at eight in the morning and closes at ten in the evening. Want me to add a study session?';

@@ -158,3 +158,22 @@ test('PCM capture preserves samples, encodes little-endian int16 and pads only t
   assert.equal(processor.process([[input]]), false);
   processor.port.onmessage({ data: 'flush' }); assert.equal(messages.length, 3);
 });
+
+test('draining a 24 kHz transcription turn preserves its tail and keeps capturing the next words', () => {
+  let Processor; const messages = [];
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/js/features/pcm-worklet.js'), 'utf8'), {
+    AudioWorkletProcessor: class { constructor() { this.port = { postMessage: (packet) => messages.push(packet) }; } },
+    registerProcessor: (name, cls) => { Processor = cls; },
+  });
+  const processor = new Processor({ processorOptions: { frameSamples: 1200 } });
+  processor.process([[Float32Array.from({ length: 1250 }, () => 0.5)]]);
+  processor.port.onmessage({ data: 'drain' });
+  assert.equal(messages[2].drained, true);
+  assert.equal(new DataView(messages[1].pcm).getInt16(49 * 2, true), 16384);
+  assert.equal(new DataView(messages[1].pcm).getInt16(50 * 2, true), 0);
+  assert.equal(processor.process([[Float32Array.from({ length: 1200 }, () => -0.5)]]), true);
+  assert.equal(new DataView(messages[3].pcm).getInt16(0, true), -16384);
+  processor.port.onmessage({ data: 'flush' });
+  assert.equal(messages.at(-1).flushed, true);
+  assert.equal(processor.process([[]]), false);
+});

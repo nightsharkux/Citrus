@@ -17,7 +17,7 @@
  * "Hey Campus" on its own is fine: it waits (about nine seconds) for the command.
  */
 import { toast } from '../core/ui.js';
-import { detectLanguage } from './turns.js';
+import { detectLanguage, endOfTurnDelay } from './turns.js';
 import { session } from '../core/store.js';
 import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
 import { api } from '../core/api.js';
@@ -173,6 +173,8 @@ let captureHandlers = null; // set by dictation: text goes there instead of to a
 let captureTimer = 0;
 let lastCommand = '';
 let lastFinal = false;
+let captureResults = null;
+let captureSendRequested = false;
 let ignoreBefore = 0;
 let resultCount = 0;
 
@@ -231,10 +233,16 @@ function clearCapture() {
   capturePhrase = false;
   lastCommand = '';
   lastFinal = false;
+  captureResults = null;
+  captureSendRequested = false;
 }
 
 function finishCapture(reason) {
   const text = lastCommand.trim();
+  if (text && captureResults?.requiresFinal && (!lastFinal || captureResults.audioPending) && recognizer?.commit?.()) {
+    captureSendRequested = true;
+    return;
+  }
   const handlers = captureHandlers;
   ignoreBefore = resultCount;
   clearCapture();
@@ -260,7 +268,10 @@ function finishCapture(reason) {
 /** (Re)start the quiet-time countdown: a long wait for the first words, a short one after the last. */
 function armTimer() {
   clearTimeout(captureTimer);
-  const wait = lastCommand.trim() ? (lastFinal ? 900 : 1500) : 9000;
+  const text = lastCommand.trim();
+  const wait = text ? endOfTurnDelay(text, { final: lastFinal, silenceMs: captureResults?.silenceMs, requiresFinal: captureResults?.requiresFinal, audioPending: captureResults?.audioPending }) : 9000;
+  if (wait === null) return;
+  if (captureSendRequested && text) { finishCapture(); return; }
   captureTimer = setTimeout(() => finishCapture(lastCommand.trim() ? '' : 'timeout'), wait);
 }
 
@@ -288,6 +299,7 @@ function readCommand(results) {
 }
 
 function onResult(e) {
+  captureResults = e.results;
   resultCount = e.results.length;
   const now = Date.now();
   if (speaking || now < mutedUntil) {
@@ -340,6 +352,13 @@ function listen() {
     } else setState('listening');
   };
   rec.onresult = onResult;
+  rec.onactivity = ({ speaking }) => {
+    if (recognizer !== rec || mode !== 'capture') return;
+    if (speaking) clearTimeout(captureTimer);
+    else armTimer();
+  };
+  rec.onspeechstart = () => rec.onactivity({ speaking: true });
+  rec.onspeechend = () => rec.onactivity({ speaking: false });
   rec.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
       toast('Microphone access is blocked for this site. Allow it in the browser to use “Hey Campus”.', 'error', { duration: 7000 });
@@ -504,6 +523,7 @@ export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () =
   rec.onresult = (e) => {
     const text = [...e.results].map((r) => r[0].transcript).join(' ').trim();
     onInterim(text);
+    if (!e.results.length) { finalText = ''; return; }
     if (e.results[e.results.length - 1].isFinal) finalText = text;
   };
   rec.onerror = (e) => e.error !== 'no-speech' && e.error !== 'aborted' && toast(e.error === 'not-allowed' ? 'Microphone access is blocked for this site.' : `Voice input: ${e.error}`, 'error');
@@ -549,7 +569,7 @@ export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoi
  *
  * Returns { start(), stop(), get running }. start() is safe to call while running.
  */
-export function createListener({ onResult, onSession, onRecovering, onTrouble } = {}) {
+export function createListener({ onResult, onSession, onRecovering, onTrouble, onActivity } = {}) {
   let rec = null;
   let wanted = false;
   let startedAt = 0;
@@ -582,6 +602,9 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble } 
     r.continuous = true;
     r.interimResults = true;
     r.maxAlternatives = 1;
+    r.onactivity = (event) => { if (rec === r) onActivity?.(event); };
+    r.onspeechstart = () => { if (rec === r) onActivity?.({ speaking: true }); };
+    r.onspeechend = () => { if (rec === r) onActivity?.({ speaking: false }); };
     r.onstart = () => {
       if (rec === r) onSession?.();
       chooseMicrophone().catch(() => {}); // the browser names microphones once one is open
@@ -642,6 +665,8 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble } 
       wanted = false;
       halt();
     },
+    /** Ask for the final corrected transcript while keeping continuous capture alive. */
+    finalize() { return rec?.commit?.() || false; },
     get running() {
       return wanted;
     },

@@ -5,6 +5,10 @@ class CampusPCM extends AudioWorkletProcessor {
     const size = processorOptions.frameSamples === 1200 ? 1200 : 800;
     this.samples = new Float32Array(size); this.at = 0; this.finished = false;
     this.port.onmessage = ({ data }) => {
+      if (data === 'drain' && !this.finished) {
+        if (this.at) this.send();
+        this.port.postMessage({ drained: true });
+      }
       if (data === 'flush' && !this.finished) {
         this.finished = true;
         if (this.at) this.send();

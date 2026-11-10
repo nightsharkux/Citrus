@@ -65,6 +65,7 @@ export class DeepgramRecognition {
         let data;
         try { data = JSON.parse(event.data); } catch { return; }
         if (data.type === 'Error') { this.fail('network'); return; }
+        if (data.type === 'SpeechStarted') { this.onactivity?.({ speaking: true }); return; }
         if (data.type !== 'Results') return;
         const alternative = data.channel?.alternatives?.[0];
         const transcript = alternative?.transcript?.trim();
@@ -81,6 +82,7 @@ export class DeepgramRecognition {
           const results = result.isFinal ? [...this.finals] : [...this.finals, result];
           if (result.isFinal || this.interimResults) this.onresult?.({ results, resultIndex });
         }
+        if (data.speech_final) this.onactivity?.({ speaking: false });
         if (!this.continuous && data.speech_final && this.finals.length) this.stop();
       };
       socket.onerror = () => this.fail('network');
