@@ -56,6 +56,19 @@ For deployments explicitly retaining `openai/tts-1` or `openai/tts-1-hd`, the ca
 
 The new default Flash v2.5 is billed through Gateway and has different pricing from the former `tts-1` default. An explicit `CAMPUS_AI_SPEECH_MODEL` remains unchanged. Check account access and pricing before evaluating a production rollout; no live paid request was made during automated verification.
 
+## Live voice (GPT-Live)
+
+On computers, the voice conversation uses OpenAI **GPT-Live** (`openai/gpt-live-1`) through the AI Gateway when the account has it. One WebSocket carries the microphone and Campus's voice. The model hears the person while it talks and decides itself when they have finished, so there is no separate recognise, answer and speak chain: replies start as soon as the person stops, pauses to think are waited out, and talking over Campus interrupts it.
+
+- `POST /api/assistant/live` (signed-in users, institution AI on, natural voices allowed) mints a single-use pass with `POST https://ai-gateway.vercel.sh/v1/realtime/client-secrets` (`routeKind: live`) and returns it with the conversation's instructions: the assistant's rules (`livePrompt` in `src/ai/prompts.js`) and the user's CONTEXT. The gateway key never reaches the browser. Six passes per user per minute.
+- The browser (`public/js/features/live.js`) connects to `wss://ai-gateway.vercel.sh/v1/live/sessions`, sends `session.start` (client delegation, `store: false`, 24 kHz PCM), streams the microphone in 50 ms packets after `session.started`, and plays `session.output_audio.delta` on the natural-voice output (`createLivePlayer` in `speaker.js`). Bluetooth handling (`microphone.js`) applies.
+- Anything that needs Campus OS (timetable, courses, university pages, web search, actions in the app) is delegated. The browser sends the words of that turn, and what Campus said just before them (`live_context`), to `POST /api/assistant/messages` in voice mode, so permissions, sources and actions work as in chat and the exchange is saved in the thread. The answer goes back with `session.commentary.append` for GPT-Live to say. GPT-Live's own small talk is not saved.
+- If live voice cannot start (no model access, connection refused), the standard conversation opens instead and live voice rests for ten minutes; a refused pass also rests it on the server. Phones keep the standard conversation for now.
+- **Cost.** GPT-Live is billed per second of open conversation, including silence and mute: $3 per hour at the current list price, plus the assistant calls for delegated questions. The conversation ends itself after two quiet minutes, and closing it sends `session.close`.
+- `CAMPUS_AI_LIVE_MODEL` sets the model (default `openai/gpt-live-1`); `off` turns live voice off. The Admin switch for natural voices also turns it off.
+
+GPT-Live references (verified 2026-11-10): [AI Gateway GPT-Live](https://vercel.com/docs/ai-gateway/modalities/realtime/gpt-live), [managing sessions](https://developers.openai.com/api/docs/guides/live-conversations), [delegation](https://developers.openai.com/api/docs/guides/live-delegation), [WebSockets](https://developers.openai.com/api/docs/guides/voice-websockets).
+
 ## Verify after activation
 
 1. In Settings / Assistant, select Automatic voice input. Allow the microphone.

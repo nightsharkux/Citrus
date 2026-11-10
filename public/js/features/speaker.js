@@ -566,6 +566,99 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
   return api;
 }
 
+/**
+ * Live voice (features/live.js): GPT-Live's 24 kHz PCM, played as it arrives on the same output as natural
+ * voices, so the face follows it and the volume setting applies. `push(base64)` adds audio, `clear()` drops what
+ * has not been heard yet (the person talked over Campus), `close()` ends it. `onSpeaking(true|false)` follows the
+ * audio actually playing. stopSpeaking() closes it like any other speaker.
+ */
+export function createLivePlayer({ onSpeaking } = {}) {
+  stopSpeaking();
+  const graph = audioGraph();
+  const pcm = new PcmDecoder();
+  const sp = { engine: 'natural', over: false, sources: new Set(), scheduledUntil: 0, language: null };
+  let quiet = 0;
+  const live = () => !sp.over && current === sp;
+  const talking = (on) => {
+    if (on === speakingNow) return;
+    setSpeaking(on);
+    if (on) runMeter();
+    onSpeaking?.(on);
+  };
+  // Silence between chunks shorter than this is one stretch of speech.
+  const settle = () => {
+    clearTimeout(quiet);
+    if (!sp.sources.size) quiet = setTimeout(() => { if (!sp.sources.size && live()) talking(false); }, 300);
+  };
+  const stopAll = () => {
+    for (const src of sp.sources) {
+      try { src.stop(); } catch { /* already stopped */ }
+    }
+    sp.sources.clear();
+    sp.scheduledUntil = 0;
+    pcm.tail = null;
+  };
+  if (graph) graph.gain.gain.value = voiceTuning(getVoiceSettings()).volume;
+  const api = {
+    push(encoded) {
+      if (!live() || !graph) return;
+      if (graph.ctx.state === 'suspended') graph.ctx.resume().catch(() => {});
+      const buffer = pcm.decode(encoded, graph.ctx);
+      if (!buffer) return;
+      const src = graph.ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(graph.gain);
+      // A small cushion absorbs network jitter without delaying the reply noticeably.
+      const at = Math.max(graph.ctx.currentTime + 0.06, sp.scheduledUntil);
+      src.onended = () => {
+        src.disconnect?.();
+        sp.sources.delete(src);
+        settle();
+      };
+      sp.sources.add(src);
+      src.start(at);
+      sp.scheduledUntil = at + buffer.duration;
+      clearTimeout(quiet);
+      talking(true);
+    },
+    /** Seconds of audio scheduled but not heard yet. */
+    get ahead() {
+      return graph ? Math.max(0, sp.scheduledUntil - graph.ctx.currentTime) : 0;
+    },
+    clear() {
+      if (!live()) return;
+      stopAll();
+      clearTimeout(quiet);
+      talking(false);
+    },
+    cancel() {
+      api.close();
+    },
+    close() {
+      if (sp.over) return;
+      sp.over = true;
+      stopAll();
+      clearTimeout(quiet);
+      if (current === sp) {
+        current = null;
+        setSpeaking(false);
+      }
+    },
+    get active() {
+      return !sp.over;
+    },
+    get language() {
+      return null;
+    },
+    get engine() {
+      return 'natural';
+    },
+  };
+  sp.api = api;
+  current = sp;
+  return api;
+}
+
 /** Read a whole text aloud (the speaker button on an answer). Formulas become words; Markdown and citations are dropped. */
 export function speak(text, { onStart, onEnd, options } = {}) {
   const sp = createSpeaker({ onStart, onEnd, options });

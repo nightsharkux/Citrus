@@ -16,7 +16,7 @@ const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
 const { voiceCatalog, speechOptions, calmText } = require('./voices');
 const { createRecognitionProvider } = require('./recognition');
-const { audioSession, STREAMING_SPEECH_MODEL } = require('./audio-session');
+const { audioSession, liveSession: openLiveSession, STREAMING_SPEECH_MODEL } = require('./audio-session');
 const { MODEL_CHOICES, readModelOverride } = require('./models');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest, unavailable } = require('../http/errors');
@@ -32,6 +32,14 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   // reached in a brisk conversation, which dropped it to the browser's recogniser mid-sentence.
   const recognitionQuota = createRateLimiter({ windowMs: 60_000, max: 20 });
   const wisprQuota = createRateLimiter({ windowMs: 60_000, max: 24 });
+  // Live voice (GPT-Live): one pass per conversation, so a small allowance is plenty.
+  const liveQuota = createRateLimiter({ windowMs: 60_000, max: 6 });
+  const liveModel = () => {
+    const value = String(env.CAMPUS_AI_LIVE_MODEL || '').trim();
+    return value.toLowerCase() === 'off' ? null : value || 'openai/gpt-live-1';
+  };
+  // A refused pass (no access to the model yet) rests live voice; conversations use the standard voice meanwhile.
+  let liveRestsUntil = 0;
 
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
@@ -61,6 +69,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
       speechStreaming: speechModel === STREAMING_SPEECH_MODEL && env.CAMPUS_AI_SPEECH_STREAMING !== 'off',
       speechAllowed: s.speech,
       recognition: base.aiEnabled ? recognition.info() : { enabled: false, provider: 'browser' },
+      live: base.aiEnabled && s.speech && base.provider === 'gateway' && !!liveModel() && Date.now() >= liveRestsUntil,
       ...(speechModel ? { speechModel } : {}),
     };
   }
@@ -200,6 +209,18 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     };
   }
 
+  /** A pass for one live voice conversation: { token, expiresAt, url, model }. */
+  async function liveSession({ user, signal }) {
+    if (!status(user).live) throw unavailable('Live voice is not available. Campus uses its standard voice instead.');
+    if (!liveQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Please wait a moment before starting another voice conversation.');
+    try {
+      return await openLiveSession({ env, fetchImpl, model: liveModel(), signal });
+    } catch (error) {
+      if (error.refused) liveRestsUntil = Date.now() + 10 * 60_000;
+      throw error;
+    }
+  }
+
   /** Build the knowledge indexes ahead of time, so the first question after a restart does not wait for them. */
   function warm() {
     for (const { id } of db.all('SELECT id FROM institutions ORDER BY id LIMIT 10')) retrieval.find(id, 'campus', { limit: 1 });
@@ -217,6 +238,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     speechInfo,
     playbackSession,
     recognitionSession,
+    liveSession,
     retrieve,
     retrieveContext,
     bundledCount: retrieval.bundledCount,

@@ -41,6 +41,7 @@ import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, det
 import { matchCommand } from './commands.js';
 import { getVoiceSettings, saveVoiceSettings } from './voices.js';
 import { setSpeechVolume } from './speaker.js';
+import { liveVoiceReady, startLiveConversation } from './live-conversation.js';
 
 const QUIET_LIMIT = 120_000;
 
@@ -82,7 +83,19 @@ export function startConversation({ threadId = null } = {}) {
     return false;
   }
   primeSpeech();
-  current = createConversation({ threadId });
+  // Live voice (GPT-Live) where it can run; the standard conversation when it cannot, or if it fails to start.
+  if (liveVoiceReady()) {
+    const live = startLiveConversation({
+      threadId,
+      onClose: () => {
+        if (current === live) current = null;
+      },
+      onFallback: (thread) => {
+        current = createConversation({ threadId: thread });
+      },
+    });
+    current = live;
+  } else current = createConversation({ threadId });
   return true;
 }
 

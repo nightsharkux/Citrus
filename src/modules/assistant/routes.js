@@ -23,7 +23,7 @@
  */
 const { text, id, optionalId, oneOf } = require('../../lib/validate');
 const { notFound, unavailable, badRequest } = require('../../http/errors');
-const { assistantPrompt, translationPrompt, referenceBlock } = require('../../ai/prompts');
+const { assistantPrompt, livePrompt, translationPrompt, referenceBlock } = require('../../ai/prompts');
 const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
 const { createAttachments } = require('./attachments');
@@ -189,7 +189,11 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const { sources, references } = ai.retrieveContext(user, [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'));
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }), sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice, web, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match', ...readHeard(b) } });
+    // A question handed over by live voice (features/live.js) arrives with what Campus had just said aloud, so a
+    // reply such as "yes, add it" makes sense here. It is the user's own conversation, kept in CONTEXT as data.
+    const liveLine = voice && typeof b.live_context === 'string' && b.live_context.trim()
+      ? `\nLive voice conversation: just before this request ${assistantNameFor(user, site)} said aloud: "${b.live_context.replace(/\s+/g, ' ').trim().slice(0, 600)}"` : '';
+    const system = assistantPrompt({ site, user, assistantName: assistantNameFor(user, site), context: buildContext(user, { query: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'), assistantName: assistantNameFor(user, site), device: readDevice(b.device) }) + liveLine, sources: references, attached: files.length > 0 || history.some((h) => h.images?.length || h.content.includes("<ATTACHMENT>")), voice, web, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match', ...readHeard(b) } });
 
     // Pages from the web that the answer links to become sources too, numbered after the library's.
     let searched = false;
@@ -281,6 +285,33 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     }
     res.off('close', abort);
     res.end();
+  });
+
+  /**
+   * Live voice (GPT-Live, public/js/features/live.js): a single-use pass for the gateway's Live socket and the
+   * conversation's instructions with the user's context. What it delegates comes back through
+   * POST /api/assistant/messages (mode 'voice'), so permissions and actions work exactly as in chat.
+   */
+  router.post('/api/assistant/live', async (ctx) => {
+    const user = ctx.user;
+    const b = await ctx.json();
+    if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet. Your university administrator can enable it.');
+    const threadId = optionalId(b.thread_id, 'Conversation');
+    const recent = threadId ? db.all('SELECT role, content FROM assistant_messages WHERE thread_id = ? ORDER BY id DESC LIMIT 12', threadFor(user, threadId).id).reverse() : [];
+    const name = assistantNameFor(user, site);
+    const context = String(buildContext(user, { query: recent.filter((m) => m.role === 'user').map((m) => m.content).join('\n'), assistantName: name, device: readDevice(b.device) }) || '').slice(0, 24000);
+    const earlier = recent.length ? `\n\nEarlier in this conversation:\n${recent.map((m) => `${m.role === 'user' ? 'User' : name}: ${m.content.replace(/\s+/g, ' ').slice(0, 400)}`).join('\n')}` : '';
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    ctx.res.on('close', abort);
+    try {
+      const pass = await ai.liveSession({ user, signal: controller.signal });
+      ctx.res.setHeader('Cache-Control', 'no-store');
+      return { ...pass, threadId: threadId || null,
+        instructions: livePrompt({ site, user, assistantName: name, context: context + earlier, language: { ui: user.preferences?.language || null, answer: user.preferences?.answerLanguage || 'match' } }) };
+    } finally {
+      ctx.res.off('close', abort);
+    }
   });
 
   // ---- Attachments: upload first, then send the message with the returned ids.

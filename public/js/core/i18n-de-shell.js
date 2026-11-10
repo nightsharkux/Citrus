@@ -208,6 +208,14 @@ export default {
 
   // ---- voice conversation and voice messages
   'Starting the microphone': 'Mikrofon wird gestartet',
+  'Connecting': 'Verbindung wird hergestellt',
+  'Looking that up': 'Ich schaue nach',
+  'Speak any time to interrupt': 'Sprich jederzeit, um zu unterbrechen',
+  'Talk over Campus or press Space to interrupt · Esc ends': 'Sprich dazwischen oder drück die Leertaste, um Campus zu unterbrechen · Esc beendet',
+  'Live voice isn’t available right now, so the standard voice is used.': 'Live-Stimme ist gerade nicht verfügbar, deshalb wird die normale Stimme verwendet.',
+  'The voice conversation ended after two quiet minutes.': 'Das Sprachgespräch wurde nach zwei stillen Minuten beendet.',
+  'The live connection dropped. Try again to keep talking.': 'Die Live-Verbindung ist abgebrochen. Versuch es erneut, um weiterzusprechen.',
+  'The conversation reached its time limit. Try again to start a new one.': 'Das Gespräch hat sein Zeitlimit erreicht. Versuch es erneut, um ein neues zu beginnen.',
   'Ask anything. Say “goodbye” when you’re done.': 'Frag, was du willst. Sag „Tschüss“, wenn du fertig bist.',
   'Space sends or interrupts · Esc ends': 'Leertaste sendet oder unterbricht · Esc beendet',
   'Shrink to a pill': 'Auf kleine Leiste verkleinern',

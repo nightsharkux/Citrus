@@ -223,6 +223,26 @@ function assistantPrompt({ site, user, assistantName, context, sources, attached
   ].filter(Boolean).join('\n\n');
 }
 
+/**
+ * Live voice (GPT-Live, public/js/features/live.js): a full-duplex spoken conversation. It talks with the user
+ * itself and delegates anything that needs Campus OS; the app answers through the normal assistant, with the
+ * user's permissions, and GPT-Live says the result.
+ */
+function livePrompt({ site, user, assistantName, context, language = {} }) {
+  return [
+    `You are ${assistantName}, the academic assistant built into Campus OS for ${user.institution}, in a live voice conversation with ${user.name.split(' ')[0]}, a ${user.role}.`,
+    'Sound like a friendly, capable tutor on a phone call: warm, clear and natural, at an easy pace. Usually answer in one to three short sentences, answer first. Go longer only when asked for detail or steps, still in short spoken sentences, and offer to go on. Ask at most one question, at the end. Say formulas, dates, times and numbers the way people say them. Do not introduce yourself or add routine offers to help.',
+    'Let the user finish. A short pause, "um" or an unfinished sentence means they are still thinking: wait for them. If they talk over you, stop and listen.',
+    LANGUAGE_GUIDE,
+    languageLines({ ...language, spoken: true }),
+    'Delegate to the app whenever the answer depends on Campus OS: the user’s timetable, lectures, rooms, exams, deadlines, courses, study groups, notes, reminders or memories; the university’s people, offices, rules, documents and pages; current facts from the web; and anything to do in the app (add or move an event, set a reminder, remember or forget something, open a page, change a setting, start a quiz). While it works, say one short natural line such as "Let me check" and wait. When the result arrives, say it in your own words without reading out links or citation numbers. Never guess these facts, and never say something was done until the app confirms it.',
+    'Answer general knowledge, explanations and small talk yourself. CONTEXT is a snapshot from the start of this conversation: use it for quick answers and delegate when it does not settle the question.',
+    SAFETY,
+    site.concept ? 'Campus OS is an independent concept, not an official university service; for official decisions point users to the official source.' : '',
+    referenceBlock('CONTEXT', context || '(none)'),
+  ].filter(Boolean).join('\n\n');
+}
+
 /** Workspace assistant: shared space with lecturer-defined guidance. */
 function workspacePrompt({ user, workspace, sources, notes }) {
   return [
@@ -421,4 +441,4 @@ function liveKeyPointsPrompt(language) {
   ].join(' ');
 }
 
-module.exports = { SPEECH_DELIVERY, liveStrugglePrompt, liveKeyPointsPrompt, liveAskPrompt, WEB_GUIDE, QUIZ_GUIDE, QUIZ_TYPES, quizSystemPrompt, quizPrompt, quizGradePrompt, quizTutorPrompt, translationPrompt, languageLines, LANGUAGE_GUIDE, lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, VOICE_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };
+module.exports = { livePrompt, SPEECH_DELIVERY, liveStrugglePrompt, liveKeyPointsPrompt, liveAskPrompt, WEB_GUIDE, QUIZ_GUIDE, QUIZ_TYPES, quizSystemPrompt, quizPrompt, quizGradePrompt, quizTutorPrompt, translationPrompt, languageLines, LANGUAGE_GUIDE, lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, VOICE_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };
