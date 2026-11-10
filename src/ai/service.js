@@ -16,6 +16,7 @@ const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
 const { voiceCatalog, speechOptions, calmText } = require('./voices');
 const { createRecognitionProvider } = require('./recognition');
+const { audioSession, STREAMING_SPEECH_MODEL } = require('./audio-session');
 const { MODEL_CHOICES, readModelOverride } = require('./models');
 const { createRateLimiter } = require('../http/rate-limit');
 const { tooMany, badRequest, unavailable } = require('../http/errors');
@@ -57,6 +58,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
       webSearch: base.aiEnabled && s.webSearch && providers.webAvailable(),
       webSearchAllowed: s.webSearch,
       speech: !!speechModel,
+      speechStreaming: speechModel === STREAMING_SPEECH_MODEL && env.CAMPUS_AI_SPEECH_STREAMING !== 'off',
       speechAllowed: s.speech,
       recognition: base.aiEnabled ? recognition.info() : { enabled: false, provider: 'browser' },
       ...(speechModel ? { speechModel } : {}),
@@ -131,13 +133,24 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   function speechInfo(user) {
     const s = status(user);
     if (!s.speech) return { enabled: false, voices: [], default: '' };
-    return { enabled: true, model: s.speechModel, ...voiceCatalog(s.speechModel) };
+    return { enabled: true, model: s.speechModel, streaming: s.speechStreaming, ...voiceCatalog(s.speechModel) };
+  }
+
+  async function playbackSession({ user, voice, speed, signal }) {
+    const s = status(user);
+    if (!s.speech || !s.speechStreaming) throw unavailable('Streaming speech is not available.');
+    if (!speechQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Please wait a moment before starting more speech.');
+    const options = speechOptions(s.speechModel, { voice, speed });
+    return { ...await audioSession({ env, fetchImpl, kind: 'speech', model: s.speechModel, signal }),
+      voice: options.voice, speed: options.speed || 1, outputFormat: { type: 'audio/pcm', rate: 24000 } };
   }
 
   async function recognitionSession({ user, language, terms = [], signal }) {
     const info = status(user).recognition;
     if (!info.enabled) throw unavailable('External recognition is not available. Browser speech recognition is available.');
     if (!(info.provider === 'wispr' ? wisprQuota : recognitionQuota).hit(`${user.institution_id}:${user.id}`)) throw tooMany('Voice input is reconnecting too often. Please wait a moment.');
+    // The current Gateway streaming adapter does not forward vocabulary. Avoid an unused profile round trip.
+    if (info.provider === 'gateway') return recognition.session({ language, user, signal });
     const profile = db.get('SELECT p.programme FROM user_profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND u.institution_id = ?', user.id, user.institution_id);
     // Lecture terms first (they matter most), then the campus basics; Deepgram takes about a hundred keyterms.
     const dictionary = [...terms, 'Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120)).slice(0, 100);
@@ -148,10 +161,10 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   async function speak({ user, text, voice = '', speed = 1, language = null, signal }) {
     const s = status(user);
     if (!s.speech) throw unavailable('Natural voices are not available. Campus uses this device’s voices.');
-    if (!speechQuota.hit(user.id)) throw tooMany('Campus is speaking a lot right now. Please wait a moment.');
+    if (!speechQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Campus is speaking a lot right now. Please wait a moment.');
     const options = speechOptions(s.speechModel, { voice, language, speed });
     text = calmText(text);
-    const key = crypto.createHash('sha256').update(JSON.stringify([s.speechModel, options, text])).digest('hex');
+    const key = crypto.createHash('sha256').update(JSON.stringify([user.institution_id, user.id, s.speechModel, options, text])).digest('hex');
     const hit = audioCache.get(key);
     if (hit) {
       audioCache.delete(key);
@@ -202,6 +215,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     stream,
     speak,
     speechInfo,
+    playbackSession,
     recognitionSession,
     retrieve,
     retrieveContext,

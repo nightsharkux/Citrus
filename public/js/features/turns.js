@@ -50,7 +50,7 @@ const SHORT_REPLIES = new Set([
  * `final`: the speech service has closed the phrase (it does after a short pause).
  * Null when nothing was said.
  */
-export function endOfTurnDelay(text, { final = false } = {}) {
+export function endOfTurnDelay(text, { final = false, silenceMs = 0 } = {}) {
   const list = words(text);
   if (!list.length) return null;
   let wait = final ? 650 : 1100;
@@ -58,7 +58,8 @@ export function endOfTurnDelay(text, { final = false } = {}) {
   if (TRAILING.has(list[list.length - 1])) wait += 800;
   else if (SHORT_REPLIES.has(phrase)) wait -= 250;
   else if (list.length < 3) wait += 250;
-  return wait;
+  // A service that already measured the pause must not add the same silence a second time.
+  return Math.max(100, wait - (final ? Math.min(700, Math.max(0, Number(silenceMs) || 0)) : 0));
 }
 
 // Common words that tell German from English. Words that mean something in both ("in", "was", "an", "so") are left out.

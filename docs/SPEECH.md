@@ -1,6 +1,8 @@
 # Speech recognition and playback
 
-Campus OS supports **Wispr Flow's Voice Interface API** and **Deepgram Nova-3** for dictation, the wake phrase, conversations and captions. Automatic mode enables German and English together; fixed German and English choices remain available. Text-to-speech uses the existing AI Gateway or device voice system.
+Campus OS uses **ElevenLabs Flash v2.5** for streamed speech and **OpenAI GPT Live Transcribe** for recognition through the existing AI Gateway connection. No separate OpenAI or ElevenLabs key or runtime dependency is needed. Explicit speech-model choices and configured Wispr/Deepgram recognition remain in effect. Automatic input recognizes German and English; fixed language choices remain available.
+
+This uses public provider APIs, not ChatGPT's private voice implementation. Sound quality, transcription accuracy and response time still need evaluation on the intended devices and provider account.
 
 ## Activation
 
@@ -8,9 +10,12 @@ The deployment owner configures these settings in the hosting dashboard. Agents 
 
 | Setting | Value |
 |---|---|
+| `AI_GATEWAY_API_KEY` | Existing server-side Gateway key. Requires Gateway speech/streaming-transcription access and credits; audio access rolls out by account. |
+| `CAMPUS_AI_SPEECH_MODEL` | Defaults to `elevenlabs/eleven-flash-v2.5`. An explicit model is preserved; `off` disables natural speech. |
+| `CAMPUS_AI_SPEECH_STREAMING` | `off` disables streaming playback while retaining buffered speech. Streaming is enabled for the default Flash v2.5 model. |
 | `WISPR_FLOW_API_KEY` | Wispr organization API key, server-side only. Requires Wispr-approved Voice Interface API access; a desktop Flow subscription alone does not grant this access. |
 | `DEEPGRAM_API_KEY` | A Deepgram project key with Member permission or higher, required by `/v1/auth/grant`. Keep it server-side. |
-| `CAMPUS_STT_PROVIDER` | `wispr`, `deepgram` or `browser`. If unset, a configured Wispr key selects Wispr, then a Deepgram key selects Deepgram, otherwise browser recognition. |
+| `CAMPUS_STT_PROVIDER` | `gateway`, `wispr`, `deepgram` or `browser`. If unset: configured Wispr, then Deepgram, then Gateway, otherwise browser recognition. `gateway` selects OpenAI live transcription. |
 | `CAMPUS_STT_REGION` | `eu` (default) or `global`. EU uses `api.eu.deepgram.com`. |
 
 Request Wispr access through its [developer portal](https://platform.wisprflow.ai) and [quickstart](https://api-docs.wisprflow.ai/quickstart). Enable the institution's AI provider in Admin / AI & knowledge and redeploy after setting hosting variables. External recognition is billed by its service. No new runtime dependencies are installed.
@@ -18,6 +23,11 @@ Request Wispr access through its [developer portal](https://platform.wisprflow.a
 Settings / Assistant identifies the configured recognition system. While the wake phrase is enabled, audio streams to the selected service, including while waiting for the wake phrase. Turning listening off closes capture and releases the microphone. HTTPS (or localhost) and microphone permission are required. Native browser recognition is the fallback when supported; the app shows a notice when falling back.
 
 ## Audio and authentication
+
+- `POST /api/speech/playback-session` and `/api/speech/recognition-session` obtain single-use, model-bound Gateway grants that expire after 60 seconds if unused. They require sign-in, same-origin requests, the institution's enabled AI, and separate per-user/institution quotas. Speech output also honors the institution's speech switch. The deployment key never reaches the browser. Grant responses are `no-store`; tokens stay in memory and use WebSocket authentication subprotocols rather than URL parameters.
+- Playback sends speakable text through Gateway's documented speech-stream envelope. ElevenLabs returns mono 24 kHz signed 16-bit PCM, scheduled on one playback clock as it arrives. The connection opens while the chat model prepares its answer, and later sentences use the same connection and voice. Streaming startup failures fall back to buffered speech with the same model before device fallback; interrupted audio reports failure and can be replayed. Buffers and timeouts are bounded, and cancellation closes the socket and stops scheduled sound.
+- OpenAI capture uses a 24 kHz AudioContext and 50 ms PCM AudioWorklet packets. Live deltas and corrected partials update the transcript; only finalized segments become saved captions. A local energy detector commits after speech followed by 700 ms of quiet, with the measured pause deducted from conversation turn timing. Unfinished phrases still get more time. Manual stop flushes audio before finalization; abort releases capture immediately. Idle streams rotate after 90 seconds. Unsupported capture rates and unavailable Gateway recognition fall back to native recognition where available, with a notice.
+- The current Gateway OpenAI streaming adapter supports fixed language and low transcription delay, but does not forward vocabulary/context hints. Automatic mode leaves language unrestricted. Lecture-specific keyterms remain a Deepgram feature. Audio and tokens are not stored by Campus OS; provider processing and retention terms apply. Recognition connections reopen after a committed phrase, so test phrase boundaries and interruptions in real use.
 
 - Microphone capture requests the browser's established WebRTC echo cancellation, noise suppression, automatic gain control and mono audio. Actual audio processing depends on browser/hardware support. Deepgram also handles background noise in its recognition model. There is no extra custom denoising model or speaker identification.
 - Bluetooth headphones play everything in muffled call quality while their microphone records. When the default microphone is a headset and the computer has its own, Deepgram and Wispr record from the computer's microphone, so the headphones keep their full sound (public/js/features/microphone.js). When the headset is the only microphone, or the browser's recogniser is used, the voice conversation releases the microphone while Campus talks; tap or press Space to interrupt.
@@ -40,6 +50,12 @@ What this does not do: it does not classify non-speech sounds (applause, a door)
 
 Generated audio receives bounded per-clip loudness correction and a compressor to reduce volume jumps. Saved volume settings remain in effect. Device playback keeps one voice per language throughout an answer and retries a dropped sentence once. Natural speech requests have bounded timeouts and one retry before device fallback. Supported phones request playback audio routing while the microphone is paused. Campus's gaze stays centered while speaking.
 
+Streaming PCM preserves the provider's level rather than applying gain separately to tiny chunks. The same master volume and peak compressor control playback. Settings / Assistant exposes volume, speaking speed, samples, a Stop sample button and the configured voice service. Conversations have a live volume slider and Replay answer button. Zero volume stays muted. Turning the microphone off releases capture even during an answer.
+
+For deployments explicitly retaining `openai/tts-1` or `openai/tts-1-hd`, the catalog includes only their supported voices. Realtime-only names such as Coral cannot reach those legacy endpoints. These older speech models are deprecated by OpenAI; use the default ElevenLabs model for new deployments.
+
+The new default Flash v2.5 is billed through Gateway and has different pricing from the former `tts-1` default. An explicit `CAMPUS_AI_SPEECH_MODEL` remains unchanged. Check account access and pricing before evaluating a production rollout; no live paid request was made during automated verification.
+
 ## Verify after activation
 
 1. In Settings / Assistant, select Automatic voice input. Allow the microphone.
@@ -52,3 +68,5 @@ With Wispr, pause to finish each phrase. Test names, corrections and quiet speec
 Wispr references: [access tokens](https://api-docs.wisprflow.ai/generate_access_token), [client authentication](https://api-docs.wisprflow.ai/client_side_auth_basics), [WebSocket API](https://api-docs.wisprflow.ai/websocket_api), [request schema](https://api-docs.wisprflow.ai/request_schema).
 
 Official references: [Nova-3 language switching](https://developers.deepgram.com/docs/nova-3-language-prompting), [temporary authentication](https://developers.deepgram.com/guides/fundamentals/token-based-authentication), [live audio API](https://developers.deepgram.com/reference/speech-to-text/listen-streaming), [audio preprocessing](https://developers.deepgram.com/guides/deep-dives/audio-preprocessing-barge-in).
+
+Gateway references (verified 2026-11-10): [streaming speech](https://vercel.com/docs/ai-gateway/modalities/text-to-speech), [streaming transcription](https://vercel.com/docs/ai-gateway/modalities/speech-to-text), [model catalog](https://ai-gateway.vercel.sh/v1/models), [grant implementation](https://github.com/vercel/ai/blob/main/packages/gateway/src/gateway-provider.ts), [speech envelope](https://github.com/vercel/ai/blob/main/packages/provider-utils/src/speech-stream-envelope.ts), [transcription envelope](https://github.com/vercel/ai/blob/main/packages/provider-utils/src/transcription-stream-envelope.ts). OpenAI: [live transcription](https://developers.openai.com/api/docs/guides/realtime-transcription), [speech models and deprecation](https://developers.openai.com/api/docs/guides/text-to-speech).

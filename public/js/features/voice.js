@@ -23,12 +23,13 @@ import { onSpeakingChange, setLanguageHint, stopSpeaking } from './speaker.js';
 import { api } from '../core/api.js';
 import { DeepgramRecognition } from './recognition.js';
 import { WisprRecognition } from './wispr-recognition.js';
+import { GatewayRecognition } from './gateway-recognition.js';
 import { chooseMicrophone, microphoneRoute } from './microphone.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
 const useExternalRecognition = () => session.ai?.recognition?.enabled && Date.now() >= cloudRestUntil && !!navigator.mediaDevices?.getUserMedia && !!window.WebSocket
-  && (session.ai.recognition.provider === 'wispr' ? !!window.AudioWorkletNode && !!(window.AudioContext || window.webkitAudioContext) : !!window.MediaRecorder);
+  && (['wispr', 'gateway'].includes(session.ai.recognition.provider) ? !!window.AudioWorkletNode && !!(window.AudioContext || window.webkitAudioContext) : !!window.MediaRecorder);
 const recognitionAvailable = () => useExternalRecognition() || !!NativeRecognition;
 /**
  * While a lecture is running, recognition sessions carry its id so the server can add the lecture's vocabulary (titles,
@@ -41,7 +42,7 @@ export function setRecognitionLecture(id) {
 
 function createRecognition() {
   if (!useExternalRecognition()) return new NativeRecognition();
-  const Recognition = session.ai.recognition.provider === 'wispr' ? WisprRecognition : DeepgramRecognition;
+  const Recognition = session.ai.recognition.provider === 'gateway' ? GatewayRecognition : session.ai.recognition.provider === 'wispr' ? WisprRecognition : DeepgramRecognition;
   return new Recognition({
     requestSession: (language, signal) => api.post('/speech/recognition-session', { language, ...(liveSession ? { live_session: liveSession } : {}) }, { signal }),
     onFailure() {

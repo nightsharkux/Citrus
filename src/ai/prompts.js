@@ -12,6 +12,9 @@ const STYLE = [
   'Reference block tags and JSON are input structure. Do not repeat that structure in your answer.',
 ].join(' ');
 
+/** Delivery directions for speech models that support instructions. */
+const SPEECH_DELIVERY = 'Speak clearly in a calm, professional conversational voice at a comfortable, audible volume. Use crisp pronunciation, natural intonation and a steady pace. Do not whisper or mumble.';
+
 const SAFETY = [
   'Academic snapshot sources are offline reference data. Use their printed semester, entry cohort and page number, not a semester inferred from the URL or snapshot date. Cite sourceId and sourcePage through the numbered source. Preserve cancellations and block dates. Curriculum plans are not weekly timetables. Layout text, drawn regions and unverified OCR are not validated events: never infer a course time from the nearest time label or infer live room availability. If partialPage is true or grid relationships/OCR are unclear, say the exact time is not established and link the page. Do not silently reconcile SOURCE_CONFLICT dates. Do not download sources again for ordinary questions; use the supplied snapshot and explain a specific gap when necessary.',
   'Never invent university policies, dates, rooms, people or deadlines. If the provided sources do not cover it, say you do not know and suggest where to check.',
@@ -415,4 +418,4 @@ function liveKeyPointsPrompt(language) {
   ].join(' ');
 }
 
-module.exports = { liveStrugglePrompt, liveKeyPointsPrompt, liveAskPrompt, WEB_GUIDE, QUIZ_GUIDE, QUIZ_TYPES, quizSystemPrompt, quizPrompt, quizGradePrompt, quizTutorPrompt, translationPrompt, languageLines, LANGUAGE_GUIDE, lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, VOICE_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };
+module.exports = { SPEECH_DELIVERY, liveStrugglePrompt, liveKeyPointsPrompt, liveAskPrompt, WEB_GUIDE, QUIZ_GUIDE, QUIZ_TYPES, quizSystemPrompt, quizPrompt, quizGradePrompt, quizTutorPrompt, translationPrompt, languageLines, LANGUAGE_GUIDE, lectureInsightsPrompt, lectureDigestPrompt, FORMAT_GUIDE, VOICE_GUIDE, ACTION_GUIDE, VISUAL_CUES, assistantPrompt, workspacePrompt, meetingPrompt, captionsSummaryPrompt, revisionPrompt, revisionSystemPrompt, connectionTestPrompt, suggestionsPrompt, voicePrompt, referenceBlock, GUIDANCE };

@@ -11,6 +11,7 @@ import { createFace } from '../features/face.js';
 import { wake, voiceProblem, previewVoice } from '../features/voice.js';
 import { PRESETS, READ_ALOUD, QUALITY_LABEL, getVoiceSettings, saveVoiceSettings, voicesReady, listVoices } from '../features/voices.js';
 import { applySettingsEffect } from '../features/preferences.js';
+import { setSpeechVolume } from '../features/speaker.js';
 
 const SECTIONS = [
   ['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun'], ['assistant', 'Assistant', 'sparkle'], ['notifications', 'Notifications', 'bell'],
@@ -101,7 +102,7 @@ function assistant() {
   return html`<section class="card assistant-settings">
     <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Campus OS.</p></div></div>
     <div class="stack mt-24" style="--gap:18px">
-      <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'wispr' ? 'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
+      <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'gateway' ? 'OpenAI processes microphone audio through AI Gateway while listening is on. Turn it off to stop streaming.' : session.ai.recognition.provider === 'wispr' ? 'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
         <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Campus"><span></span></span></label>
       <label class="spread"><span><strong>Animated explanations</strong><br><span class="small muted">Campus’s eye turns into small animations — formulas, steps, figures — while it explains something.</span></span>
         <span class="switch"><input type="checkbox" data-pref="visuals" ${prefs.visuals === false ? '' : 'checked'} aria-label="Animated explanations"><span></span></span></label>
@@ -134,7 +135,7 @@ function identityCard() {
       <label class="field"><span>Interface language</span><select class="select" name="language">${option('en', 'English', language)}${option('de', 'Deutsch', language)}</select></label>
       <label class="field"><span>Answer language</span><select class="select" name="answerLanguage">${option('match', 'Follow my language', answer)}${option('de', 'Deutsch', answer)}${option('en', 'English', answer)}</select><span class="hint">You can switch languages or mix German and English in any conversation.</span></label>
       <label class="field"><span>Voice input language</span><select class="select" name="speechLanguage">${option('auto', 'Automatic (English and German)', speech)}${option('en', 'English', speech)}${option('de', 'Deutsch', speech)}</select>
-        <span class="hint">${session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'wispr' ? 'Wispr Flow: Automatic supports German and English together. Pause to finish a phrase. Microphone echo cancellation and noise suppression are enabled.' : 'Deepgram Nova-3: Automatic understands German and English together, including changes within a sentence. Microphone echo cancellation and noise suppression are enabled.' : 'Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.'}</span></label>
+        <span class="hint">${session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'gateway' ? 'OpenAI live transcription: words appear as you speak. Automatic recognizes German and English. Echo cancellation and noise suppression are enabled.' : session.ai.recognition.provider === 'wispr' ? 'Wispr Flow: Automatic supports German and English together. Pause to finish a phrase. Microphone echo cancellation and noise suppression are enabled.' : 'Deepgram Nova-3: Automatic understands German and English together, including changes within a sentence. Microphone echo cancellation and noise suppression are enabled.' : 'Your browser listens for one language at a time. Automatic follows the language you spoke last; say “auf Deutsch” or “in English” to switch.'}</span></label>
       <div class="form-actions"><button class="btn btn-primary">Save</button></div>
     </form></section>`;
 }
@@ -158,7 +159,7 @@ function voiceCard() {
     <form class="form mt-16" id="voice-form">
       <div class="field" data-natural-block hidden><span>Voice type</span>
         <div class="cluster">${[['natural', 'Natural voices'], ['device', 'This device’s voices']].map(([id, label]) => html`<label class="chip-radio"><input type="radio" name="engine" value="${id}" ${(v.engine || 'natural') === id ? 'checked' : ''}><span>${label}</span></label>`)}</div>
-        <span class="hint">Natural voices are made by your university’s AI service and sound like a person. This device’s voices come from your browser and also work without it.</span></div>
+        <span class="hint">Natural voices are AI-generated by your university’s speech service. Device voices come from your browser.</span></div>
       <div class="field" data-natural-voices hidden><span>Natural voice</span><div class="choice-grid voice-grid" data-natural-list></div>
         <span class="hint">Every natural voice reads both German and English answers.</span></div>
       <div class="stack" style="--gap:18px" data-device-block>
@@ -171,8 +172,10 @@ function voiceCard() {
       </div>
       <div class="field"><span>Style</span><div class="cluster">${PRESETS.map((p) => html`<label class="chip-radio"><input type="radio" name="preset" value="${p.id}" ${v.preset === p.id ? 'checked' : ''}><span>${p.label}</span></label>`)}</div></div>
       <label class="field"><span>Speed <output data-rate-label>${Number(v.rate).toFixed(2)}×</output></span><input type="range" name="rate" min="0.7" max="1.7" step="0.05" value="${v.rate}" aria-label="Speaking speed"></label>
+      <label class="field"><span>Volume <output data-volume-label>${Math.round(v.volume * 100)}%</output></span><input type="range" name="volume" min="0" max="1" step="0.05" value="${v.volume}" aria-label="Voice volume"></label>
       <label class="field"><span>Read answers aloud</span><select class="select" name="readAloud">${READ_ALOUD.map(([value, label]) => html`<option value="${value}" ${v.readAloud === value ? 'selected' : ''}>${label}</option>`)}</select></label>
-      <div class="form-actions"><button type="button" class="btn" data-voice-preview="en">${icon('volume', 16)} English sample</button><button type="button" class="btn" data-voice-preview="de">${icon('volume', 16)} Deutsche Hörprobe</button></div>
+      <p class="hint" data-speech-service>Checking speech service</p>
+      <div class="form-actions"><button type="button" class="btn" data-voice-preview="en">${icon('volume', 16)} English sample</button><button type="button" class="btn" data-voice-preview="de">${icon('volume', 16)} Deutsche Hörprobe</button><button type="button" class="btn" data-voice-stop>Stop sample</button></div>
     </form>
   </section>`;
 }
@@ -181,11 +184,12 @@ function mountVoice(root) {
   const form = $('#voice-form', root);
   if (!form) return () => {};
   let natural = null; // the server's natural voices, once known
+  let sampleSpeaker = null;
   const engine = () => (natural?.enabled && getVoiceSettings().engine !== 'device' ? 'natural' : 'device');
-  const sample = (code, voice) => previewVoice(
+  const sample = (code, voice) => (sampleSpeaker = previewVoice(
     code === 'de' ? `Hallo, ich bin ${assistantName()}. Schön, dass du da bist. So klinge ich auf Deutsch.` : `Hi, I’m ${assistantName()}. Great to meet you. This is how I sound.`,
     { engine: engine(), ...(voice !== undefined ? { voice } : {}) },
-  );
+  ));
   const showEngine = () => {
     const nat = engine() === 'natural';
     $('[data-natural-voices]', form).hidden = !nat;
@@ -194,16 +198,19 @@ function mountVoice(root) {
 
   api.get('/speech').then((info) => {
     natural = info;
+    if (form.isConnected) $('[data-speech-service]', form).textContent = info.enabled
+      ? `AI-generated voice · ${info.model}${info.streaming ? ' · streaming audio' : ''}` : 'Using this device’s voices.';
     if (!form.isConnected || !info.enabled || !info.voices.length) return;
     $('[data-natural-block]', form).hidden = false;
-    const chosen = getVoiceSettings().natural || info.default;
+    const saved = getVoiceSettings().natural;
+    const chosen = info.voices.some((voice) => voice.id === saved) ? saved : info.default;
     render($('[data-natural-list]', form), html`${info.voices.map((x) => html`<label class="choice voice-choice">
       <input type="radio" name="natural" value="${x.id}" ${x.id === chosen ? 'checked' : ''}>
       <span class="grow"><strong style="display:block">${x.label}</strong><span class="small muted">${x.tone}${x.language ? ` · ${x.language === 'de' ? 'Deutsch' : 'English'}` : ''}</span></span>
       <button type="button" class="btn btn-ghost btn-icon btn-sm" data-voice-play="${x.id}" aria-label="Play ${x.label}" title="Play">${icon('play', 14)}</button>
     </label>`)}`);
     showEngine();
-  }).catch(() => {});
+  }).catch(() => { if (form.isConnected) $('[data-speech-service]', form).textContent = 'Using this device’s voices.'; });
 
   if ('speechSynthesis' in window) {
     voicesReady().then(() => {
@@ -222,6 +229,12 @@ function mountVoice(root) {
 
   const here = () => (document.documentElement.lang === 'de' ? 'de' : 'en');
   const offs = [
+    on(form, 'input', 'input[name="volume"]', (e) => {
+      const volume = Number(e.target.value);
+      saveVoiceSettings({ volume }); setSpeechVolume(volume);
+      $('[data-volume-label]', form).textContent = `${Math.round(volume * 100)}%`;
+    }),
+    on(form, 'click', '[data-voice-stop]', () => sampleSpeaker?.cancel()),
     on(form, 'change', 'select, input', (e) => {
       const { name, value } = e.target;
       if (name === 'preset') {
@@ -243,6 +256,9 @@ function mountVoice(root) {
         saveVoiceSettings({ rate: Number(value) });
         $('[data-rate-label]', form).textContent = `${Number(value).toFixed(2)}×`;
         return;
+      } else if (name === 'volume') {
+        saveVoiceSettings({ volume: Number(value) }); setSpeechVolume(value);
+        return;
       } else saveVoiceSettings({ [name]: value });
       if (name !== 'readAloud') sample(here());
     }),
@@ -254,7 +270,7 @@ function mountVoice(root) {
       sample(here(), b.dataset.voicePlay);
     }),
   ];
-  return () => offs.forEach((off) => off());
+  return () => { sampleSpeaker?.cancel(); offs.forEach((off) => off()); };
 }
 
 function mountAssistant(root) {

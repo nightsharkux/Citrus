@@ -227,6 +227,9 @@ body.talk-open { overflow: hidden; }
 .talk-actions:empty { display: none; }
 .talk-retry[hidden] { display: none; }
 .talk-controls { display: flex; align-items: center; gap: 24px; padding: 18px 0 6px; }
+.talk-volume { display: flex; align-items: center; gap: 12px; width: min(280px, 85vw); color: var(--text-3); font-size: 13px; }
+.talk-volume input { flex: 1; min-width: 0; }
+.talk-volume output { min-width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
 .talk-btn { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--glass-border); background: var(--glass-strong); color: var(--text); box-shadow: var(--shadow); cursor: pointer; transition: transform var(--fast) var(--ease), background var(--fast) var(--ease); }
 .talk-btn:hover { background: var(--bg-solid); }
 .talk-btn:active { transform: scale(0.95); }

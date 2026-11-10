@@ -8,7 +8,7 @@ const summaryModel = (env) => String(env.CAMPUS_AI_SUMMARY_MODEL || '').trim() |
 /** Text to speech (beta on the gateway). "off" turns natural voices off; the browser's voices are used instead. */
 const speechModel = (env) => {
   const value = String(env.CAMPUS_AI_SPEECH_MODEL || '').trim();
-  return value.toLowerCase() === 'off' ? null : value || 'openai/tts-1';
+  return value.toLowerCase() === 'off' ? null : value || 'elevenlabs/eleven-flash-v2.5';
 };
 /** A spoken conversation wants a quick answer: a reasoning model thinks briefly there (CAMPUS_AI_VOICE_REASONING). */
 const voiceEffort = (env) => String(env.CAMPUS_AI_VOICE_REASONING || '').trim() || 'low';

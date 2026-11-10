@@ -112,6 +112,10 @@ class FakeAudio {
     };
     return src;
   }
+  createBuffer(channels, length, sampleRate) {
+    const samples = new Float32Array(length);
+    return { duration: length / sampleRate, numberOfChannels: channels, getChannelData: () => samples };
+  }
   decodeAudioData(bytes, ok) {
     setTimeout(() => ok({ duration: 0.03, text: Buffer.from(bytes).toString(), numberOfChannels: 1, getChannelData: () => Float32Array.from([0.02, -0.02]) }), 1);
   }
@@ -306,4 +310,55 @@ test('natural voices that fail mid-answer hand over to the device voice without 
   failFrom = Infinity;
   // Natural voices now rest, so the next answer goes straight to the device voice.
   assert.equal(createSpeaker().engine, 'device');
+});
+
+test('streaming playback starts before the answer finishes, schedules PCM in order and applies live volume', async () => {
+  const { createSpeaker, setSpeechVolume } = await load('features/speaker.js');
+  const { setSession } = await load('core/store.js');
+  setSession({ ai: { speech: true, speechStreaming: true } });
+  const savedFetch = globalThis.fetch; const savedSocket = globalThis.WebSocket;
+  let socket;
+  globalThis.WebSocket = class {
+    constructor() { socket = this; this.readyState = 0; this.sent = []; this.bufferedAmount = 0; }
+    send(data) { this.sent.push(JSON.parse(data)); }
+    close() { this.readyState = 3; }
+    message(data) { this.onmessage?.({ data: JSON.stringify(data) }); }
+  };
+  globalThis.fetch = async () => Response.json({ url: 'wss://ai-gateway.vercel.sh/v4/ai/speech-model?ai-model-id=elevenlabs/eleven-flash-v2.5', model: 'elevenlabs/eleven-flash-v2.5', token: 'vcst_fixture', voice: 'bella', speed: 1, outputFormat: { type: 'audio/pcm', rate: 24000 } });
+  const t = track();
+  const speaker = createSpeaker({ ...t.options, options: { engine: 'natural' } });
+  try {
+    speaker.feed('Here is the first sentence. ');
+    await wait(2); socket.readyState = 1; socket.onopen();
+    const previous = lastAudio().played.length;
+    const packet = { type: 'audio', audio: Buffer.alloc(2400).toString('base64'), audioFormat: { type: 'audio/pcm', rate: 24000 } };
+    socket.message(packet);
+    await t.started;
+    assert.equal(speaker.active, true, 'the answer has not ended yet');
+    setSpeechVolume(0.35);
+    speaker.feed('Here is the second sentence.'); speaker.end();
+    socket.message(packet); socket.message({ type: 'finish' });
+    assert.equal(await t.ended, 'done'); assert.equal(t.starts, 1);
+    const played = lastAudio().played.slice(previous);
+    assert.equal(played.length, 2); assert.equal(played[1].gain, 0.35);
+    assert.ok(played[1].at >= played[0].at + played[0].duration - 0.001);
+    assert.equal(socket.sent.filter((f) => f.type === 'speech-stream.text-delta').map((f) => f.delta).join(''), 'Here is the first sentence. Here is the second sentence. ');
+    assert.equal(socket.sent.at(-1).type, 'speech-stream.text-done');
+    assert.equal(socket.readyState, 3);
+  } finally { speaker.cancel(); globalThis.fetch = savedFetch; globalThis.WebSocket = savedSocket; }
+});
+
+test('cancelling a streaming answer aborts the grant and ignores late responses', async () => {
+  const { createSpeaker } = await load('features/speaker.js');
+  const savedFetch = globalThis.fetch; const savedSocket = globalThis.WebSocket;
+  let resolveGrant; let signal; let sockets = 0;
+  globalThis.WebSocket = class { constructor() { sockets++; } };
+  globalThis.fetch = (url, options) => { signal = options.signal; return new Promise((resolve) => { resolveGrant = resolve; }); };
+  const t = track(); const speaker = createSpeaker({ ...t.options, options: { engine: 'natural' } });
+  try {
+    speaker.feed('Do not finish this sentence.'); speaker.cancel();
+    assert.equal(await t.ended, 'cancelled'); assert.equal(signal.aborted, true);
+    resolveGrant(Response.json({ token: 'vcst_late' })); await wait(2);
+    assert.equal(sockets, 0); assert.equal(speaker.active, false);
+  } finally { speaker.cancel(); globalThis.fetch = savedFetch; globalThis.WebSocket = savedSocket; }
 });

@@ -39,6 +39,8 @@ import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, 
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
+import { getVoiceSettings, saveVoiceSettings } from './voices.js';
+import { setSpeechVolume } from './speaker.js';
 
 const QUIET_LIMIT = 120_000;
 
@@ -160,8 +162,10 @@ function createConversation({ threadId: startThread }) {
       </div>
       <div class="talk-controls">
         <button class="talk-btn" data-talk-mute aria-pressed="false" aria-label="Turn microphone off" title="Microphone">${icon('mic', 24)}</button>
+        <button class="talk-btn" data-talk-replay aria-label="Replay answer" title="Replay answer" disabled>${icon('refresh', 24)}</button>
         <button class="talk-btn talk-end" data-talk-end aria-label="End conversation" title="End">${icon('x', 26)}</button>
       </div>
+      <label class="talk-volume"><span>Volume</span><input type="range" min="0" max="1" step="0.05" value="${getVoiceSettings().volume}" data-talk-volume aria-label="Voice volume"><output data-talk-volume-label>${Math.round(getVoiceSettings().volume * 100)}%</output></label>
       ${touch ? '' : html`<p class="talk-hint">Space sends or interrupts · Esc ends</p>`}
     </div>
     <div class="voice-pill talk-pill" data-talk-pill hidden>
@@ -205,6 +209,7 @@ function createConversation({ threadId: startThread }) {
     mute.classList.toggle('is-off', muted);
     render(mute, icon(muted ? 'mic-off' : 'mic', 24));
     $('[data-talk-retry]', root).hidden = state !== 'error';
+    $('[data-talk-replay]', root).disabled = !reply || state === 'thinking' || state === 'speaking';
     const mood = { listening: 'listening', hearing: 'listening', thinking: 'thinking', speaking: 'speaking' }[state] || 'idle';
     if (face.mood !== mood) face.setMood(mood);
   }
@@ -334,7 +339,7 @@ function createConversation({ threadId: startThread }) {
     else paint();
     showYou(text);
     clearTimeout(turnTimer);
-    turnTimer = setTimeout(endTurn, endOfTurnDelay(heard, { final: heardFinal }) ?? 1200);
+    turnTimer = setTimeout(endTurn, endOfTurnDelay(heard, { final: heardFinal, silenceMs: results?.silenceMs }) ?? 1200);
   }
 
   /** Back to listening for the next turn. */
@@ -537,6 +542,7 @@ function createConversation({ threadId: startThread }) {
       return;
     }
     if (reason === 'blocked') $('[data-talk-reply]', root).textContent = `${captionOf(reply)} (Your browser didn’t let ${name} speak. Tap anywhere on the page once, then ask again.)`;
+    if (reason === 'failed') toast('The voice connection stopped. Replay the answer to hear it again.', 'info');
     listen();
   }
 
@@ -563,8 +569,8 @@ function createConversation({ threadId: startThread }) {
     clearTimeout(quietTimer);
     if (muted) {
       clearTimeout(turnTimer);
+      listener.stop();
       if (state === 'listening' || state === 'hearing' || state === 'starting') {
-        listener.stop();
         skipHeard();
         setState('muted');
       } else paint();
@@ -652,6 +658,19 @@ function createConversation({ threadId: startThread }) {
   const offs = [
     on(root, 'click', '[data-talk-orb]', () => tap()),
     on(root, 'click', '[data-talk-mute]', () => setMuted(!muted)),
+    on(root, 'click', '[data-talk-replay]', () => {
+      if (!reply || state === 'thinking' || state === 'speaking') return;
+      const text = reply;
+      skipHeard();
+      primeSpeech();
+      setState('thinking');
+      sayLine(text);
+    }),
+    on(root, 'input', '[data-talk-volume]', (e) => {
+      const volume = Number(e.target.value);
+      saveVoiceSettings({ volume }); setSpeechVolume(volume);
+      $('[data-talk-volume-label]', root).textContent = `${Math.round(volume * 100)}%`;
+    }),
     on(root, 'click', '[data-talk-end]', () => close()),
     on(root, 'click', '[data-talk-minimise]', () => minimise()),
     on(root, 'click', '[data-talk-expand]', () => expand()),

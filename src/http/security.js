@@ -7,7 +7,7 @@ const CONTENT_SECURITY_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "media-src 'self' blob:",
-  "connect-src 'self' wss://api.eu.deepgram.com wss://api.deepgram.com wss://platform-api.wisprflow.ai",
+  "connect-src 'self' wss://ai-gateway.vercel.sh wss://api.eu.deepgram.com wss://api.deepgram.com wss://platform-api.wisprflow.ai",
   "font-src 'self'",
   "worker-src 'self'",
   "manifest-src 'self'",

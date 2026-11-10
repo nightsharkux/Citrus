@@ -42,7 +42,8 @@ async function readyApp(fixture, env = {}) {
 
 test('voices are checked against the catalog, and German text never goes to an English-only voice', () => {
   assert.equal(speechOptions('openai/tts-1', { voice: 'nova' }).voice, 'nova');
-  assert.equal(speechOptions('openai/tts-1', { voice: '<script>' }).voice, 'coral', 'unknown voices fall back to the default');
+  assert.equal(speechOptions('openai/tts-1', { voice: '<script>' }).voice, 'nova', 'unknown voices fall back to a supported voice');
+  assert.equal(speechOptions('openai/tts-1', { voice: 'coral' }).voice, 'nova', 'Realtime-only voices cannot reach the legacy endpoint');
   assert.equal(speechOptions('openai/tts-1', { voice: 'nova', speed: 1.2 }).speed, 1.2);
   assert.equal(speechOptions('openai/tts-1', { voice: 'nova', speed: 1 }).speed, undefined, 'normal speed is not sent');
   assert.match(speechOptions('google/gemini-3.8-flash-tts', {}).instructions, /calm/i, 'Gemini is told how to sound');
@@ -59,8 +60,8 @@ test('natural voices: the gateway speech request, caching, quota-free reuse and 
   try {
     const info = await app.call('stu', 'GET', '/api/speech');
     assert.equal(info.body.enabled, true);
-    assert.equal(info.body.model, 'openai/tts-1');
-    assert.ok(info.body.voices.some((v) => v.id === 'coral'));
+    assert.equal(info.body.model, 'elevenlabs/eleven-flash-v2.5');
+    assert.ok(info.body.voices.some((v) => v.label === 'Bella'));
     assert.equal((await app.call('stu', 'GET', '/api/bootstrap')).body.ai.speech, true);
 
     const res = await app.call('stu', 'POST', '/api/speech', { text: 'Hallo! Die Bibliothek ist offen.', voice: 'nova', speed: 1.1, lang: 'de' }, { raw: true });
@@ -68,10 +69,10 @@ test('natural voices: the gateway speech request, caching, quota-free reuse and 
     assert.equal(res.headers.get('content-type'), 'audio/mpeg');
     assert.deepEqual(Buffer.from(await res.arrayBuffer()), AUDIO);
     const sent = fixture.state.speech[0];
-    assert.equal(sent.headers['ai-model-id'], 'openai/tts-1');
+    assert.equal(sent.headers['ai-model-id'], 'elevenlabs/eleven-flash-v2.5');
     assert.equal(sent.headers['ai-speech-model-specification-version'], '4');
     assert.equal(sent.headers.Authorization, 'Bearer fixture-key');
-    assert.deepEqual(sent.body, { text: 'Hallo. Die Bibliothek ist offen.', outputFormat: 'mp3', voice: 'nova', speed: 1.1 });
+    assert.deepEqual(sent.body, { text: 'Hallo. Die Bibliothek ist offen.', outputFormat: 'mp3', voice: 'hpp4J3VqNfWAUOO0d1Us', speed: 1.1 });
 
     await app.call('stu', 'POST', '/api/speech', { text: 'Hallo. Die Bibliothek ist offen.', voice: 'nova', speed: 1.1, lang: 'de' }, { raw: true });
     assert.equal(fixture.state.speech.length, 1, 'the same sentence in the same voice comes from the cache');

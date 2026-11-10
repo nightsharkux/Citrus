@@ -9,6 +9,8 @@
  * Live recognition settings DEEPGRAM_API_KEY, CAMPUS_STT_PROVIDER and CAMPUS_STT_REGION
  * are read lazily by src/ai/recognition.js for the same reason.
  * WISPR_FLOW_API_KEY is read by src/ai/wispr.js when that recognition provider is selected.
+ * With no dedicated STT configured, src/ai/recognition.js uses OpenAI live transcription through AI_GATEWAY_API_KEY.
+ * CAMPUS_AI_SPEECH_STREAMING=off disables streaming playback; buffered speech remains available.
  */
 const path = require('node:path');
 const { siteConfig } = require('../config/site');

@@ -15,6 +15,19 @@ const { loadLectureVocabulary } = require('../live/vocabulary');
 function register(router, { ai, db, access }) {
   router.get('/api/speech', (ctx) => ai.speechInfo(ctx.user));
 
+  router.post('/api/speech/playback-session', async (ctx) => {
+    const b = await ctx.json();
+    const voice = b.voice ? text(b.voice, { max: 60, label: 'Voice' }) : '';
+    const speed = b.speed === undefined ? 1 : Number(b.speed);
+    if (!Number.isFinite(speed) || speed < 0.6 || speed > 1.6) throw badRequest('Speed must be between 0.6 and 1.6');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    ctx.res.on('close', abort);
+    ctx.res.setHeader('Cache-Control', 'no-store');
+    try { return await ai.playbackSession({ user: ctx.user, voice, speed, signal: controller.signal }); }
+    finally { ctx.res.off('close', abort); }
+  });
+
   router.post('/api/speech/recognition-session', async (ctx) => {
     const b = await ctx.json();
     const language = oneOf(b.language || 'multi', ['multi', 'en', 'de'], 'Language');

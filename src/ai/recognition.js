@@ -2,19 +2,26 @@
 /** External recognition; organization keys stay server-side and browsers receive only short-lived grants. */
 const { unavailable } = require('../http/errors');
 const { createWispr } = require('./wispr');
+const { audioSession, TRANSCRIPTION_MODEL } = require('./audio-session');
 
 function createRecognitionProvider({ env, fetchImpl = (...args) => fetch(...args) }) {
   const wispr = createWispr({ env, fetchImpl });
   const key = () => String(env.DEEPGRAM_API_KEY || '').trim();
   const host = () => env.CAMPUS_STT_REGION === 'global' ? 'api.deepgram.com' : 'api.eu.deepgram.com';
-  const selected = () => env.CAMPUS_STT_PROVIDER || (wispr.configured() ? 'wispr' : key() ? 'deepgram' : 'browser');
-  const enabled = () => selected() === 'wispr' ? wispr.configured() : selected() === 'deepgram' && !!key();
-  const info = () => selected() === 'wispr' && enabled() ? { enabled: true, provider: 'wispr', model: 'Wispr Flow', multilingual: true } : ({ enabled: enabled(), provider: enabled() ? 'deepgram' : 'browser',
+  const gatewayReady = () => !!String(env.AI_GATEWAY_API_KEY || '').trim();
+  const selected = () => env.CAMPUS_STT_PROVIDER || (wispr.configured() ? 'wispr' : key() ? 'deepgram' : gatewayReady() ? 'gateway' : 'browser');
+  const enabled = () => selected() === 'wispr' ? wispr.configured() : selected() === 'gateway' ? gatewayReady() : selected() === 'deepgram' && !!key();
+  const info = () => selected() === 'gateway' && enabled() ? { enabled: true, provider: 'gateway', model: TRANSCRIPTION_MODEL, multilingual: true }
+    : selected() === 'wispr' && enabled() ? { enabled: true, provider: 'wispr', model: 'Wispr Flow', multilingual: true } : ({ enabled: enabled(), provider: enabled() ? 'deepgram' : 'browser',
     ...(enabled() ? { model: 'nova-3', multilingual: true, region: host().includes('.eu.') ? 'eu' : 'global' } : {}) });
 
   async function session({ language = 'multi', user, dictionary = [], signal } = {}) {
     if (!enabled()) throw unavailable('External recognition is not configured. Browser speech recognition is available.');
     if (selected() === 'wispr') return wispr.session({ user, language, dictionary, signal });
+    if (selected() === 'gateway') return {
+      ...await audioSession({ env, fetchImpl, kind: 'transcription', model: TRANSCRIPTION_MODEL, signal }),
+      options: { openai: { ...(language !== 'multi' ? { language } : {}), streaming: { delay: 'low' } } },
+    };
     let response;
     try {
       response = await fetchImpl(`https://${host()}/v1/auth/grant`, {

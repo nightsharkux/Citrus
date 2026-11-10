@@ -21,7 +21,8 @@ import { speakable } from '../core/math.js';
 import { session } from '../core/store.js';
 import { speakBoundary, detectLanguage } from './turns.js';
 import { getVoiceSettings, chooseVoice, voiceTuning, naturalSpeed } from './voices.js';
-import { speechGain } from './speech-audio.js';
+import { speechGain, PcmDecoder } from './speech-audio.js';
+import { StreamingSpeech } from './gateway-audio.js';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 const hasDevice = 'speechSynthesis' in window;
@@ -37,6 +38,7 @@ let level = 0;
 const speakingListeners = new Set();
 let languageHint = () => null;
 let naturalRestsUntil = 0;
+let streamRestsUntil = 0;
 
 /** True while Campus's voice is audible. */
 export const isSpeaking = () => speakingNow;
@@ -237,6 +239,9 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
   const finish = (reason = 'done') => {
     if (sp.over) return;
     sp.over = true;
+    clearInterval(sp.streamWatch);
+    clearTimeout(sp.streamStartTimer);
+    sp.stream?.cancel();
     sp.aborter.abort();
     for (const src of sp.sources) {
       try {
@@ -263,6 +268,73 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
   // ---- natural voice: fetch ahead, schedule back to back
   const voiceId = options.voice ?? settings.natural ?? '';
   const speed = naturalSpeed(settings);
+  const wantStream = sp.engine === 'natural' && session.ai?.speechStreaming && !!globalThis.WebSocket && Date.now() >= streamRestsUntil;
+  let streaming = !!wantStream;
+  let streamFinished = false;
+  const pcm = new PcmDecoder();
+
+  async function startStream() {
+    const graph = audioGraph();
+    if (graph && graph.ctx.state !== 'running') await Promise.race([graph.ctx.resume().catch(() => {}), wait(timing.audioUnlock)]);
+    if (!live()) return;
+    if (!graph || graph.ctx.state !== 'running') {
+      streaming = false;
+      return switchToDevice();
+    }
+    graph.gain.gain.value = voiceTuning(settings).volume;
+    let stalledAt = 0;
+    sp.streamWatch = setInterval(() => {
+      if (graph.ctx.state === 'running') stalledAt = 0;
+      else {
+        stalledAt ||= Date.now();
+        if (Date.now() - stalledAt > 4000 && live()) finish('failed');
+      }
+      if (streamFinished && graph.ctx.currentTime > sp.scheduledUntil + 4 && live()) finish('failed');
+    }, 1000);
+    const complete = () => {
+      if (streamFinished && !sp.sources.size && live()) finish(sp.begun ? 'done' : 'failed');
+    };
+    const stream = new StreamingSpeech({
+      timeout: timing.naturalFetch,
+      requestSession: (signal) => fetch('/api/speech/playback-session', {
+        method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voice: voiceId, speed }), signal,
+      }).then(async (res) => { if (!res.ok) throw new Error('stream unavailable'); return res.json(); }),
+      onAudio(encoded) {
+        if (!live()) return;
+        const buffer = pcm.decode(encoded, graph.ctx);
+        if (!buffer) return;
+        // Bound audio waiting to play. A long reply cannot grow an unlimited scheduled queue.
+        if (sp.scheduledUntil - graph.ctx.currentTime > 600) throw new Error('Too much audio');
+        const src = graph.ctx.createBufferSource(); src.buffer = buffer;
+        src.connect(graph.gain);
+        const at = Math.max(graph.ctx.currentTime + 0.08, sp.scheduledUntil);
+        src.onended = () => { src.disconnect?.(); sp.sources.delete(src); complete(); };
+        sp.sources.add(src);
+        src.start(at);
+        sp.scheduledUntil = at + buffer.duration;
+        if (!sp.begun && !sp.streamStartTimer) sp.streamStartTimer = setTimeout(() => {
+          if (!live()) return;
+          started(); runMeter();
+        }, Math.max(0, (at - graph.ctx.currentTime) * 1000));
+      },
+      onFinish() { if (pcm.tail !== null) { finish('failed'); return; } streamFinished = true; complete(); },
+      onError() {
+        if (!live()) return;
+        streamRestsUntil = Date.now() + 60000;
+        if (sp.sources.size || sp.begun) { finish('failed'); return; }
+        // Audio access rolls out by account. Keep the same ElevenLabs voice through buffered speech if streaming is refused.
+        streaming = false;
+        clearInterval(sp.streamWatch);
+        sp.stream = null;
+        runNatural();
+      },
+    });
+    sp.stream = stream;
+    for (const piece of sp.pieces) stream.feed(`${piece.text} `);
+    if (sp.fed) stream.end();
+    stream.start();
+  }
   function fetchPiece(piece) {
     if (piece.promise) return piece.promise;
     const graph = audioGraph();
@@ -416,7 +488,8 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
   function start() {
     if (sp.running || !live()) return;
     sp.running = true;
-    if (sp.engine === 'natural') runNatural();
+    if (streaming) startStream();
+    else if (sp.engine === 'natural') runNatural();
     else if (sp.engine === 'device') runDevice();
     else finish('blocked');
   }
@@ -430,6 +503,7 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
     if (!sp.language) sp.language = found || languageHint() || uiLanguage();
     const lang = found && found !== sp.language && clean.length >= 80 ? found : sp.language;
     sp.pieces.push({ text: clean, lang });
+    if (streaming) sp.stream?.feed(`${clean} `);
     sp.wake?.();
     start();
   }
@@ -440,7 +514,7 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       let cut = speakBoundary(sp.buffer, final);
       if (cut <= 0) break;
       const waiting = sp.pieces.length - sp.playIndex; // pieces not yet playing
-      const want = sp.engine === 'natural' && waiting >= 1 ? 220 : 0;
+      const want = sp.engine === 'natural' && !streaming && waiting >= 1 ? 220 : 0;
       while (cut < want && cut < sp.buffer.length) {
         const more = speakBoundary(sp.buffer.slice(cut), final);
         if (more <= 0) break;
@@ -466,6 +540,7 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
       if (!live() || sp.fed) return;
       drain(true);
       sp.fed = true;
+      if (streaming) sp.stream?.end();
       sp.wake?.();
       if (!sp.pieces.length) finish('done');
       else start();
@@ -486,6 +561,8 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
     },
   };
   sp.api = api;
+  // Establish the streaming connection while the chat model starts its reply.
+  if (streaming) start();
   return api;
 }
 
@@ -507,6 +584,13 @@ export function stopSpeaking() {
     sp.api.cancel();
   }
   setSpeaking(false);
+}
+
+/** Apply the volume control immediately, including to an answer already playing. */
+export function setSpeechVolume(value) {
+  const volume = Math.min(1, Math.max(0, Number(value) || 0));
+  if (audio) audio.gain.gain.value = volume;
+  if (deviceUtterance) deviceUtterance.volume = volume;
 }
 
 /** The language of what Campus is saying now ('en' | 'de'), or null. */

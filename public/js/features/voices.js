@@ -170,5 +170,6 @@ export function chooseVoice(settings = getVoiceSettings(), languageCode = naviga
 
 /** Speech rate, pitch and volume from the saved settings. */
 export function voiceTuning(settings = getVoiceSettings()) {
-  return { rate: Math.min(2, Math.max(0.5, Number(settings.rate) || 1)), pitch: Math.min(2, Math.max(0.5, Number(settings.pitch) || 1)), volume: Math.min(1, Math.max(0.1, Number(settings.volume) || 1)) };
+  const volume = Number(settings.volume);
+  return { rate: Math.min(2, Math.max(0.5, Number(settings.rate) || 1)), pitch: Math.min(2, Math.max(0.5, Number(settings.pitch) || 1)), volume: Math.min(1, Math.max(0, Number.isFinite(volume) ? volume : 1)) };
 }

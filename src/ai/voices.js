@@ -2,14 +2,13 @@
 /**
  * Natural voices for Campus: the speech models on the AI Gateway (text to speech, see docs/AI.md#voices).
  *
- * The model comes from CAMPUS_AI_SPEECH_MODEL (default openai/tts-1, "off" to disable). Each model family has
+ * The model comes from CAMPUS_AI_SPEECH_MODEL (default ElevenLabs Flash v2.5, "off" to disable). Each model family has
  * its own voices and options. Only voices named in the providers' documentation are listed, because some
  * providers reject unknown names; a voice the server does not know is replaced by the family default, so a
  * request never carries an arbitrary string to the provider.
  */
 
-/** How Campus should sound, for models that take spoken directions (Gemini). */
-const DELIVERY = 'Speak in a calm, even, matter-of-fact voice, like a helpful colleague explaining something quietly across a desk. Keep one steady, unhurried pace from the first word to the last, with a level tone: no excitement, no drama, no emphasis on single words, no rising or exclamatory intonation.';
+const { SPEECH_DELIVERY } = require('./prompts');
 
 /** The text as it is read: no exclamation marks, ellipses or emphasis marks, which make a synthetic voice sound theatrical. */
 function calmText(text) {
@@ -64,18 +63,25 @@ const FAMILIES = {
   elevenlabs: {
     format: 'mp3',
     mime: 'audio/mpeg',
+    speed: true,
     fallback: 'hpp4J3VqNfWAUOO0d1Us',
     voices: [{ id: 'hpp4J3VqNfWAUOO0d1Us', label: 'Bella', tone: 'Warm' }],
   },
 };
 
 const familyOf = (model) => FAMILIES[String(model || '').split('/')[0]] || null;
+// The older OpenAI speech endpoint rejects newer Realtime voices such as Coral and Sage.
+function voicesFor(model, family) {
+  return /^openai\/tts-1(?:-hd)?$/.test(model)
+    ? family.voices.filter((voice) => ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'].includes(voice.id)) : family.voices;
+}
 
 /** What the settings screen shows for a speech model: its voices and the default one. */
 function voiceCatalog(model) {
   const family = familyOf(model);
   if (!family) return { voices: [], default: '' };
-  return { voices: family.voices.map((v) => ({ ...v })), default: family.fallback || family.voices[0]?.id || '' };
+  const voices = voicesFor(model, family);
+  return { voices: voices.map((v) => ({ ...v })), default: voices.some((v) => v.id === family.fallback) ? family.fallback : voices[0]?.id || '' };
 }
 
 /**
@@ -85,15 +91,16 @@ function voiceCatalog(model) {
 function speechOptions(model, { voice, language, speed }) {
   const family = familyOf(model);
   if (!family) return { voice: voice || undefined, format: 'mp3', mime: 'audio/mpeg' };
-  let chosen = family.voices.find((v) => v.id === voice) || family.voices.find((v) => v.id === family.fallback) || null;
+  const voices = voicesFor(model, family);
+  let chosen = voices.find((v) => v.id === voice) || voices.find((v) => v.id === family.fallback) || voices[0] || null;
   // A German sentence is not read by an English-only voice: take that language's voice, or let the model choose.
   if (chosen?.language && language && chosen.language !== language) chosen = family.voices.find((v) => v.language === language) || null;
   return {
     voice: chosen?.id || undefined,
     format: family.format,
     mime: family.mime,
-    ...(family.speed && speed && Math.abs(speed - 1) > 0.01 ? { speed } : {}),
-    ...(family.instructions || /gpt-4o-mini-tts/.test(model) ? { instructions: DELIVERY } : {}),
+    ...(family.speed && speed && Math.abs(speed - 1) > 0.01 ? { speed: model.startsWith('elevenlabs/') ? Math.min(1.2, Math.max(0.7, speed)) : speed } : {}),
+    ...(family.instructions || /gpt-4o-mini-tts/.test(model) ? { instructions: SPEECH_DELIVERY } : {}),
     ...(family.language && language ? { language } : {}),
   };
 }

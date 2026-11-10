@@ -172,8 +172,9 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const voice = oneOf(b.mode ?? 'text', ['text', 'voice'], 'Mode') === 'voice';
     // Web search: 'auto' lets the model search when it needs to, 'on' (the globe button) searches first, 'off' never.
     const webChoice = oneOf(b.web ?? 'auto', ['auto', 'on', 'off'], 'Web search');
-    const web = !ai.status(user).webSearch || webChoice === 'off' ? null : webChoice === 'on' ? 'required' : needsWebSearch(prompt) ? 'auto' : null;
-    if (!ai.status(user).aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
+    const aiStatus = ai.status(user);
+    const web = !aiStatus.webSearch || webChoice === 'off' ? null : webChoice === 'on' ? 'required' : needsWebSearch(prompt) ? 'auto' : null;
+    if (!aiStatus.aiEnabled) throw unavailable(user.role === 'admin' ? 'No AI provider is connected yet. Choose one in Admin → AI & knowledge.' : 'The assistant is not connected yet. Your university administrator can enable it.');
 
     const threadId = optionalId(b.thread_id, 'Conversation');
     const thread = threadId
