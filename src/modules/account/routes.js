@@ -50,10 +50,10 @@ function register(router, { db, config, sessions, audit }) {
     const b = await ctx.json();
     const row = db.get('SELECT pass, auth_provider FROM users WHERE id = ?', ctx.user.id);
     if (row.auth_provider === 'oidc' && row.pass === '!') throw badRequest('Your account uses university login, so there is no Campus OS password to change.');
-    if (!verifyPassword(String(b.current || ''), row.pass)) throw forbidden('Your current password is incorrect');
+    if (!(await verifyPassword(String(b.current || ''), row.pass))) throw forbidden('Your current password is incorrect');
     const next = String(b.next || '');
     if (next.length < 12) throw badRequest('Use a new password with at least 12 characters');
-    db.run('UPDATE users SET pass = ? WHERE id = ?', hashPassword(next), ctx.user.id);
+    db.run('UPDATE users SET pass = ? WHERE id = ?', await hashPassword(next), ctx.user.id);
     sessions.revokeOthers(ctx.user);
     audit(ctx.user, 'password_changed', ctx.user.id);
     return { ok: true };
@@ -107,7 +107,7 @@ function register(router, { db, config, sessions, audit }) {
     const b = await ctx.json();
     const row = db.get('SELECT pass, auth_provider FROM users WHERE id = ?', ctx.user.id);
     const ssoOnly = row.auth_provider === 'oidc' && row.pass === '!';
-    if (!ssoOnly && !verifyPassword(String(b.password || ''), row.pass)) throw forbidden('Your password is incorrect');
+    if (!ssoOnly && !(await verifyPassword(String(b.password || ''), row.pass))) throw forbidden('Your password is incorrect');
     if (b.confirm !== 'DELETE') throw badRequest('Type DELETE to confirm');
     if (ctx.user.role === 'admin') {
       const admins = db.get("SELECT COUNT(*) n FROM users WHERE institution_id = ? AND role = 'admin' AND deleted = 0", ctx.user.institution_id).n;

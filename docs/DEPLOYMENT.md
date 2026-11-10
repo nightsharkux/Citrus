@@ -12,6 +12,16 @@ Campus OS runs on a machine that keeps its `storage/` folder (a SQLite database 
 
 ---
 
+## Running on a VPS: what makes it fast
+
+Campus OS is built for one machine with its own disk. On a VPS that is the fast setup:
+
+- **Use the local SQLite file, not Turso.** Every Turso query is an HTTPS round trip that the server waits for, so a page that runs ten queries pays ten network trips. A VPS has a permanent disk, so leave `TURSO_DATABASE_URL` unset, keep `storage/` on the VPS (back it up with `npm run backup`, see `deploy/campusos-backup.timer`) and set `CAMPUS_PERSISTENT_DISK=1` so the storage warning stays off. SQLite runs with WAL, `synchronous=NORMAL`, a 32 MB page cache and memory-mapped reads.
+- **Run it as a service behind Caddy**: `deploy/campusos.service` and `deploy/Caddyfile` give automatic HTTPS, HTTP/2 and compression. Set `TRUST_PROXY=1` and `COOKIE_SECURE=1`.
+- **Scripts and styles are cached for a year.** The server stamps their URLs with a hash of the files (`/js/app.js?v=…`), so a browser downloads each file once and never asks about it again; a deploy changes the hash and everyone fetches the new files once. Nothing to configure and no build step. Do not add your own caching rules for `/js` or `/css` in the proxy.
+- **Logins no longer freeze the server.** Password hashing runs on a worker thread, so a burst of sign-ins does not stall everyone else.
+- One process is enough for a faculty. The live updates, rate limiting and long-polling live in that process (see ARCHITECTURE.md, known limits); do not run several copies behind a load balancer.
+
 ## Accounts disappear and people must register again
 
 This means the database is not being kept. Campus OS stores everything in a database; on a hosting platform that runs the app as short-lived instances (Vercel, Netlify, Cloud Run, Render's free tier and similar) a local file starts empty after every restart or deploy. The server now says so: the log shows `WARNING: running on <platform> without a hosted database`, the sign-in page shows a notice, and administrators see a banner.

@@ -11,15 +11,25 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+/**
+ * scrypt is deliberately slow (about 50-100 ms). The async versions run it on a worker thread, so a login or
+ * registration never freezes the server for everyone else; the sync version is only for start-up seeding.
+ */
+const scrypt = (password, salt) => new Promise((resolve, reject) => crypto.scrypt(String(password), salt, 64, (error, key) => (error ? reject(error) : resolve(key))));
+
+async function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  return `${salt}:${(await scrypt(password, salt)).toString('hex')}`;
+}
+
+function hashPasswordSync(password, salt = crypto.randomBytes(16).toString('hex')) {
   return `${salt}:${crypto.scryptSync(password, salt, 64).toString('hex')}`;
 }
 
-function verifyPassword(password, stored) {
+async function verifyPassword(password, stored) {
   try {
     const [salt, hex] = String(stored).split(':');
     const expected = Buffer.from(hex, 'hex');
-    const actual = crypto.scryptSync(String(password), salt, 64);
+    const actual = await scrypt(password, salt);
     return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
   } catch {
     return false;
@@ -67,4 +77,4 @@ function createSecretBox(key) {
   };
 }
 
-module.exports = { hashPassword, verifyPassword, randomToken, sha256, hmac, safeEqual, loadKeyFile, createSecretBox };
+module.exports = { hashPassword, hashPasswordSync, verifyPassword, randomToken, sha256, hmac, safeEqual, loadKeyFile, createSecretBox };

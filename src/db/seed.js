@@ -3,7 +3,7 @@
  * First-run data: one institution and, when CAMPUS_ADMIN_PASSWORD is set,
  * an administrator plus a clearly labelled demo course.
  */
-const { hashPassword } = require('../lib/crypto');
+const { hashPasswordSync: hashPassword } = require('../lib/crypto');
 
 function seed(db, config, log = console.log) {
   if (db.get('SELECT id FROM institutions LIMIT 1')) return;

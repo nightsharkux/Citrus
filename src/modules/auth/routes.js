@@ -68,7 +68,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     const requested = needsApproval ? 'lecturer' : null;
     const userId = db.insert(
       'INSERT INTO users(institution_id, name, email, pass, role, requested_role, created) VALUES(?, ?, ?, ?, ?, ?, ?)',
-      institutionId, name, mail, hashPassword(password), wantsLecturer && !needsApproval ? 'lecturer' : 'student', requested, new Date().toISOString(),
+      institutionId, name, mail, await hashPassword(password), wantsLecturer && !needsApproval ? 'lecturer' : 'student', requested, new Date().toISOString(),
     );
     const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
     sessions.start(user, ctx.req, ctx.res);
@@ -91,7 +91,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       institutionId, mail,
     );
     if (user?.locked_until && user.locked_until > Date.now()) throw tooMany('This account is temporarily locked after several failed attempts. Try again in a few minutes.');
-    if (!user || !verifyPassword(String(b.password || ''), user.pass)) {
+    if (!user || !(await verifyPassword(String(b.password || ''), user.pass))) {
       if (user) {
         const failures = user.failed_logins + 1;
         db.run('UPDATE users SET failed_logins = ?, locked_until = ? WHERE id = ?', failures, failures >= LOCK_AFTER ? Date.now() + LOCK_MS : null, user.id);

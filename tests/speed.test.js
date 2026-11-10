@@ -8,6 +8,9 @@ const path = require('node:path');
 const zlib = require('node:zlib');
 const { startApp } = require('./helpers');
 
+/** Scripts are served with ?v=<hash> on their imports; removing it must give back the file exactly. */
+const unstamp = (body) => Buffer.from(body.toString().replace(/\?v=[0-9a-f]{10}(?=['"])/g, ''));
+
 /** A raw GET, so the test sees the bytes on the wire (fetch would decompress them). */
 function get(base, url, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -28,16 +31,16 @@ test('scripts and styles are sent compressed, with an ETag per encoding, and pic
     assert.equal(br.headers['content-encoding'], 'br');
     assert.equal(br.headers.vary, 'Accept-Encoding');
     assert.ok(br.body.length < original.length / 3, `${br.body.length} of ${original.length} bytes`);
-    assert.deepEqual(zlib.brotliDecompressSync(br.body), original);
+    assert.deepEqual(unstamp(zlib.brotliDecompressSync(br.body)), original);
 
     const gz = await get(app.base, '/js/shell.js', { 'accept-encoding': 'gzip' });
     assert.equal(gz.headers['content-encoding'], 'gzip');
-    assert.deepEqual(zlib.gunzipSync(gz.body), original);
+    assert.deepEqual(unstamp(zlib.gunzipSync(gz.body)), original);
     assert.notEqual(gz.headers.etag, br.headers.etag, 'caches never mix encodings');
 
     const plain = await get(app.base, '/js/shell.js');
     assert.equal(plain.headers['content-encoding'], undefined);
-    assert.deepEqual(plain.body, original);
+    assert.deepEqual(unstamp(plain.body), original);
 
     const again = await get(app.base, '/js/shell.js', { 'accept-encoding': 'br', 'if-none-match': br.headers.etag });
     assert.equal(again.status, 304, 'unchanged files are not sent again');

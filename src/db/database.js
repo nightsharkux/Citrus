@@ -18,7 +18,10 @@ const { addIntrospection } = require('./introspection');
 function openDatabase(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
-  db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 3000;');
+  // WAL with synchronous=NORMAL is the standard fast, crash-safe setting for a server: commits no longer wait for the
+  // disk to flush each time (a power cut can lose the last moments, never corrupt the database). A larger page cache,
+  // memory-mapped reads and in-memory temporary tables keep repeated queries off the disk.
+  db.exec('PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL; PRAGMA cache_size = -32000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 134217728;');
   return withHelpers(db);
 }
 

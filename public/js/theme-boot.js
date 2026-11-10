@@ -13,11 +13,13 @@
   try {
     var saved = localStorage.getItem('campus-lang');
     var german = saved ? saved === 'de' : /^de\b/i.test(navigator.language || '');
+    // This script is itself served as theme-boot.js?v=<hash>: use the same version so preloads match the imports.
+    var versionSuffix = (/[?&]v=[0-9a-f]+/.exec(document.currentScript && document.currentScript.src) || [''])[0].replace(/^[?&]/, '?');
     if (german) {
       ['i18n-de', 'i18n-de-shell', 'i18n-de-pages', 'i18n-de-staff', 'i18n-de-more', 'i18n-de-learn'].forEach(function (name) {
         var link = document.createElement('link');
         link.rel = 'modulepreload';
-        link.href = '/js/core/' + name + '.js';
+        link.href = '/js/core/' + name + '.js' + versionSuffix;
         document.head.appendChild(link);
       });
     }
