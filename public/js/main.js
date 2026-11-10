@@ -23,6 +23,7 @@ async function boot() {
     unread: data.unread || 0,
     sso: data.sso || session.sso,
     registration: data.registration !== false,
+    guests: !!data.guests,
     durable: data.durable !== false,
     institutions: data.institutions || [],
   });

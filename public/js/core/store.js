@@ -14,6 +14,7 @@ export const session = {
   unread: 0,
   sso: { enabled: false, label: 'University login' },
   registration: true,
+  guests: false,
   institutions: [],
 };
 

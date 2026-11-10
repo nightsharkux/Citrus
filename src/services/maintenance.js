@@ -10,6 +10,8 @@ function createMaintenance({ db, config, settings }) {
   function run() {
     const now = Date.now();
     db.run('DELETE FROM sessions WHERE expires < ?', now);
+    // Guest accounts nobody came back to are retired after a month.
+    db.run("UPDATE users SET deleted = 1 WHERE auth_provider = 'guest' AND deleted = 0 AND COALESCE(last_login, created) < ?", new Date(now - 30 * 86_400_000).toISOString());
     db.run('DELETE FROM sso_states WHERE created < ?', now - 15 * 60_000);
     db.run('DELETE FROM device_nonces WHERE seen < ?', now - 15 * 60_000);
     db.run('DELETE FROM nfc_pairings WHERE expires < ?', now);

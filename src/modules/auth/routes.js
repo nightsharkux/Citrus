@@ -1,6 +1,6 @@
 'use strict';
 /** Sign-in, registration, sign-out, bootstrap and university SSO. */
-const { hashPassword, verifyPassword } = require('../../lib/crypto');
+const { hashPassword, verifyPassword, randomToken } = require('../../lib/crypto');
 const { text, email, id } = require('../../lib/validate');
 const { badRequest, unauthorized, forbidden, conflict, tooMany } = require('../../http/errors');
 const { createRateLimiter } = require('../../http/rate-limit');
@@ -45,6 +45,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       site: publicSite(config.site),
       sso: { enabled: oidc.enabled(), label: oidc.label() },
       durable: config.persistence.durable,
+      guests: guestsAllowed(),
       registration: firstInstitution ? settings.get(user?.institution_id || firstInstitution, 'allowRegistration') : false,
       ...(user ? { ai: ai.status(user), unread: notifier.unread(user.id) } : {}),
     };
@@ -77,6 +78,22 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       const admins = db.all("SELECT id FROM users WHERE institution_id = ? AND role = 'admin' AND deleted = 0", institutionId).map((a) => a.id);
       notifier.notify(admins, { kind: 'system', title: 'New lecturer request', body: `${name} asked for lecturer access.`, link: '/admin/people?tab=requests' });
     }
+    ctx.status = 201;
+    return { user: publicUser({ ...user, preferences: {} }) };
+  }, { auth: 'public' });
+
+  // Guests: try the app without an account. A guest is a student with a throwaway account, retired after a month idle.
+  const guestsAllowed = () => !['off', '0', 'false', 'no'].includes(String(process.env.CAMPUS_GUESTS || '').toLowerCase()) && !!db.get('SELECT id FROM institutions LIMIT 1');
+  router.post('/api/guest', (ctx) => {
+    if (!guestsAllowed()) throw forbidden('Guest access is switched off.');
+    if (!ipLimiter.hit(`guest:${ctx.ip}`)) throw tooMany('Too many guest sessions from this network. Please wait a few minutes.');
+    const institutionId = institutionOrDefault(null);
+    const userId = db.insert(
+      "INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
+      institutionId, 'Guest', `guest-${randomToken(6)}@guest.invalid`, new Date().toISOString(),
+    );
+    const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
+    sessions.start(user, ctx.req, ctx.res);
     ctx.status = 201;
     return { user: publicUser({ ...user, preferences: {} }) };
   }, { auth: 'public' });

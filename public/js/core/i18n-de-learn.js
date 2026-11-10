@@ -193,6 +193,7 @@ export default {
   'A lecture lasts between 10 minutes and 8 hours': 'Eine Vorlesung dauert zwischen 10 Minuten und 8 Stunden',
   // Review and home
   'More': 'Mehr',
+  'Continue as guest': 'Als Gast fortfahren',
   'Review': 'Wiederholen',
   'Open review': 'Wiederholung öffnen',
   'Catch up': 'Nachholen',

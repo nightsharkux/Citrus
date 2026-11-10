@@ -16,6 +16,7 @@
 const { HttpError } = require('../../http/errors');
 const { zonedToUtc, zonedParts, DAY } = require('../../lib/time');
 const { KINDS } = require('../timetable/service');
+const { parseExamRows } = require('../timetable/exam-plan');
 const { readPreferences, applyPreferences } = require('../account/preferences');
 const { KINDS: QUIZ_KINDS } = require('../quiz/questions');
 const { INTEREST_TAGS } = require('../account/routes');
@@ -276,6 +277,59 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       };
     },
 
+    /**
+     * All exam dates of a programme, read from the exam plan in the knowledge library (not by the model, so dates and
+     * times are exactly as printed). Into the user's own calendar, or into a course the user teaches.
+     */
+    'calendar.import'(user, a) {
+      const programme = String(a.programme || '').toUpperCase().replace(/[^A-Z]/g, '');
+      const SOURCES = { DTM: 'CAMPUS_PDF_02', IIE: 'CAMPUS_PDF_03' };
+      if (!SOURCES[programme]) throw fail('I have exam plans for DTM and IIE. Which programme do you mean?');
+      const pages = db.all('SELECT title, content FROM institution_knowledge WHERE institution_id = ? AND tags = ? ORDER BY title', user.institution_id, SOURCES[programme]);
+      if (!pages.length) throw fail('The exam plan is not in the knowledge library yet. An administrator can import it under Admin, AI.');
+      const rows = pages.flatMap((pg) => parseExamRows(pg.content));
+      if (!rows.length) throw fail('I could not read any exam dates from the plan.');
+
+      let courseId = null;
+      let course = null;
+      if (a.course) {
+        course = db.get('SELECT id, code, title FROM courses WHERE institution_id = ? AND UPPER(code) = UPPER(?)', user.institution_id, String(a.course).trim());
+        if (!course) throw fail('I could not find that course.');
+        if (!access.teachingCourse(user, course.id)) throw fail('Only the lecturer of a course can add events to it.');
+        courseId = course.id;
+      }
+      const ownerId = courseId ? null : user.id;
+      const ids = [];
+      let existing = 0;
+      let past = 0;
+      db.transaction(() => {
+        for (const r of rows) {
+          const start = zonedToUtc({ year: r.year, month: r.month, day: r.day, hour: +r.time.slice(0, 2), minute: +r.time.slice(3) }, tz);
+          const end = new Date(start.getTime() + r.minutes * 60_000);
+          const uid = `exam:${SOURCES[programme]}:${r.year}${String(r.month).padStart(2, '0')}${String(r.day).padStart(2, '0')}:${r.module.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60)}`;
+          if (db.get('SELECT 1 FROM timetable_events WHERE institution_id = ? AND external_uid = ? AND COALESCE(course_id, 0) = ? AND COALESCE(owner_id, 0) = ?', user.institution_id, uid, courseId || 0, ownerId || 0)) {
+            existing += 1;
+            continue;
+          }
+          if (end.getTime() < Date.now()) past += 1;
+          const notes = [r.examiner && `Examiner: ${r.examiner}`, r.aids && `Aids: ${r.aids}`, 'From the university exam plan (Sommersemester 2026). Check the original for the exact room.'].filter(Boolean).join('. ').slice(0, 1000);
+          ids.push(db.insert(
+            `INSERT INTO timetable_events(institution_id, course_id, owner_id, title, kind, location, notes, starts, ends, repeat_weeks, until, source, external_uid, created_by, created)
+             VALUES(?, ?, ?, ?, 'exam', ?, ?, ?, ?, 0, NULL, 'plan', ?, ?, ?)`,
+            user.institution_id, courseId, ownerId, `${r.module} (exam)`.slice(0, 120), r.room, notes, start.toISOString(), end.toISOString(), uid, user.id, new Date().toISOString(),
+          ));
+        }
+      });
+      if (!ids.length && !existing) throw fail('Nothing to add.');
+      return {
+        title: ids.length ? `Added ${ids.length} ${programme} exams to ${course ? course.code : 'your calendar'}` : `Your ${programme} exams are already there`,
+        detail: `${ids.length} added${existing ? `, ${existing} already there` : ''} · dates and times as printed in the plan`,
+        warning: past && past === ids.length ? 'These are the Sommersemester 2026 exam dates and they have already passed.' : undefined,
+        link: '/schedule',
+        undo: ids.length ? { op: 'delete_many', ids } : undefined,
+      };
+    },
+
     'calendar.update'(user, a) {
       const row = personal(user, a.id);
       const before = snapshot(row);
@@ -485,6 +539,8 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
     if (u.op === 'delete') {
       personal(user, u.id);
       db.run('DELETE FROM timetable_events WHERE id = ?', u.id);
+    } else if (u.op === 'delete_many') {
+      for (const eventId of u.ids || []) db.run('DELETE FROM timetable_events WHERE id = ? AND institution_id = ? AND created_by = ?', Number(eventId), user.institution_id, user.id);
     } else if (u.op === 'restore') {
       personal(user, u.id);
       restoreRow(u.id, u.row);

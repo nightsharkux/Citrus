@@ -2,7 +2,7 @@ import { html, $ } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { session } from '../core/store.js';
-import { onSubmit } from '../core/ui.js';
+import { onSubmit, toastError } from '../core/ui.js';
 import { enterApp } from '../shell.js';
 import { ringMark } from '../core/brand.js';
 
@@ -30,11 +30,23 @@ export default {
             <label class="field"><span>Password</span><input class="input" type="password" name="password" autocomplete="current-password" required minlength="1"></label>
             <button class="btn ${session.sso.enabled ? '' : 'btn-primary'} btn-lg btn-block">Sign in</button>
           </form>
+          ${session.guests ? html`<button type="button" class="btn btn-block mt-16" id="guest-btn">Continue as guest</button>` : ''}
           ${session.registration ? html`<p class="center small muted mt-24">New here? <a href="/register">Create an account</a></p>` : ''}
         </div>
       </div>`;
   },
   mount(root, _, ctx) {
+    $('#guest-btn', root)?.addEventListener('click', async (e) => {
+      const button = e.currentTarget;
+      button.disabled = true;
+      try {
+        await api.post('/guest');
+        await enterApp(ctx.query.get('return') || '/home');
+      } catch (error) {
+        button.disabled = false;
+        toastError(error);
+      }
+    });
     onSubmit($('#login-form', root), async (values) => {
       await api.post('/login', { ...values, institution_id: values.institution_id ? Number(values.institution_id) : undefined });
       await enterApp(ctx.query.get('return') || '/home');
