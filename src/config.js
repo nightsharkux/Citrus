@@ -79,7 +79,7 @@ function loadConfig(env = process.env) {
     cookieSecure: bool(env.COOKIE_SECURE, publicUrl.startsWith('https://')),
     // Set when Campus OS is only reachable through a reverse proxy (Caddy, nginx, a tunnel). Vercel always is one.
     trustProxy: bool(env.TRUST_PROXY, hosted),
-    sessionDays: int(env.SESSION_DAYS, 7),
+    sessionDays: int(env.SESSION_DAYS, 30),
     logRequests: bool(env.LOG_REQUESTS, false),
 
     seed: {

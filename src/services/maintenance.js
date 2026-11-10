@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Housekeeping that runs hourly: expired sessions, SSO states, device nonces
+ * Housekeeping that runs hourly (and keeps the database small): expired sessions, SSO states, device nonces
  * and activations, and recordings past the institution's retention period.
  */
 const fs = require('node:fs');
@@ -16,6 +16,21 @@ function createMaintenance({ db, config, settings }) {
     db.run("UPDATE device_activations SET status = 'expired' WHERE status = 'pending' AND expires < ?", now);
     db.run("UPDATE device_commands SET status = 'expired' WHERE status = 'queued' AND created < ?", new Date(now - 3_600_000).toISOString());
     db.run('DELETE FROM recording_signals WHERE started < ?', now - 6 * 3_600_000);
+
+    // Keep the database small. None of this is visible in the app: old log lines, read notifications, finished
+    // device traffic and attachments that were uploaded but never sent with a message or added to a lecture.
+    const days = (n) => new Date(now - n * 86_400_000).toISOString();
+    db.run('DELETE FROM audit WHERE created < ?', days(180));
+    db.run('DELETE FROM notifications WHERE read = 1 AND created < ?', days(60));
+    db.run('DELETE FROM notifications WHERE created < ?', days(180));
+    db.run('DELETE FROM device_events WHERE created < ?', days(30));
+    db.run("DELETE FROM device_commands WHERE status != 'queued' AND created < ?", days(30));
+    db.run('DELETE FROM assistant_attachments WHERE message_id IS NULL AND created < ? AND id NOT IN (SELECT attachment_id FROM live_notes)', days(2));
+    if (!db.remote) {
+      db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
+      const free = db.get('PRAGMA freelist_count');
+      if (Number(free?.freelist_count || 0) > 2000) db.exec('VACUUM');
+    }
 
     let removed = 0;
     for (const { id } of db.all('SELECT id FROM institutions')) {

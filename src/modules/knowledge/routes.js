@@ -53,6 +53,47 @@ function parseText(content, fallbackTitle) {
   return sections.map((s, i) => ({ externalId: null, title: (sections.length > 1 && s.title === fallbackTitle ? `${fallbackTitle} (${i + 1})` : s.title).slice(0, 120), content: s.lines.join('\n').trim().slice(0, 7000), category: '', sourceUrl: '', tags: '', volatility: 'stable', observedOn: null }));
 }
 
+/** True for the CampusOS university document corpus (BEGIN_DOCUMENT / BEGIN PAGE markers). */
+const isCorpus = (content) => /BEGIN_DOCUMENT SOURCE_ID=/.test(String(content).slice(0, 400_000));
+
+/**
+ * One entry per original PDF page, so an answer can cite the exact file and page. Pages with no text layer are skipped
+ * (nothing is invented for them). The reading rules at the top of the file become one entry the assistant can retrieve.
+ */
+function parseCorpus(content) {
+  const text = String(content);
+  const records = [];
+  const first = text.indexOf('BEGIN_DOCUMENT SOURCE_ID=');
+  const rules = text.slice(0, first).replace(/^=+\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+  if (rules) {
+    records.push({ externalId: 'corpus:rules', title: 'How to use the university documents', content: rules.slice(0, 7000), category: 'Document rules', sourceUrl: '', tags: 'rules,documents', volatility: 'stable', observedOn: null });
+  }
+  const docs = text.slice(first).split(/^BEGIN_DOCUMENT SOURCE_ID=/m).slice(1);
+  for (const doc of docs) {
+    const sourceId = /^(\S+)/.exec(doc)?.[1] || 'doc';
+    const file = /^ORIGINAL_FILENAME=(.+)$/m.exec(doc)?.[1].trim() || sourceId;
+    const type = /^DOCUMENT_TYPE=(.+)$/m.exec(doc)?.[1].trim() || '';
+    // split() with two capture groups gives [before, page, of, body, page, of, body, ...]
+    const pages = doc.split(/^----- BEGIN PAGE (\d+) OF (\d+) \|[^\n]*-----$/m);
+    for (let i = 1; i + 2 < pages.length; i += 3) {
+      const page = Number(pages[i]);
+      const body = String(pages[i + 2] || '').replace(/----- END PAGE[\s\S]*$/, '').replace(/[ \t]{3,}/g, '  ').replace(/\n{3,}/g, '\n\n').trim();
+      if (!body || body.startsWith('[NO EXTRACTABLE TEXT')) continue;
+      const header = `[Source: ${file}, PDF p. ${page}]\n`;
+      const parts = [];
+      for (let at = 0; at < body.length; at += 6600) parts.push(body.slice(at, at + 6600));
+      parts.forEach((part, n) => records.push({
+        externalId: `${sourceId}:p${page}${n ? `:${n + 1}` : ''}`,
+        title: `${file.replace(/\.pdf$/i, '').slice(0, 85)} · p. ${page}${n ? ` (${n + 1})` : ''}`.slice(0, 120),
+        content: header + part,
+        category: type.replace(/_/g, ' ').toLowerCase(),
+        sourceUrl: '', tags: sourceId, volatility: 'term-specific', observedOn: null,
+      }));
+    }
+  }
+  return records;
+}
+
 function register(router, { db, config, ai, audit }) {
   const isoNow = () => new Date().toISOString();
 
@@ -160,11 +201,11 @@ function register(router, { db, config, ai, audit }) {
   }, { roles: ['admin'] });
 
   router.post('/api/knowledge/import', async (ctx) => {
-    const b = await ctx.json(2_000_000);
+    const b = await ctx.json(8_000_000);
     const format = oneOf(b.format, ['jsonl', 'text'], 'Format');
-    const records = format === 'jsonl' ? parseJsonl(b.content) : parseText(b.content, text(b.title, { min: 3, max: 120, label: 'Title' }));
+    const records = format === 'jsonl' ? parseJsonl(b.content) : isCorpus(b.content) ? parseCorpus(b.content) : parseText(b.content, text(b.title, { min: 3, max: 120, label: 'Title' }));
     if (!records.length) throw badRequest('Nothing to import. Check the file format.');
-    const result = upsert(ctx.user, records.slice(0, 2000));
+    const result = upsert(ctx.user, records.slice(0, 4000));
     audit(ctx.user, 'knowledge_imported', `${result.added} added, ${result.updated} updated`);
     return result;
   }, { roles: ['admin'] });
@@ -188,4 +229,4 @@ function register(router, { db, config, ai, audit }) {
   }, { roles: ['admin'] });
 }
 
-module.exports = { register, parseJsonl, parseText };
+module.exports = { register, parseJsonl, parseText, parseCorpus, isCorpus };

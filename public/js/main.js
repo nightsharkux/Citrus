@@ -41,7 +41,19 @@ async function boot() {
   if (session.user) mountApp();
   else mountPublic();
 
-  on('unauthorized', () => {
+  // One failed request is not a sign-out: confirm with the server first, so a stray 401 never drops someone mid-use.
+  let checking = false;
+  on('unauthorized', async () => {
+    if (!session.user || checking) return;
+    checking = true;
+    try {
+      await api.get('/bootstrap', { quiet401: true });
+      return;
+    } catch (error) {
+      if (error.status !== 401) return;
+    } finally {
+      checking = false;
+    }
     if (!session.user) return;
     live.disconnect();
     setSession({ user: null, unread: 0 });

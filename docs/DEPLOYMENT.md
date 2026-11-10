@@ -272,3 +272,11 @@ To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, th
 | `node:sqlite` errors on start | Node is older than 22.13. Check `node --version`. |
 | A phone on the same Wi-Fi can't connect | `HOST` isn't `0.0.0.0`, Windows Firewall blocked Node.js (allow it on private networks), or the Wi-Fi isolates devices (guest networks). |
 | "Port 3100 is already in use" | Campus OS is already running in another window. Close it or set a different `PORT`. |
+
+## Staying signed in, and keeping the database small
+
+- Sessions last 30 days (`SESSION_DAYS`) and slide: every few minutes of activity renews both the database record and the browser cookie, so someone who is using the app is never signed out. The browser also double-checks with the server before it ever shows the sign-in page, so one stray failed request cannot drop anyone.
+- Accounts and sessions live in the database. If people are still signed out or lose accounts, the database is being reset by the host: check the persistence warning in the server log and see "Accounts disappear" above.
+- Hourly maintenance removes expired sessions, audit lines older than 180 days, read notifications older than 60 days, old device traffic and unused attachment uploads, then compacts the local SQLite file.
+- The university documents (.txt) are imported from Admin, AI, Knowledge, Import (the file is split into one entry per PDF page, with file name and page in each), or from the command line: `node --env-file=.env scripts/import-knowledge.js path/to/file.txt`. Importing again updates the entries.
+- The first administrator: set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD` (12+ characters) and run `node --env-file=.env setup-admin.js`. It also works to set the two variables for one command only.

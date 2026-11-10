@@ -17,6 +17,8 @@ function readCookie(req, name = COOKIE) {
 
 function createSessions({ db, config }) {
   const maxAgeSeconds = config.sessionDays * 86_400;
+  // A signed-in person stays signed in while they use the app: activity pushes the end of the session forward.
+  const EXTEND_AFTER_MS = 300_000;
 
   function cookieHeader(value, maxAge) {
     return `${COOKIE}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${config.cookieSecure ? '; Secure' : ''}`;
@@ -34,7 +36,7 @@ function createSessions({ db, config }) {
   }
 
   /** Resolve the signed-in user (or null). Touches last_seen at most every 5 minutes. */
-  function identify(req) {
+  function identify(req, res) {
     const token = readCookie(req);
     if (!token) return null;
     const digest = sha256(token);
@@ -47,7 +49,9 @@ function createSessions({ db, config }) {
     );
     if (!row) return null;
     if (!row.last_seen || Date.now() - row.last_seen > 300_000) {
-      db.run('UPDATE sessions SET last_seen = ? WHERE token = ?', Date.now(), digest);
+      const now = Date.now();
+      db.run('UPDATE sessions SET last_seen = ?, expires = ? WHERE token = ?', now, now + maxAgeSeconds * 1000, digest);
+      if (res && !res.headersSent) res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
     }
     let preferences = {};
     try {

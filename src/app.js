@@ -137,7 +137,7 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
         if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && authMode !== 'device' && isCrossSite(req, allowedOrigins)) {
           throw new HttpError(403, 'Cross-site request rejected');
         }
-        const user = authMode === 'device' ? null : sessions.identify(req);
+        const user = authMode === 'device' ? null : sessions.identify(req, res);
         if (authMode === 'user' && !user) throw new HttpError(401, 'Please sign in');
         if (route.options.roles && !route.options.roles.includes(user?.role)) throw new HttpError(403, 'You do not have access to this');
 
