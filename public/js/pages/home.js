@@ -1,11 +1,11 @@
 /** Home: a calm overview with one gradient hero, quick actions and what's next. */
-import { html, $, $$ } from '../core/dom.js';
+import { html, $, $$, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { session, firstName, assistantName } from '../core/store.js';
 import { greeting, time, dayLabel, ago, plural, dayKey, humanize } from '../core/format.js';
 import { row, empty, courseTile } from '../core/components.js';
-import { countUp } from '../core/ui.js';
+import { countUp, toast, toastError } from '../core/ui.js';
 import { debounce } from '../core/live.js';
 import { createFace, watchTyping } from '../features/face.js';
 import { whenLine } from './lectures.js';
@@ -112,50 +112,53 @@ function assistantCard() {
   </section>`;
 }
 
-function campusCard(posts) {
-  const items = (posts || []).filter((p) => p.status === 'published' && p.visible).slice(0, 3);
-  return html`<section class="card flush">
-    <div class="card-head"><h2>On campus</h2><a class="btn btn-sm btn-ghost" href="/campus">Feed ${icon('chevron-right', 16)}</a></div>
-    ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((p) => row({ href: `/campus?post=${p.id}`, icon: { event: 'calendar', job: 'briefcase', housing: 'home', research: 'target', announcement: 'bell', community: 'users', product: 'sparkle' }[p.category], title: p.title, sub: `${humanize(p.category)} · ${ago(p.created)}`, trail: p.match?.length ? html`<span class="chip accent">For you</span>` : '' }))}</div>`
-      : empty({ icon: 'compass', title: 'Quiet on campus', body: 'Announcements, events and opportunities will show up here.' })}
-  </section>`;
-}
-
 /**
- * The next lectures: the one live now first, then what is coming up, with date, time and room. A calm list, not a
- * banner: a live lecture only gets a small dot.
+ * Lectures: the one live now first, then what is coming up, with date, time and room. For a student a live lecture
+ * shows the three "how am I following" buttons right here, so answering takes one tap and no navigation. A live
+ * lecture is marked with a small dot only.
  */
+const SIGNALS = [[1, 'Following'], [2, 'Unsure'], [3, 'Lost']];
 function lecturesCard(feed) {
   const items = (feed?.lectures || []).filter((l) => l.state !== 'past').slice(0, 3);
   const lecturer = session.user.role !== 'student';
-  const action = (l) => (lecturer ? html`<a class="btn btn-sm ${l.state === 'live' ? 'btn-primary' : ''}" href="/live/${l.course.id}${l.state === 'live' ? '' : `?lecture=${l.id}`}">${l.state === 'live' ? 'Resume' : 'Start'}</a>`
-    : l.state === 'live' ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course.id}">Join</a>` : '');
+  const action = (l) => (lecturer ? html`<a class="btn btn-sm ${l.state === 'live' ? 'btn-primary' : ''}" href="/live/${l.course.id}${l.state === 'live' ? '' : `?lecture=${l.id}`}" data-start="${l.state === 'live' ? '' : l.id}" data-course="${l.course.id}">${l.state === 'live' ? 'Resume' : 'Start'}</a>` : '');
+  const quick = (l) => (!lecturer && l.state === 'live' && l.enrolled ? html`<div class="quick-signal" data-session="${l.liveSession}" role="group" aria-label="How are you following?">${SIGNALS.map(([level, label]) => html`<button type="button" class="chip-btn quick-signal-${level}" data-quick="${level}">${label}</button>`)}</div>` : '');
   return html`<section class="card flush lectures-card"><div class="card-head"><h2>Lectures</h2><a class="btn btn-sm btn-ghost" href="/lectures">All ${icon('chevron-right', 16)}</a></div>
-    ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((l) => html`<div class="list-row">${courseTile(l.course.code)}
-      <a class="body" href="/lectures" style="color:inherit;text-decoration:none"><span class="title">${l.topic}${l.state === 'live' ? html` <span class="chip success"><span class="dot live"></span>Live</span>` : ''}</span><span class="sub">${whenLine(l)} · ${l.course.code}</span></a>
-      <span class="trail">${action(l)}</span></div>`)}</div>`
-      : html`<p class="muted small" style="padding:0 20px 18px">${lecturer ? 'Nothing scheduled. Schedule a lecture in a course, or start one live.' : 'No lectures coming up in your courses. Browse lectures to find one to join.'}</p>`}
+    ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((l) => html`<div class="list-row lecture-home-row">${courseTile(l.course.code)}
+      <a class="body" href="${l.state === 'live' && !lecturer ? `/live/${l.course.id}` : '/lectures'}" style="color:inherit;text-decoration:none"><span class="title">${l.topic}${l.state === 'live' ? html` <span class="chip success"><span class="dot live"></span>Live</span>` : ''}</span><span class="sub">${whenLine(l)} · ${l.course.code}</span></a>
+      <span class="trail">${action(l)}</span>${quick(l)}</div>`)}</div>`
+      : html`<p class="muted small" style="padding:0 20px 18px">${lecturer ? 'Nothing scheduled. Schedule a lecture in a course, or start one live.' : 'No lectures coming up in your courses. Open Lectures to find one to join.'}</p>`}
   </section>`;
+}
+
+/** Recent finished lectures: a student catches up on them (their own recap, a quiz); a lecturer sees where the class got lost. */
+function lastLecturesCard(feed) {
+  const lecturer = session.user.role !== 'student';
+  const past = (feed?.lectures || []).filter((l) => l.state === 'past' && l.lastSession).slice(0, 3);
+  if (!past.length) return '';
+  return html`<section class="card flush"><div class="card-head"><h2>${lecturer ? 'How it went' : 'Catch up'}</h2><a class="btn btn-sm btn-ghost" href="/lectures">All ${icon('chevron-right', 16)}</a></div>
+    <div class="list" style="padding-bottom:8px">${past.map((l) => html`<div class="list-row">${courseTile(l.course.code)}
+      <a class="body" href="/lectures/review/${l.lastSession}" style="color:inherit;text-decoration:none"><span class="title">${l.topic}</span><span class="sub">${lecturer ? (l.struggles ? `The class got lost ${l.struggles === 1 ? 'once' : `${l.struggles} times`}` : 'No trouble spots') : whenLine(l)}</span></a>
+      <span class="trail"><a class="btn btn-sm" href="/lectures/review/${l.lastSession}">${lecturer ? 'Review' : 'Recap'}</a></span></div>`)}</div></section>`;
 }
 
 function studentBody(data) {
   const due = data.review.stats.dueNow;
   const open = data.participation.filter((s) => s.open && !s.mine);
   return html`
-    ${open.length ? html`<a class="notice accent" href="/participation/${open[0].id}" style="text-decoration:none">${icon('clipboard', 18)}<span><strong>${open[0].code} check-in is open.</strong> ${open[0].title}${open[0].room ? ` · ${open[0].room}` : ''} — tap to check in.</span></a>` : ''}
+    ${open.length ? html`<a class="notice accent" href="/participation/${open[0].id}" style="text-decoration:none">${icon('clipboard', 18)}<span><strong>${open[0].code} check-in is open.</strong> ${open[0].title}${open[0].room ? ` · ${open[0].room}` : ''}. Tap to check in.</span></a>` : ''}
     <div class="home-grid">
-      <div class="stack">${upNext(data)}${campusCard(data.posts)}</div>
+      <div class="stack">${lecturesCard(data.live)}${lastLecturesCard(data.live)}</div>
       <div class="stack">
         <section class="card">
           <div class="spread"><div><div class="stat-value" data-count="${due}">${due}</div><div class="stat-label">${due === 1 ? 'card to review' : 'cards to review'}</div></div><span class="tile lg success">${icon('graduation', 26)}</span></div>
-          <a class="btn ${due ? 'btn-primary' : ''} btn-block mt-16" href="/learning">${due ? 'Start review' : 'Open learning'}</a>
+          <a class="btn ${due ? 'btn-primary' : ''} btn-block mt-16" href="/learning">${due ? 'Start review' : 'Open review'}</a>
         </section>
         <section class="card flush">
           <div class="card-head"><h2>Courses</h2><a class="btn btn-sm btn-ghost" href="/courses">All ${icon('chevron-right', 16)}</a></div>
           ${data.courses.length ? html`<div class="list" style="padding-bottom:8px">${data.courses.slice(0, 4).map((c) => row({ href: `/courses/${c.id}`, tile: courseTile(c.code), title: c.title, sub: c.lecturer || c.code }))}</div>`
             : empty({ icon: 'book', title: 'No courses yet', action: html`<a class="btn btn-sm btn-primary" href="/courses">Browse courses</a>` })}
         </section>
-        ${assistantCard()}
       </div>
     </div>`;
 }
@@ -164,22 +167,20 @@ function lecturerBody(data) {
   const pending = data.activations.filter((a) => a.status === 'pending');
   const recent = data.participation.slice(0, 3);
   return html`
-    ${pending.map((a) => html`<a class="notice accent" href="/classroom?activation=${a.id}" style="text-decoration:none">${icon('nfc', 18)}<span><strong>Confirm sign-in at ${a.room || a.device}.</strong> You tapped your card — tap here to start the session.</span></a>`)}
+    ${pending.map((a) => html`<a class="notice accent" href="/classroom?activation=${a.id}" style="text-decoration:none">${icon('nfc', 18)}<span><strong>Confirm sign-in at ${a.room || a.device}.</strong> You tapped your card. Tap here to start the session.</span></a>`)}
     <div class="home-grid">
-      <div class="stack">${upNext(data)}
+      <div class="stack">${lecturesCard(data.live)}${lastLecturesCard(data.live)}</div>
+      <div class="stack">
         <section class="card flush">
           <div class="card-head"><h2>Your courses</h2><a class="btn btn-sm btn-ghost" href="/courses">All ${icon('chevron-right', 16)}</a></div>
           ${data.courses.length ? html`<div class="list" style="padding-bottom:8px">${data.courses.slice(0, 5).map((c) => row({ href: `/courses/${c.id}`, tile: courseTile(c.code), title: c.title, sub: `${c.code} · ${plural(c.enrolled_count || 0, 'student')}` }))}</div>`
-            : empty({ icon: 'book', title: 'No courses assigned yet', body: 'An administrator assigns courses to lecturers.' })}
+            : empty({ icon: 'book', title: 'No courses yet', body: 'Create your first course. Students can find it and join it themselves.', action: html`<a class="btn btn-sm btn-primary" href="/courses">Create a course</a>` })}
         </section>
-      </div>
-      <div class="stack">
         <section class="card flush">
           <div class="card-head"><h2>Recent check-ins</h2><a class="btn btn-sm btn-ghost" href="/participation">All ${icon('chevron-right', 16)}</a></div>
           ${recent.length ? html`<div class="list" style="padding-bottom:8px">${recent.map((s) => row({ href: `/participation/${s.id}`, icon: 'clipboard', tone: s.open ? 'success' : 'neutral', title: s.title, sub: `${s.code} · ${plural(s.checkins, 'check-in')}`, trail: s.open ? html`<span class="chip success"><span class="dot live"></span>Open</span>` : '' }))}</div>`
             : empty({ icon: 'clipboard', title: 'No sessions yet', action: html`<a class="btn btn-sm btn-primary" href="/participation?new=1">Start a check-in</a>` })}
         </section>
-        ${campusCard(data.posts)}
       </div>
     </div>`;
 }
@@ -254,7 +255,38 @@ export default {
     const refresh = debounce(ctx.refresh, 800);
     ctx.live.on('activation', refresh);
     ctx.live.on('participation.updated', refresh);
+    ctx.live.on('live.started', refresh);
+    ctx.live.on('live.ended', refresh);
+
+    const offs = [
+      // Students answer "how am I following" with one tap, right here.
+      on(root, 'click', '[data-quick]', async (e, button) => {
+        const group = button.closest('[data-session]');
+        try {
+          await api.post(`/live/sessions/${group.dataset.session}/signal`, { level: Number(button.dataset.quick) });
+          group.querySelectorAll('[data-quick]').forEach((b) => b.classList.toggle('is-active', b === button));
+          navigator.vibrate?.(20);
+          toast('Sent', 'success', { duration: 1200 });
+        } catch (error) {
+          toastError(error);
+        }
+      }),
+      // A lecturer starts a scheduled lecture with one tap, without a form in between.
+      on(root, 'click', '[data-start]', async (e, button) => {
+        if (!button.dataset.start) return; // "Resume": follow the link
+        e.preventDefault();
+        button.disabled = true;
+        try {
+          await api.post('/live/sessions', { course_id: Number(button.dataset.course), lecture_id: Number(button.dataset.start) });
+          ctx.navigate(`/live/${button.dataset.course}`);
+        } catch (error) {
+          button.disabled = false;
+          toastError(error);
+        }
+      }),
+    ];
     return () => {
+      offs.forEach((off) => off());
       unwatch?.();
       face?.destroy();
     };

@@ -17,4 +17,5 @@ module.exports = [
   require('./014-live-lectures'),
   require('./015-open-spaces'),
   require('./016-lecture-schedule'),
+  require('./017-live-moments'),
 ];

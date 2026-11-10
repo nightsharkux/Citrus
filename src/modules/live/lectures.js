@@ -48,7 +48,9 @@ function buildFeed(db, user, { now = Date.now(), scope = 'all' } = {}) {
     `SELECT l.id, l.topic, l.status, l.starts, l.ends, l.room, l.created, l.course_id,
             c.code, c.title AS course, c.lecturer_id, lu.name AS lecturer,
             EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = ?) AS enrolled,
-            (SELECT s.id FROM live_sessions s WHERE s.lecture_id = l.id AND s.ended IS NULL ORDER BY s.id DESC LIMIT 1) AS live_id
+            (SELECT s.id FROM live_sessions s WHERE s.lecture_id = l.id AND s.ended IS NULL ORDER BY s.id DESC LIMIT 1) AS live_id,
+            (SELECT s.id FROM live_sessions s WHERE s.lecture_id = l.id ORDER BY s.id DESC LIMIT 1) AS last_session_id,
+            (SELECT COUNT(*) FROM live_moments m JOIN live_sessions s ON s.id = m.session_id WHERE s.lecture_id = l.id AND m.kind = 'struggle') AS struggles
      FROM lectures l JOIN courses c ON c.id = l.course_id LEFT JOIN users lu ON lu.id = c.lecturer_id
      WHERE c.institution_id = ?`,
     user.id, user.institution_id,
@@ -64,6 +66,8 @@ function buildFeed(db, user, { now = Date.now(), scope = 'all' } = {}) {
       id: r.id, topic: r.topic, state, starts: r.starts, ends: r.ends, room: r.room, created: r.created,
       course: { id: r.course_id, code: r.code, title: r.course, lecturer: r.lecturer },
       enrolled: !!r.enrolled, teaches, liveSession: r.live_id || null,
+      // The session to open for a review, and (for the lecturer only) how many times the class got lost.
+      lastSession: r.last_session_id || null, ...(teaches ? { struggles: r.struggles } : {}),
     };
     if (inWindow(item, now)) items.push(item);
   }

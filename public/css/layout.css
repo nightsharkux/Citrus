@@ -263,3 +263,9 @@
 
 /* Campus Focus: the moon in the top bar is lit while notifications are paused. */
 .focus-btn.is-on { color: var(--accent); background: var(--accent-soft); }
+
+/* "More" in the sidebar: closed until needed, so the main list stays short. */
+.nav-more > summary { display: flex; align-items: center; justify-content: space-between; list-style: none; cursor: pointer; user-select: none; }
+.nav-more > summary::-webkit-details-marker { display: none; }
+.nav-more > summary:hover { color: var(--text-2); }
+.nav-more[open] > summary svg { transform: rotate(180deg); }

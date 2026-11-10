@@ -72,8 +72,8 @@ function studentScreen({ mine }) {
 
 function mountStudent(root, d, ctx) {
   ctx.live.on('live.ended', () => {
-    toast('The lecture has ended.', 'info');
-    ctx.navigate('/home');
+    toast('The lecture has ended. Here is your recap.', 'info');
+    ctx.navigate(`/lectures/review/${d.active.session.id}`); // their own path, where the class got stuck, the key points
   });
   return on(root, 'click', '[data-signal]', async (e, button) => {
     const level = Number(button.dataset.signal);
@@ -324,7 +324,7 @@ function showSummary(root, s, save) {
     <h2>Lecture ended</h2>
     <p class="muted mt-8">${patches.length ? `The class struggled ${patches.map((p) => (p.from === p.to ? `around minute ${p.from}` : `from minute ${p.from} to ${p.to}`)).join(' and ')}. Worth revisiting.` : 'The class followed without major trouble.'}</p>
     ${timelineView(s.timeline)}
-    <div class="cluster mt-24" style="justify-content:center">${save ? html`<button class="btn" data-again>${icon('download', 16)} Save transcript</button>` : ''}<a class="btn btn-primary" href="/home">Back to home</a></div>
+    <div class="cluster mt-24" style="justify-content:center">${save ? html`<button class="btn" data-again>${icon('download', 16)} Save transcript</button>` : ''}<a class="btn btn-primary" href="/lectures/review/${s.session.id}">See where it went wrong</a><a class="btn btn-ghost" href="/home">Back to home</a></div>
   </section>`;
   render(root.querySelector('.live-grid').parentElement, view);
   root.querySelector('[data-again]')?.addEventListener('click', save);

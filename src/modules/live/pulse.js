@@ -85,3 +85,27 @@ function roughPatches(line) {
 }
 
 module.exports = { pulse, timeline, roughPatches, statusOf, WINDOW_MS, MIN_SIGNALS };
+
+/**
+ * One student's own path through a lecture: for each minute, how they said they were following (the latest answer
+ * within the window), or null before they answered. Private to that student.
+ * Returns [{ minute, level }].
+ */
+function personalTimeline(signals, startedIso, { now = Date.now() } = {}) {
+  const start = Date.parse(startedIso);
+  const minutes = Math.max(1, Math.min(240, Math.ceil((now - start) / 60_000)));
+  const mine = [...signals].map((s) => ({ level: s.level, at: Date.parse(s.created) })).sort((a, b) => a.at - b.at);
+  const out = [];
+  for (let m = 1; m <= minutes; m += 1) {
+    const end = start + m * 60_000;
+    let level = null;
+    for (const s of mine) {
+      if (s.at > end) break;
+      if (s.at >= end - WINDOW_MS) level = s.level;
+    }
+    out.push({ minute: m, level });
+  }
+  return out;
+}
+
+module.exports.personalTimeline = personalTimeline;

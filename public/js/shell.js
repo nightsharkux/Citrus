@@ -59,7 +59,7 @@ export function mountApp() {
       ${brand()}
       <div class="sidebar-scroll">
         <nav class="nav">${nav.primary.map(navLink)}</nav>
-        ${nav.secondary.length ? html`<div class="nav-label">More</div><nav class="nav">${nav.secondary.map(navLink)}</nav>` : ''}
+        ${nav.secondary.length ? html`<details class="nav-more" ${nav.secondary.some((i) => isActive(i.href, location.pathname)) ? 'open' : ''}><summary class="nav-label">More ${icon('chevron-down', 14)}</summary><nav class="nav">${nav.secondary.map(navLink)}</nav></details>` : ''}
       </div>
       <div class="sidebar-foot">
         ${nav.foot.map(navLink)}

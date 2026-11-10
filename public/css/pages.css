@@ -478,3 +478,19 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
 .live-signal-3.is-active { border-color: var(--danger); background: var(--danger-soft); }
 .live-signal-3.is-active .live-signal-icon { color: var(--danger); }
 @media (max-width: 860px) { .live-grid { grid-template-columns: minmax(0, 1fr); } }
+
+/* Home: one-tap "how am I following" under a live lecture. */
+.lecture-home-row { flex-wrap: wrap; }
+.quick-signal { flex-basis: 100%; display: flex; gap: 8px; padding: 4px 0 6px 44px; }
+.chip-btn { flex: 1; min-height: 40px; border: 1.5px solid var(--hairline-strong); border-radius: var(--radius-pill); background: var(--fill); color: var(--text); font: inherit; font-weight: 600; cursor: pointer; transition: transform var(--fast) var(--ease), background var(--fast), border-color var(--fast); }
+.chip-btn:active { transform: scale(0.97); }
+.chip-btn.quick-signal-1.is-active { border-color: var(--success); background: var(--success-soft); color: var(--success); }
+.chip-btn.quick-signal-2.is-active { border-color: var(--warning); background: var(--warning-soft); color: var(--warning); }
+.chip-btn.quick-signal-3.is-active { border-color: var(--danger); background: var(--danger-soft); color: var(--danger); }
+
+/* Lecture review */
+.review-points { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.review-points li { display: flex; gap: 10px; align-items: baseline; }
+.review-moment { padding: 14px 20px; border-top: 1px solid var(--hairline); }
+.review-moment:first-child { border-top: 0; }
+.review-quote { margin: 10px 0 0; padding: 8px 14px; border-left: 3px solid var(--hairline-strong); color: var(--text-2); font-size: 14px; }

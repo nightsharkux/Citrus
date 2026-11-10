@@ -211,6 +211,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 |---|---|---|---|
 | POST | `/api/live/sessions` | user | any |
 | GET | `/api/live/mine` | user | any |
+| GET | `/api/live/sessions/:id/report` | user | any |
+| GET | `/api/live/sessions/:id/recap` | user | any |
 | GET | `/api/live/courses/:id/active` | user | any |
 | GET | `/api/live/sessions/:id` | user | any |
 | POST | `/api/live/sessions/:id/signal` | user | any |

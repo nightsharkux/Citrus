@@ -27,7 +27,10 @@ function lectureRow(l) {
   let action = '';
   if (isLecturer()) {
     action = live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course.id}">Resume</a>`
-      : l.state === 'upcoming' || l.state === 'open' ? html`<a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}">Start</a>` : '';
+      : l.state === 'upcoming' || l.state === 'open' ? html`<a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}" data-start="${l.id}" data-course="${l.course.id}">Start</a>`
+        : l.lastSession ? html`<a class="btn btn-sm" href="/lectures/review/${l.lastSession}">Review</a>` : '';
+  } else if (l.state === 'past' && l.enrolled && l.lastSession) {
+    action = html`<a class="btn btn-sm" href="/lectures/review/${l.lastSession}">Recap</a>`;
   } else if (!l.enrolled) {
     action = html`<button class="btn btn-sm ${live ? 'btn-primary' : ''}" data-join="${l.course.id}" data-live="${live ? '1' : ''}">Join course</button>`;
   } else if (live) {
@@ -38,7 +41,7 @@ function lectureRow(l) {
     <a class="body" href="${href}" style="color:inherit;text-decoration:none">
       <span class="title">${l.topic}${live ? html` <span class="chip success"><span class="dot live"></span>Live</span>` : ''}</span>
       <span class="sub">${whenLine(l)}</span>
-      <span class="sub">${l.course.code} · ${l.course.title}${l.course.lecturer ? ` · ${l.course.lecturer}` : ''}</span>
+      <span class="sub">${l.course.code} · ${l.course.title}${l.course.lecturer ? ` · ${l.course.lecturer}` : ''}${l.teaches && l.struggles ? ` · class got lost ${l.struggles === 1 ? 'once' : `${l.struggles} times`}` : ''}</span>
     </a>
     <span class="trail">${action}</span>
   </div>`;
@@ -64,7 +67,18 @@ export default {
   mount(root, data, ctx) {
     ctx.live.on('live.started', () => ctx.refresh());
     ctx.live.on('live.ended', () => ctx.refresh());
-    return on(root, 'click', '[data-join]', (e, button) => busy(button, async () => {
+    const offStart = on(root, 'click', '[data-start]', async (e, button) => {
+      e.preventDefault();
+      button.disabled = true;
+      try {
+        await api.post('/live/sessions', { course_id: Number(button.dataset.course), lecture_id: Number(button.dataset.start) });
+        ctx.navigate(`/live/${button.dataset.course}`);
+      } catch (error) {
+        button.disabled = false;
+        toastError(error);
+      }
+    });
+    const offJoin = on(root, 'click', '[data-join]', (e, button) => busy(button, async () => {
       try {
         await api.post(`/courses/${button.dataset.join}/enroll`);
         toast('Joined', 'success', { duration: 1600 });
@@ -74,5 +88,9 @@ export default {
         toastError(error);
       }
     }));
+    return () => {
+      offStart();
+      offJoin();
+    };
   },
 };

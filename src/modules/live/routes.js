@@ -24,7 +24,8 @@ const { liveAskPrompt } = require('../../ai/prompts');
 const { assistantNameFor } = require('../account/preferences');
 const { createAttachments } = require('../assistant/attachments');
 const { createTranscripts } = require('./transcript');
-const { pulse, timeline, roughPatches } = require('./pulse');
+const { pulse, timeline, roughPatches, personalTimeline } = require('./pulse');
+const { createMoments } = require('./moments');
 const { buildFeed } = require('./lectures');
 
 const SIGNAL_GAP_MS = 15_000;
@@ -33,6 +34,7 @@ const LEVELS = { 1: 'following', 2: 'unsure', 3: 'lost' };
 function register(router, { db, ai, access, bus, site, notifier }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
+  const moments = createMoments({ db, ai, bus, transcripts });
   const isoNow = () => new Date().toISOString();
 
   // ---- lookups ---------------------------------------------------------------------------------------------
@@ -73,7 +75,9 @@ function register(router, { db, ai, access, bus, site, notifier }) {
 
   /** Tell the lecturer's open screens that the pulse moved. Anonymous aggregates only. */
   function announce(s) {
-    bus.publish(`user:${s.lecturer_id}`, 'live.pulse', { session: s.id, pulse: livePulse(s) });
+    const p = livePulse(s);
+    bus.publish(`user:${s.lecturer_id}`, 'live.pulse', { session: s.id, pulse: p });
+    moments.onPulse(s, p); // when the class tips into trouble, keep that moment for the lecturer's review
   }
 
   function lecturerView(s) {
@@ -147,6 +151,38 @@ function register(router, { db, ai, access, bus, site, notifier }) {
   });
 
   /**
+   * After the lecture, for its lecturer: where it went wrong. The class timeline, the stretches of trouble, what was
+   * being said at each one with a note on the likely sticking point, and the key points picked up while listening.
+   */
+  router.get('/api/live/sessions/:id/report', (ctx) => {
+    const s = teaching(ctx.user, ctx.params.id);
+    const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
+    return { ...lecturerView(s), course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size };
+  });
+
+  /**
+   * After the lecture, for a student: their own path through it (private), where the class got stuck, and the key
+   * points, to review from. Never what the lecturer said word for word, and never anyone else's answers.
+   */
+  router.get('/api/live/sessions/:id/recap', (ctx) => {
+    const s = joined(ctx.user, ctx.params.id);
+    const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
+    const all = signalsOf(s.id);
+    const end = s.ended ? Date.parse(s.ended) : Date.now();
+    const line = timeline(all, s.started, { now: end });
+    const mine = all.filter((x) => x.user_id === ctx.user.id);
+    const { struggles, points } = moments.list(s.id, { excerpts: false });
+    return {
+      session: publicSession(s), course,
+      mine: personalTimeline(mine, s.started, { now: end }),
+      classPatches: roughPatches(line),
+      struggles: struggles.map(({ minute, lost, answered, note }) => ({ minute, lost, answered, note })),
+      points,
+      signals: mine.length,
+    };
+  });
+
+  /**
    * The lectures a person can see: live now, coming up and recent. scope=mine limits it to their own courses.
    * Students also see other courses' lectures at their university and can join the course from the list.
    */
@@ -189,7 +225,9 @@ function register(router, { db, ai, access, bus, site, notifier }) {
     const s = teaching(ctx.user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
     const b = await ctx.json();
-    return { lines: transcripts.add(s.id, text(b.text, { min: 1, max: 600, label: 'Text' })) };
+    const lines = transcripts.add(s.id, text(b.text, { min: 1, max: 600, label: 'Text' }));
+    moments.onSpeech(s); // every few minutes: the key points of what was just said
+    return { lines };
   });
 
   router.post('/api/live/sessions/:id/notes', async (ctx) => {
@@ -227,6 +265,7 @@ function register(router, { db, ai, access, bus, site, notifier }) {
     const s = teaching(ctx.user, ctx.params.id);
     if (!s.ended) db.run('UPDATE live_sessions SET ended = ? WHERE id = ?', isoNow(), s.id);
     transcripts.clear(s.id); // the lecture was never recorded; forget what was heard
+    moments.forget(s.id);
     if (s.lecture_id) db.run("UPDATE lectures SET status = 'ended', ends = CASE WHEN ends IS NULL OR ends > ? THEN ? ELSE ends END WHERE id = ?", isoNow(), isoNow(), s.lecture_id);
     const summary = lecturerView(sessionFor(ctx.user, s.id));
     bus.publish(`course:${s.course_id}`, 'live.ended', { session: s.id });
