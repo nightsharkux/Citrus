@@ -14,7 +14,7 @@
 const crypto = require('node:crypto');
 const { makeProviders } = require('./providers');
 const { createRetrieval, toSource } = require('./retrieval');
-const { voiceCatalog, speechOptions } = require('./voices');
+const { voiceCatalog, speechOptions, calmText } = require('./voices');
 const { createRecognitionProvider } = require('./recognition');
 const { MODEL_CHOICES, readModelOverride } = require('./models');
 const { createRateLimiter } = require('../http/rate-limit');
@@ -150,6 +150,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     if (!s.speech) throw unavailable('Natural voices are not available. Campus uses this device’s voices.');
     if (!speechQuota.hit(user.id)) throw tooMany('Campus is speaking a lot right now. Please wait a moment.');
     const options = speechOptions(s.speechModel, { voice, language, speed });
+    text = calmText(text);
     const key = crypto.createHash('sha256').update(JSON.stringify([s.speechModel, options, text])).digest('hex');
     const hit = audioCache.get(key);
     if (hit) {

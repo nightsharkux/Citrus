@@ -45,7 +45,7 @@ test('voices are checked against the catalog, and German text never goes to an E
   assert.equal(speechOptions('openai/tts-1', { voice: '<script>' }).voice, 'coral', 'unknown voices fall back to the default');
   assert.equal(speechOptions('openai/tts-1', { voice: 'nova', speed: 1.2 }).speed, 1.2);
   assert.equal(speechOptions('openai/tts-1', { voice: 'nova', speed: 1 }).speed, undefined, 'normal speed is not sent');
-  assert.match(speechOptions('google/gemini-3.8-flash-tts', {}).instructions, /warm/i, 'Gemini is told how to sound');
+  assert.match(speechOptions('google/gemini-3.8-flash-tts', {}).instructions, /calm/i, 'Gemini is told how to sound');
   assert.equal(speechOptions('google/gemini-3.8-flash-tts', {}).format, 'wav');
   assert.equal(speechOptions('microsoft/mai-voice-2.1-flash', { voice: 'en-US-Harper', language: 'de' }).voice, 'de-DE-Mia');
   assert.equal(speechOptions('microsoft/mai-voice-2.1-flash', { voice: 'en-US-Harper', language: 'en' }).voice, 'en-US-Harper');
@@ -71,9 +71,9 @@ test('natural voices: the gateway speech request, caching, quota-free reuse and 
     assert.equal(sent.headers['ai-model-id'], 'openai/tts-1');
     assert.equal(sent.headers['ai-speech-model-specification-version'], '4');
     assert.equal(sent.headers.Authorization, 'Bearer fixture-key');
-    assert.deepEqual(sent.body, { text: 'Hallo! Die Bibliothek ist offen.', outputFormat: 'mp3', voice: 'nova', speed: 1.1 });
+    assert.deepEqual(sent.body, { text: 'Hallo. Die Bibliothek ist offen.', outputFormat: 'mp3', voice: 'nova', speed: 1.1 });
 
-    await app.call('stu', 'POST', '/api/speech', { text: 'Hallo! Die Bibliothek ist offen.', voice: 'nova', speed: 1.1, lang: 'de' }, { raw: true });
+    await app.call('stu', 'POST', '/api/speech', { text: 'Hallo. Die Bibliothek ist offen.', voice: 'nova', speed: 1.1, lang: 'de' }, { raw: true });
     assert.equal(fixture.state.speech.length, 1, 'the same sentence in the same voice comes from the cache');
 
     assert.equal((await app.call('stu', 'POST', '/api/speech', { text: '' })).status, 400);

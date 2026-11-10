@@ -9,7 +9,12 @@
  */
 
 /** How Campus should sound, for models that take spoken directions (Gemini). */
-const DELIVERY = 'Speak like a warm, upbeat tutor in a relaxed one-to-one conversation: natural rhythm and intonation, friendly and clear, never slow or robotic.';
+const DELIVERY = 'Speak in a calm, even, matter-of-fact voice, like a helpful colleague explaining something quietly across a desk. Keep one steady, unhurried pace from the first word to the last, with a level tone: no excitement, no drama, no emphasis on single words, no rising or exclamatory intonation.';
+
+/** The text as it is read: no exclamation marks, ellipses or emphasis marks, which make a synthetic voice sound theatrical. */
+function calmText(text) {
+  return String(text).replace(/[*_`#]+/g, '').replace(/…|\.{2,}/g, '.').replace(/!+/g, '.').replace(/\?{2,}/g, '?').replace(/\s+/g, ' ').trim();
+}
 
 const FAMILIES = {
   openai: {
@@ -88,9 +93,9 @@ function speechOptions(model, { voice, language, speed }) {
     format: family.format,
     mime: family.mime,
     ...(family.speed && speed && Math.abs(speed - 1) > 0.01 ? { speed } : {}),
-    ...(family.instructions ? { instructions: DELIVERY } : {}),
+    ...(family.instructions || /gpt-4o-mini-tts/.test(model) ? { instructions: DELIVERY } : {}),
     ...(family.language && language ? { language } : {}),
   };
 }
 
-module.exports = { voiceCatalog, speechOptions, FAMILIES };
+module.exports = { voiceCatalog, speechOptions, calmText, FAMILIES };
