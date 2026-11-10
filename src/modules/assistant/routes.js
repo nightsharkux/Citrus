@@ -28,7 +28,8 @@ const { extractLead, createLeadExtractor } = require('../../ai/actions');
 const { createActionRunner } = require('./actions');
 const { createAttachments } = require('./attachments');
 const { assistantNameFor } = require('../account/preferences');
-const { needsWebSearch } = require('../../ai/latency');
+const { needsWebSearch, needsLookup } = require('../../ai/latency');
+const { createRateLimiter } = require('../../http/rate-limit');
 
 /** What the browser heard in the latest message: its language (as the browser judged it) and the recogniser's. */
 function readHeard(b) {
@@ -187,6 +188,10 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     db.run('UPDATE assistant_threads SET updated = ? WHERE id = ?', isoNow(), thread.id);
 
     const { sources, references } = ai.retrieveContext(user, [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n'));
+    // Looking something up (the web, an attached file, the university's documents) goes to the fast search model;
+    // explanations, tutoring and actions stay with the chat model.
+    const lookup = !!web || files.length > 0 || (references.length > 0 && needsLookup(prompt));
+    const task = voice ? (lookup ? 'voice-search' : 'voice') : (lookup ? 'search' : 'chat');
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
     // A question handed over by live voice (features/live.js) arrives with what Campus had just said aloud, so a
@@ -232,7 +237,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const wantsStream = String(ctx.req.headers.accept || '').includes('text/event-stream');
     if (!wantsStream) {
       const results = [];
-      const lead = extractLead(await ai.complete({ user, system, prompt: turn, history, maxTokens: ANSWER_TOKENS, task: voice ? 'voice' : 'chat', web, onMeta }), (action) => results.push(runner.run(user, action)));
+      const lead = extractLead(await ai.complete({ user, system, prompt: turn, history, maxTokens: ANSWER_TOKENS, task, web, onMeta }), (action) => results.push(runner.run(user, action)));
       const answer = lead.text.trim() || summarise(results);
       const { messageId, used } = save(answer, lead.visual, results);
       return { thread: { id: thread.id, title: thread.title }, message: { id: messageId, role: 'assistant', content: answer, sources: used, visual: lead.visual, actions: results.map(runner.publicView) } };
@@ -264,7 +269,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     };
     try {
       let announced = false;
-      for await (const delta of ai.stream({ user, system, prompt: turn, history, signal: controller.signal, maxTokens: ANSWER_TOKENS, task: voice ? 'voice' : 'chat', web, onMeta })) {
+      for await (const delta of ai.stream({ user, system, prompt: turn, history, signal: controller.signal, maxTokens: ANSWER_TOKENS, task, web, onMeta })) {
         emit(cues.push(delta));
         if (!announced && cues.visual) {
           announced = true;
@@ -312,6 +317,24 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     } finally {
       ctx.res.off('close', abort);
     }
+  });
+
+  /**
+   * Why a live voice conversation stopped or never started (public/js/features/live.js), for the server log: the
+   * close code, the gateway's error and which events arrived. No audio or words are sent.
+   */
+  const troubleLimit = createRateLimiter({ windowMs: 60_000, max: 6 });
+  router.post('/api/assistant/live/trouble', async (ctx) => {
+    const b = await ctx.json(8000);
+    if (!troubleLimit.hit(ctx.user.id)) return { ok: true };
+    const short = (v, max = 120) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, max);
+    const events = b.events && typeof b.events === 'object' ? Object.fromEntries(Object.entries(b.events).slice(0, 20).map(([k, v]) => [short(k, 60), Number(v) || 0])) : {};
+    console.warn('Campus OS live voice ended:', JSON.stringify({
+      user: ctx.user.id, reason: short(b.reason, 30), opened: !!b.opened, ms: Number(b.ms) || 0, sent: Number(b.sent) || 0,
+      closeCode: Number(b.closeCode) || null, closeReason: short(b.closeReason, 200), events,
+      error: b.error ? { type: short(b.error.type, 80), code: short(b.error.code, 80), message: short(b.error.message, 300) } : null,
+    }));
+    return { ok: true };
   });
 
   // ---- Attachments: upload first, then send the message with the returned ids.

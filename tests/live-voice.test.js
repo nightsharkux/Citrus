@@ -123,7 +123,10 @@ async function harness(options = {}) {
     },
     onAudio: (delta) => state.audio.push(delta),
     onDelegation: (id, words, said) => state.delegations.push({ id, words, said }),
-    onEnd: (reason, info) => state.ended.push({ reason, ...info }),
+    onEnd: (reason, { started, trace }) => {
+      state.ended.push({ reason, started });
+      state.trace = trace;
+    },
     ...options,
   });
   return { live, state, LIVE_URL };
@@ -196,6 +199,8 @@ test('a session that never starts ends as unavailable, so the standard voice tak
   dropped.state.sockets[0].onclose();
   assert.deepEqual(dropped.state.ended, [{ reason: 'unavailable', started: false }]);
   assert.equal(dropped.state.micStopped, 1, 'the microphone is released');
+  assert.equal(dropped.state.trace.reason, 'unavailable');
+  assert.equal(dropped.state.trace.opened, false, 'the report says how far it got');
 
   const blocked = await harness({ capture: async () => { throw Object.assign(new Error('denied'), { name: 'NotAllowedError' }); } });
   await blocked.live.start();

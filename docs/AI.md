@@ -50,10 +50,11 @@ Campus OS calls the [OpenAI-compatible gateway API](https://vercel.com/docs/ai-g
 |---|---|---|
 | Personal/workspace chat, tutoring, practice questions, classroom text answers and connection tests | `openai/gpt-6.1-sol/low` | `CAMPUS_AI_DEFAULT_MODEL`, or the institution's Assistant model choice |
 | Meeting minutes, live-caption summaries, feedback themes and marking written quiz answers | `openai/gpt-6-luna/low` | `CAMPUS_AI_SUMMARY_MODEL` |
+| Lookups in assistant chat and voice (`task: 'search'` / `'voice-search'`): web searches, messages with attached files, and factual questions about the university's documents (when, where, who, which office, deadline; `needsLookup` in `src/ai/latency.js`). Explanations, tutoring and actions stay with the default model | `google/gemini-3.8-flash/low` | `CAMPUS_AI_SEARCH_MODEL` (`off` keeps lookups on the default model) |
 | Spoken conversations (`task: 'voice'`): the default model with a shorter reasoning level, so answers start quickly. Applies only when the default model slug has a level | `low` | `CAMPUS_AI_VOICE_REASONING` |
 | Natural voices (text to speech, see [Voice](#voice)) | `elevenlabs/eleven-flash-v2.5` | `CAMPUS_AI_SPEECH_MODEL` (`off` uses browser voices) |
 
-Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default model and summary model are shown in Admin. Clients cannot select arbitrary models or tasks.
+Feature modules mark summarization calls with the server-controlled `task: 'summary'`; other calls use the default model. Vercel AI Gateway is the only AI connection. Off disables model calls. The chosen default, summary and search models are shown in Admin. Clients cannot select arbitrary models or tasks.
 
 Consult the [gateway catalog](https://ai-gateway.vercel.sh/v1/models) for current availability and prices. The choice of model, input size, output and reasoning tokens all affect the bill. The application keeps summary routing separate and never escalates to a more expensive model automatically.
 

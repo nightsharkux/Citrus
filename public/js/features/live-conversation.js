@@ -286,7 +286,9 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
       onDelegation(id, words, said) {
         if (!closed && live === mine) delegate(mine, id, words, said);
       },
-      onEnd(reason, { started }) {
+      onEnd(reason, { started, trace }) {
+        // Anything but a normal end is reported, so the server log says why live voice stopped.
+        if (reason !== 'closed') api.post('/assistant/live/trouble', trace).catch(() => {});
         if (closed || live !== mine) return;
         player?.clear();
         if (!started && reason === 'unavailable') {

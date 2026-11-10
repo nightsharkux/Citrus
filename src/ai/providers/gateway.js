@@ -10,6 +10,14 @@ const speechModel = (env) => {
   const value = String(env.CAMPUS_AI_SPEECH_MODEL || '').trim();
   return value.toLowerCase() === 'off' ? null : value || 'elevenlabs/eleven-flash-v2.5';
 };
+/**
+ * Looking things up (the web, attached files, the university's documents) goes to a fast, long-context Gemini
+ * model; the chat model keeps explanations and tutoring. "off" sends lookups to the chat model too.
+ */
+const searchModel = (env) => {
+  const value = String(env.CAMPUS_AI_SEARCH_MODEL || '').trim();
+  return value.toLowerCase() === 'off' ? null : value || 'google/gemini-3.8-flash/low';
+};
 /** A spoken conversation wants a quick answer: a reasoning model thinks briefly there (CAMPUS_AI_VOICE_REASONING). */
 const voiceEffort = (env) => String(env.CAMPUS_AI_VOICE_REASONING || '').trim() || 'low';
 const reasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
@@ -38,6 +46,11 @@ module.exports = {
   timeoutMs: 60_000,
   model(env, task) {
     if (task === 'summary') return summaryModel(env);
+    if (task === 'search' || task === 'voice-search') {
+      const search = searchModel(env);
+      if (search) return search;
+      task = task === 'search' ? 'chat' : 'voice';
+    }
     // Voice: same model, shorter thinking, but only when the configured model is a reasoning model (has a level).
     if (task === 'voice') {
       const parts = defaultModel(env).split('/');
@@ -48,18 +61,20 @@ module.exports = {
     return defaultModel(env);
   },
   summaryModel,
+  searchModel,
   speechModel,
   missing(env) {
     if (!key(env)) return 'AI_GATEWAY_API_KEY is missing on the server';
     try {
       parseModel(defaultModel(env));
       parseModel(summaryModel(env));
+      if (searchModel(env)) parseModel(searchModel(env));
       return null;
     } catch (error) {
       return error.message;
     }
   },
-  describe: () => 'Cloud AI selected (Vercel AI Gateway). Summaries use a separate model.',
+  describe: () => 'Cloud AI selected (Vercel AI Gateway). Summaries and lookups use separate models.',
 
   /**
    * `web`: 'auto' lets the model search the web when it needs to, 'required' makes it search first. The gateway

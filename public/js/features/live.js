@@ -11,7 +11,7 @@
  *   const live = new LiveSession({ requestPass, onReady, onAudio, onUserText, onReplyText, onDelegation, onEnd });
  *   live.start(); live.mute(true); live.answer(id, text); live.close();
  *
- * `onEnd(reason, { started })` once: closed (asked for), expired, lost (connection dropped), unavailable (it
+ * `onEnd(reason, { started, trace })` once (trace: what happened, for the server log when it went wrong): closed (asked for), expired, lost (connection dropped), unavailable (it
  * never started: the caller falls back to the standard voice), blocked or no-microphone.
  */
 import { MICROPHONE_AUDIO } from './recognition.js';
@@ -88,6 +88,7 @@ export class LiveSession {
     this.saidBefore = ''; // what Campus said just before the current turn
     this.campusSpoke = false;
     this.usage = null;
+    this.trace = { opened: false, events: {}, sent: 0, closeCode: null, closeReason: '', error: null, at: Date.now() };
   }
 
   async start() {
@@ -111,13 +112,20 @@ export class LiveSession {
       return;
     }
     this.timer = setTimeout(() => this.end('unavailable'), this.startTimeout);
-    socket.onopen = () => this.send({
-      type: 'session.start',
-      session: { model: pass.model, store: false, delegation: { type: 'client' }, audio: { format: { type: 'audio/pcm', rate: RATE } }, instructions: pass.instructions },
-    });
+    socket.onopen = () => {
+      this.trace.opened = true;
+      this.send({
+        type: 'session.start',
+        session: { model: pass.model, store: false, delegation: { type: 'client' }, audio: { format: { type: 'audio/pcm', rate: RATE } }, instructions: pass.instructions },
+      });
+    };
     socket.onmessage = ({ data }) => this.receive(data);
     socket.onerror = () => this.end(this.started ? 'lost' : 'unavailable');
-    socket.onclose = () => this.end(!this.started ? 'unavailable' : this.closing ? 'closed' : 'lost');
+    socket.onclose = (e) => {
+      this.trace.closeCode = e?.code ?? null;
+      this.trace.closeReason = String(e?.reason || '').slice(0, 200);
+      this.end(!this.started ? 'unavailable' : this.closing ? 'closed' : 'lost');
+    };
     // The microphone opens while the connection is made; packets wait for session.started.
     try {
       const mic = await this.capture((pcm) => this.audio(pcm));
@@ -141,7 +149,7 @@ export class LiveSession {
       this.end('lost');
       return;
     }
-    this.send({ type: 'session.input_audio.append', audio: base64(pcm) });
+    if (this.send({ type: 'session.input_audio.append', audio: base64(pcm) })) this.trace.sent += 1;
   }
 
   receive(data) {
@@ -152,6 +160,8 @@ export class LiveSession {
       return;
     }
     if (this.ended) return;
+    const type = String(event.type || '?').slice(0, 60);
+    this.trace.events[type] = (this.trace.events[type] || 0) + 1;
     switch (event.type) {
       case 'session.started':
         this.started = true;
@@ -199,6 +209,7 @@ export class LiveSession {
         this.end(event.reason === 'expired' ? 'expired' : 'closed');
         break;
       case 'error':
+        this.trace.error = { type: String(event.error?.type || '').slice(0, 80), code: String(event.error?.code || '').slice(0, 80), message: String(event.error?.message || '').slice(0, 300) };
         // Before startup the model or account was refused; later errors (moderation) do not end the session.
         if (!this.started) this.end('unavailable');
         break;
@@ -249,6 +260,6 @@ export class LiveSession {
         /* already closed */
       }
     }
-    this.onEnd?.(reason, { started: this.started });
+    this.onEnd?.(reason, { started: this.started, trace: { ...this.trace, reason, ms: Date.now() - this.trace.at } });
   }
 }

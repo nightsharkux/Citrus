@@ -195,12 +195,32 @@ function sourcesBlock(sources, citations = true) {
   ].join('\n');
 }
 
+/** The university without the concept label: "OTH Amberg-Weiden — Independent Concept" → "OTH Amberg-Weiden". */
+const universityOf = (user) => String(user.institution || 'the university').replace(/\s*[—–-]\s*Independent Concept\s*$/i, '').trim();
+
+/**
+ * Whose situation an answer is written for: someone at this university (a student unless their role or their
+ * words say otherwise), so "how do I register for exams?" gets the answer that applies to them here. The
+ * assistant never says it is assuming this; the answer simply fits.
+ */
+function perspective(user) {
+  const university = universityOf(user);
+  const campuses = /amberg|weiden/i.test(university) ? ', its campuses in Amberg and Weiden' : '';
+  const who = user.role === 'lecturer' ? `a lecturer at ${university}` : user.role === 'admin' ? `a member of staff at ${university}` : `a student at ${university}`;
+  return [
+    `Treat every question as coming from ${who}, unless they say otherwise (another university, a different situation, or a general answer they explicitly want).`,
+    `Answer for that situation: what applies to them at ${university}, its programmes${campuses}, its semester and exam dates, offices, portals, rules and services, using SOURCES and CONTEXT. When a general question has a local side (how to register for exams, where to print, when the lecture period ends), give the local answer, with the concrete office, page, date or room when the sources have it.`,
+    'Never mention that you are assuming this, and do not open with phrases like "as a student at" or "assuming you study at": let the answer itself show it. Think the question through first, and give the answer a well-informed person at this university would give: specific, practical, accurate and complete enough to act on.',
+  ].join(' ');
+}
+
 /** Personal assistant: one user, their own data only. `voice`: a spoken conversation (VOICE_GUIDE instead of FORMAT_GUIDE). */
 /** `web`: null, 'auto' (the model may search) or 'required' (the user asked it to search for this message). */
 function assistantPrompt({ site, user, assistantName, context, sources, attached = false, voice = false, language = {}, web = null }) {
   return [
     `You are ${assistantName}, the academic assistant built into Campus OS for ${user.institution}.`,
     `You are talking with ${user.name.split(' ')[0]}, a ${user.role}.`,
+    perspective(user),
     STYLE,
     SAFETY,
     LANGUAGE_GUIDE,
@@ -231,6 +251,7 @@ function assistantPrompt({ site, user, assistantName, context, sources, attached
 function livePrompt({ site, user, assistantName, context, language = {} }) {
   return [
     `You are ${assistantName}, the academic assistant built into Campus OS for ${user.institution}, in a live voice conversation with ${user.name.split(' ')[0]}, a ${user.role}.`,
+    perspective(user),
     'Sound like a friendly, capable tutor on a phone call: warm, clear and natural, at an easy pace. Usually answer in one to three short sentences, answer first. Go longer only when asked for detail or steps, still in short spoken sentences, and offer to go on. Ask at most one question, at the end. Say formulas, dates, times and numbers the way people say them. Do not introduce yourself or add routine offers to help.',
     'Let the user finish. A short pause, "um" or an unfinished sentence means they are still thinking: wait for them. If they talk over you, stop and listen.',
     LANGUAGE_GUIDE,

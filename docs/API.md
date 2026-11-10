@@ -53,6 +53,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 | DELETE | `/api/assistant/threads` | user | any |
 | POST | `/api/assistant/messages` | user | any |
 | POST | `/api/assistant/live` | user | any |
+| POST | `/api/assistant/live/trouble` | user | any |
 | POST | `/api/assistant/attachments` | user | any |
 | GET | `/api/assistant/attachments/:id/file` | user | any |
 | DELETE | `/api/assistant/attachments/:id` | user | any |

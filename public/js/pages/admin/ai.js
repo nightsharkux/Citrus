@@ -27,7 +27,7 @@ export default {
       <div class="stack stagger">
         <section class="card">
           <div class="spread"><h2>AI provider</h2><span class="chip ${s.aiEnabled ? 'info' : 'warning'}"><span class="dot"></span>${s.aiEnabled ? `Configured · ${s.model}` : 'Not active'}</span></div>
-          ${s.summaryModel ? html`<p class="small muted mt-16">Default model: ${s.model}. Summary model: ${s.summaryModel}.</p>` : ''}
+          ${s.summaryModel ? html`<p class="small muted mt-16">Default model: ${s.model}. Summary model: ${s.summaryModel}.${s.searchModel ? ` Lookups (web, files, university documents): ${s.searchModel}.` : ''}</p>` : ''}
           <form id="provider-form" class="mt-16">
             <div class="choice-grid two">${s.providers.map((p) => {
               const [glyph, label, desc] = PROVIDER_INFO[p.id] || ['cpu', p.label, ''];

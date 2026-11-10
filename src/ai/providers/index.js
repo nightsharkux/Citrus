@@ -31,6 +31,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
       aiEnabled: !!provider && !missing,
       model: provider ? provider.model(configured) : null,
       ...(provider?.summaryModel ? { summaryModel: provider.summaryModel(env) } : {}),
+      ...(provider?.searchModel?.(env) ? { searchModel: provider.searchModel(env) } : {}),
       transcription: 'Disabled',
       description: missing || provider.describe(env),
     };
