@@ -53,8 +53,8 @@ function readDevice(input) {
 /** Long enough for worked examples with formulas; reasoning models also spend this budget thinking. */
 const ANSWER_TOKENS = 2600;
 
-function register(router, { db, ai, site, buildContext, config, access, timetable, audit, studyGroups, campusPosts }) {
-  const runner = createActionRunner({ db, config, access, timetable, audit, studyGroups, campusPosts });
+function register(router, { db, ai, site, buildContext, config, access, timetable, audit, studyGroups, campusPosts, programmes }) {
+  const runner = createActionRunner({ db, config, access, timetable, audit, studyGroups, campusPosts, programmes });
   const attachments = createAttachments({ db });
   const isoNow = () => new Date().toISOString();
   router.post('/api/assistant/translate', async (ctx) => {

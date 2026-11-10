@@ -185,6 +185,8 @@ Adding a study session for tomorrow at 4 pm.
 | Action | What it does |
 |---|---|
 | `calendar.add` / `calendar.update` / `calendar.delete` | The user's **own** personal events. Times are local (`YYYY-MM-DDTHH:mm`) in the institution's time zone. Overlaps are reported. Recurring events can change title or place, not time. |
+| `calendar.classes` | A programme's weekly class timetable for one semester and start term (and group), into the user's own calendar: every class on every lecture day from today to the end of the lecture period, lecture-free days skipped. Times, rooms and lecturers come from the printed grid as `src/ai/lecture-plan.js` parsed it, never from the model. Classes split into groups are added only for the user's group; without one they are named in the result. Importing again adds nothing; undo removes the whole import. |
+| `calendar.import` | All exam dates of DTM or IIE from the exam plan, exactly as printed. |
 | `app.navigate` | Opens a page (limited to the pages the user's role has) or one of their courses. Carried out by the browser. |
 | `app.theme` | Light, dark or system. Carried out by the browser. |
 

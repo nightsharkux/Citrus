@@ -153,7 +153,7 @@ function createAcademicSnapshot({ root, file, read = readBundled }) {
   }
   function describe({ codes = [], semester } = {}) {
     const d = load();
-    return [`Academic snapshot dated ${d.date}; not live or a personal enrolment record. Programme: ${codes.join(', ') || 'unknown'}; study semester: ${semester || 'unknown'}. Use the page-specific SOURCES, printed semester and entry cohort. No validated weekly calendar events are available from this snapshot.`];
+    return [`Academic snapshot dated ${d.date}; not live or a personal enrolment record. Programme: ${codes.join(', ') || 'unknown'}; study semester: ${semester || 'unknown'}. Use the page-specific SOURCES, printed semester and entry cohort. Weekly class timetables parsed from the printed grid can be put into the user's calendar with calendar.classes; never copy class times by hand.`];
   }
   const handles = (query) => !!intent(String(query).split('\n').at(-1)) || mentioned(String(query).split('\n').at(-1)).length > 0;
   return { find, handles, mentioned, fromProfile, semesterIn, describe, programmes: () => load().programmes,

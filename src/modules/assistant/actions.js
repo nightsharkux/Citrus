@@ -39,7 +39,7 @@ const ROLE_PAGES = {
 };
 const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz', study_groups: 'groups', group: 'groups', lerngruppen: 'groups', lerngruppe: 'groups' };
 
-function createActionRunner({ db, config, access, timetable, audit, studyGroups = null, campusPosts = null }) {
+function createActionRunner({ db, config, access, timetable, audit, studyGroups = null, campusPosts = null, programmes = null, now = () => new Date() }) {
   const tz = config.site.timezone;
   const when = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, ...opts }).format(new Date(iso));
   const dayAndTime = (startIso, endIso) => `${when(startIso, { weekday: 'short', day: 'numeric', month: 'short' })}, ${when(startIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}–${when(endIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
@@ -274,6 +274,79 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
         eventId: id,
         link: `/schedule?week=${weekOffset(start)}`,
         undo: { op: 'delete', id },
+      };
+    },
+
+    /**
+     * A programme's weekly class timetable for one semester, into the user's own calendar: every class on every
+     * lecture day from today to the end of the lecture period, with lecture-free days left out. Times, rooms and
+     * lecturers come from the printed timetable grid as the app parsed it (src/ai/lecture-plan.js), never from the
+     * model. Classes split into groups are added only for the user's group; without one they are left out and named.
+     */
+    'calendar.classes'(user, a) {
+      if (!programmes) throw fail('The university timetables are not available here.');
+      const d = programmes.load();
+      const profile = db.get('SELECT programme, semester FROM user_profiles WHERE user_id = ?', user.id) || {};
+      const code = String(a.programme || programmes.fromProfile(profile.programme || '')[0] || '').toUpperCase().replace(/[^A-Z-]/g, '');
+      if (!code) throw fail('Which programme are you in?');
+      const semester = Number(a.semester || profile.semester);
+      if (!Number.isInteger(semester) || semester < 1 || semester > 12) throw fail('Which semester are you in?');
+      const own = d.timetables.filter((t) => (t.programme === code.replace(/-MA$/, '') || t.programmes.includes(code)) && t.semester === semester);
+      if (!own.length) throw fail(`There is no printed ${code} timetable for semester ${semester}.`);
+      const start = /^(SS|S|SUMMER|SOMMER)/i.test(String(a.start || '')) ? 'SS' : /^(WS|W|WINTER)/i.test(String(a.start || '')) ? 'WS' : '';
+      const tt = start ? own.find((t) => t.term === start) : own.length === 1 ? own[0] : null;
+      if (!tt) throw fail(start ? `There is no ${code} timetable for semester ${semester} with a ${start === 'SS' ? 'summer' : 'winter'} start.` : 'Did you start in the summer or the winter semester?');
+
+      const groups = [...new Set(tt.entries.map((e) => e.group).filter(Boolean))];
+      const group = String(a.group || '').toUpperCase().replace(/^(?:GROUP|GRUPPE|GR\.?)\s*/, '').trim();
+      const roman = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V' }[group] || group;
+      const mine = groups.includes(roman) ? roman : '';
+      const picked = tt.entries.filter((e) => !e.group || e.group === mine);
+      const leftOut = [...new Set(tt.entries.filter((e) => e.group && e.group !== mine).map((e) => e.title))];
+
+      const key = (x) => x.year * 10000 + x.month * 100 + x.day;
+      const valid = tt.valid ? { day: +tt.valid.slice(0, 2), month: +tt.valid.slice(3, 5), year: +tt.valid.slice(6) } : null;
+      const period = d.periods.find((p) => valid && key(valid) >= key(p.from) && key(valid) <= key(p.to));
+      if (!period) throw fail('I could not find the lecture period this timetable belongs to.');
+      const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const today = zonedParts(now(), tz);
+      const from = Math.max(key(today), key(period.from));
+      const label = `${code} semester ${semester} (${tt.term === 'SS' ? 'summer' : 'winter'} start)`;
+      const ids = [];
+      let existing = 0;
+      db.transaction(() => {
+        for (let t = Date.UTC(period.from.year, period.from.month - 1, period.from.day); ; t += DAY) {
+          const day = new Date(t);
+          const ymd = { year: day.getUTCFullYear(), month: day.getUTCMonth() + 1, day: day.getUTCDate() };
+          if (key(ymd) > key(period.to) || ids.length >= 600) break;
+          if (key(ymd) < from || period.free.some(([x, y]) => key(ymd) >= key(x) && key(ymd) <= key(y))) continue;
+          for (const e of picked.filter((x) => x.day === DAY_NAMES[day.getUTCDay()])) {
+            const stamp = `${ymd.year}${String(ymd.month).padStart(2, '0')}${String(ymd.day).padStart(2, '0')}`;
+            const uid = `class:${tt.sourceId}:${code}${semester}${tt.term}:${stamp}:${e.start}:${e.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 50)}:${e.group}`;
+            if (db.get('SELECT 1 FROM timetable_events WHERE institution_id = ? AND external_uid = ? AND owner_id = ?', user.institution_id, uid, user.id)) {
+              existing += 1;
+              continue;
+            }
+            const startsAt = zonedToUtc({ ...ymd, hour: +e.start.slice(0, 2), minute: +e.start.slice(3) }, tz);
+            const endsAt = zonedToUtc({ ...ymd, hour: +e.end.slice(0, 2), minute: +e.end.slice(3) }, tz);
+            const notes = [e.lecturer && `Lecturer: ${e.lecturer}`, e.mode, `From the printed ${label} timetable, valid from ${tt.valid}. Late changes are not included.`].filter(Boolean).join('. ').slice(0, 1000);
+            ids.push(db.insert(
+              `INSERT INTO timetable_events(institution_id, course_id, owner_id, title, kind, location, notes, starts, ends, repeat_weeks, until, source, external_uid, created_by, created)
+               VALUES(?, NULL, ?, ?, 'lecture', ?, ?, ?, ?, 0, NULL, 'plan', ?, ?, ?)`,
+              user.institution_id, user.id, `${e.title}${e.group ? ` (group ${e.group})` : ''}`.slice(0, 120), e.room || null, notes,
+              startsAt.toISOString(), endsAt.toISOString(), uid, user.id, new Date().toISOString(),
+            ));
+          }
+        }
+      });
+      if (!ids.length && !existing) throw fail(`The ${label} timetable has no classes left this lecture period.`);
+      const until = `${period.to.day}.${period.to.month}.${period.to.year}`;
+      return {
+        title: ids.length ? `Added your ${code} classes to your calendar` : `Your ${code} classes are already there`,
+        detail: `${picked.length} weekly classes, ${ids.length} dates until ${until}${existing ? `, ${existing} already there` : ''} · lecture-free days skipped`,
+        warning: leftOut.length ? `Not added because they are split into groups (${groups.join(', ')}): ${leftOut.join(', ')}. Tell me your group to add them.` : undefined,
+        link: '/schedule',
+        undo: ids.length ? { op: 'delete_many', ids } : undefined,
       };
     },
 
