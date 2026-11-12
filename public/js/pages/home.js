@@ -63,7 +63,7 @@ function quickActions(data) {
   const openSessions = (data.participation || []).filter((s) => s.open && !s.mine).length;
   if (data.role === 'lecturer') {
     return [
-      ['/lectures', 'presentation', 'Lectures', 0],
+      ['/lectures', 'presentation', 'Go live', 0],
       ['/participation?new=1', 'clipboard', 'Check-in', 0],
       ['/classroom', 'door', 'Room status', 0],
       ['/schedule', 'calendar', 'Schedule', 0],
@@ -71,8 +71,8 @@ function quickActions(data) {
     ];
   }
   return [
+    ['/join', 'presentation', 'Join lecture', 0],
     ['/participation', 'clipboard', 'Check in', openSessions],
-    ['/lectures', 'presentation', 'Lectures', 0],
     ['/learning', 'graduation', 'Review', data.review?.stats?.dueNow || 0],
     ['/schedule', 'calendar', 'Schedule', 0],
     ['/assistant', 'campus', 'Ask', 0],
@@ -127,7 +127,7 @@ function lecturesCard(feed) {
     ${items.length ? html`<div class="list" style="padding-bottom:8px">${items.map((l) => html`<div class="list-row lecture-home-row">${courseTile(l.course.code)}
       <a class="body" href="${l.state === 'live' && !lecturer ? `/live/${l.course.id}` : '/lectures'}" style="color:inherit;text-decoration:none"><span class="title">${l.topic}${l.state === 'live' ? html` <span class="chip success"><span class="dot live"></span>Live</span>` : ''}</span><span class="sub">${whenLine(l)} · ${l.course.code}</span></a>
       <span class="trail">${action(l)}</span>${quick(l)}</div>`)}</div>`
-      : html`<p class="muted small" style="padding:0 20px 18px">${lecturer ? 'Nothing scheduled. Schedule a lecture in a course, or start one live.' : 'No lectures coming up in your courses. Open Lectures to find one to join.'}</p>`}
+      : html`<p class="muted small" style="padding:0 20px 18px">${lecturer ? html`Nothing scheduled. <a href="/lectures">Go live</a> in one of your courses, or schedule a lecture.` : html`No lectures coming up in your courses. In a lecture room? <a href="/join">Join with the code</a>.`}</p>`}
   </section>`;
 }
 

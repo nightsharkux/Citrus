@@ -10,6 +10,7 @@ import { session } from '../core/store.js';
 import { pageHead, empty, courseTile } from '../core/components.js';
 import { dayLabel, dayKey, time, shortDate } from '../core/format.js';
 import { toast, toastError, busy } from '../core/ui.js';
+import { joinForm, mountJoinForm } from './live.js';
 
 const isLecturer = () => session.user.role !== 'student';
 
@@ -49,17 +50,34 @@ function lectureRow(l) {
 
 const section = (title, items) => (items.length ? html`<section class="card flush"><div class="card-head"><h2>${title}</h2></div><div class="list" style="padding-bottom:8px">${items.map(lectureRow)}</div></section>` : '');
 
+/** The first thing on the page: a lecturer goes live in one step, a student joins with the code on the screen. */
+function startCard(courses) {
+  if (!isLecturer()) {
+    return html`<section class="card stack lecture-start"><div><h2>Join a lecture</h2><p class="small muted">In the lecture room? Type the code your lecturer shows on the screen.</p></div>${joinForm()}</section>`;
+  }
+  if (!courses.length) return '';
+  const running = courses.find((c) => c.running);
+  return html`<section class="card stack lecture-start">
+    <div><h2>Go live</h2><p class="small muted">Start a live lecture now. Students join with a code on the screen and tell you how it’s going.</p></div>
+    ${running ? html`<a class="btn btn-primary btn-lg" href="/live/${running.id}">${icon('presentation', 18)} Back to ${running.code}, live now</a>` : html`<form class="join-form" data-go-live>
+      <label class="field"><span>Course</span><select class="select" name="course">${courses.map((c) => html`<option value="${c.id}">${c.code} · ${c.title}</option>`)}</select></label>
+      <button class="btn btn-primary">${icon('play', 17)} Set up lecture</button></form>`}
+  </section>`;
+}
+
 export default {
   title: 'Lectures',
   async load() {
-    return api.get('/lectures/feed');
+    const [feed, mine] = await Promise.all([api.get('/lectures/feed'), isLecturer() ? api.get('/live/mine').catch(() => ({ courses: [] })) : { courses: [] }]);
+    return { ...feed, courses: mine.courses };
   },
-  render({ lectures }) {
+  render({ lectures, courses }) {
     const live = lectures.filter((l) => l.state === 'live');
     const next = lectures.filter((l) => l.state === 'upcoming' || l.state === 'open');
     const past = lectures.filter((l) => l.state === 'past');
-    return html`${pageHead({ title: 'Lectures', subtitle: isLecturer() ? 'Your lectures: start one when you’re ready.' : 'What’s on now and coming up. Join a course to take part.' })}
+    return html`${pageHead({ title: 'Lectures', subtitle: isLecturer() ? 'Go live, or start one of your scheduled lectures.' : 'What’s on now and coming up. Join with the code in the room, or join a course from the list.' })}
       <div class="stack stagger">
+        ${startCard(courses)}
         ${lectures.length ? html`${section('Happening now', live)}${section('Coming up', next)}${section('Earlier', past)}`
           : html`<div class="card">${empty({ icon: 'presentation', title: 'No lectures yet', body: isLecturer() ? 'Schedule a lecture in one of your courses, or start one live.' : 'When a lecturer schedules or starts a lecture, it appears here with its date, time and room.', action: html`<a class="btn btn-primary" href="/courses">${isLecturer() ? 'Go to teaching' : 'Browse courses'}</a>` })}</div>`}
       </div>`;
@@ -88,9 +106,16 @@ export default {
         toastError(error);
       }
     }));
+    const offCode = mountJoinForm(root, ctx.navigate);
+    const offGo = on(root, 'submit', '[data-go-live]', (e, form) => {
+      e.preventDefault();
+      ctx.navigate(`/live/${form.course.value}`);
+    });
     return () => {
       offStart();
       offJoin();
+      offCode();
+      offGo();
     };
   },
 };

@@ -2,10 +2,10 @@
 /**
  * What the lecturer has said in a live lecture, kept in memory only.
  *
- * Campus listens through the lecture so it can answer "what did I just say?", but the lecture is not recorded:
- * nothing is written to the database. Only the most recent part is kept (the last few thousand words), and it is
- * gone when the lecture ends or the server restarts. The lecturer's browser keeps the full text on that device and
- * can save it as a file if they choose to.
+ * Campus listens through the lecture so it can answer "what did I just say?". This memory holds the most recent part
+ * (the last few thousand words) for quick answers; it is gone when the lecture ends or the server restarts.
+ * When the lecturer chose "Keep the transcript" at the start, every line is also written to live_transcript
+ * (routes.js) so Campus can answer students about the lecture afterwards. Without that choice nothing is stored.
  */
 const MAX_LINES = 600;
 const MAX_LINE = 600;
@@ -42,7 +42,9 @@ function createTranscripts() {
 
   const clear = (sessionId) => bySession.delete(sessionId);
   const size = (sessionId) => (bySession.get(sessionId) || []).length;
-  return { add, recent, clear, size };
+  /** When something was last heard (ms), or 0. Tells students whether Campus is listening. */
+  const lastAt = (sessionId) => (bySession.get(sessionId) || []).at(-1)?.at || 0;
+  return { add, recent, clear, size, lastAt };
 }
 
 module.exports = { createTranscripts };

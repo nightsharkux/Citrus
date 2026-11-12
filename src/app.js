@@ -51,6 +51,7 @@ const MODULES = [
   require('./modules/workspaces/routes'),
   require('./modules/insights/routes'),
   require('./modules/knowledge/routes'),
+  require('./modules/library/routes'),
   require('./modules/connect/routes'),
   require('./modules/groups/routes'),
   require('./modules/notifications/routes'),

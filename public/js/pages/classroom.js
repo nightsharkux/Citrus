@@ -51,7 +51,7 @@ export async function openActivation(activationId) {
 }
 
 export default {
-  title: 'Classroom',
+  title: 'Rooms & devices',
   roles: ['lecturer', 'admin'],
   async load() {
     const [activations, notices, devices] = await Promise.all([api.get('/activations'), api.get('/notices'), api.get('/devices')]);
@@ -62,8 +62,9 @@ export default {
     const active = d.activations.filter((a) => a.status === 'confirmed');
     const rooms = [...new Set([...d.devices.map((x) => x.room).filter(Boolean), ...d.notices.map((n) => n.room)])].sort();
     return html`
-      ${pageHead({ title: 'Classroom', subtitle: 'Start sessions with your card, set the room status and keep an eye on classroom devices.', actions: html`<button class="btn btn-primary" data-set-room>${icon('door', 17)} Set room status</button>` })}
+      ${pageHead({ title: 'Rooms & devices', subtitle: 'Set the room status, confirm card taps and keep an eye on classroom devices.', actions: html`<button class="btn btn-primary" data-set-room>${icon('door', 17)} Set room status</button>` })}
       <div class="stack stagger">
+        <a class="notice accent" href="/lectures" style="text-decoration:none">${icon('presentation', 18)}<span><strong>Teaching now?</strong> Live lectures, with the join code and the class pulse, start from Lectures → Go live.</span></a>
         ${pending.map((a) => html`<section class="card activation-card"><div class="spread"><div class="cluster"><span class="tile warning">${icon('nfc', 20)}</span><div><strong>Card tapped at ${a.room || a.device}</strong><p class="small muted">${ago(a.created)} · expires at ${time(a.expires)}</p></div></div><button class="btn btn-primary" data-confirm="${a.id}">Review</button></div></section>`)}
         ${active.length ? html`<section class="card flush"><div class="card-head"><h2>Active sessions</h2></div><div class="list" style="padding-bottom:8px">${active.map((a) => html`<div class="list-row">
           <span class="tile success">${icon('radio', 18)}</span>

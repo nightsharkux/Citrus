@@ -109,8 +109,11 @@ function fromXlsx(buffer) {
   }).join('\n\n');
 }
 
-/** Text shown by the content streams of a PDF. Handles the common cases; fonts with custom encodings may not decode. */
-function fromPdf(buffer) {
+/**
+ * The text of each content stream of a PDF, in file order (normally one per page). Handles the common cases; fonts
+ * with custom encodings may not decode.
+ */
+function pdfTextPages(buffer) {
   const raw = buffer.toString('latin1');
   const pages = [];
   for (const m of raw.matchAll(/<<([^>]*?)>>\s*stream\r?\n/g)) {
@@ -146,12 +149,112 @@ function fromPdf(buffer) {
     }
     pages.push(out.join('').replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').replace(/\n{3,}/g, '\n\n').trim());
   }
-  const text = pages.filter(Boolean).join('\n\n');
+  return pages.filter(Boolean);
+}
+
+/** Whether extracted text is real text rather than glyph soup from an unusual font or a scan. */
+function readable(text) {
   const letters = (text.match(/[\p{L}]/gu) || []).length;
-  if (letters < 40 || letters / Math.max(1, text.length) < 0.45) {
+  return letters >= 40 && letters / Math.max(1, text.length) >= 0.45;
+}
+
+function fromPdf(buffer) {
+  const text = pdfTextPages(buffer).join('\n\n');
+  if (!readable(text)) {
     throw new Unreadable('I could not read text in this PDF. It may be scanned or use special fonts. Try attaching photos or screenshots of the pages instead.');
   }
   return text;
+}
+
+// ---- pictures inside a PDF (scanned pages), so the AI can read them
+
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+function pngChunk(type, data) {
+  const head = Buffer.alloc(8);
+  head.writeUInt32BE(data.length, 0);
+  head.write(type, 4, 'latin1');
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(zlib.crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0);
+  return Buffer.concat([head, data, crc]);
+}
+
+/** A PNG from raw PDF image samples (8-bit grey or RGB, or 1-bit grey), already PNG-filtered or not. */
+function toPng({ width, height, channels, bits, samples, filtered }) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = bits;
+  ihdr[9] = channels === 3 ? 2 : 0;
+  let rows = samples;
+  if (!filtered) {
+    const stride = Math.ceil((width * channels * bits) / 8);
+    if (samples.length < stride * height) return null;
+    rows = Buffer.alloc((stride + 1) * height);
+    for (let y = 0; y < height; y += 1) samples.copy(rows, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
+  }
+  return Buffer.concat([PNG_SIGNATURE, pngChunk('IHDR', ihdr), pngChunk('IDAT', zlib.deflateSync(rows)), pngChunk('IEND', Buffer.alloc(0))]);
+}
+
+/**
+ * Page-sized pictures inside a PDF, in file order: what a scanner produces. JPEG pictures are passed on as they are;
+ * uncompressed and Flate-compressed grey, black-and-white and RGB pictures become PNGs. Fax, JBIG2 and JPEG 2000
+ * pictures are skipped (no built-in decoder). Small pictures (logos, icons) are left out.
+ *   → [{ mime: 'image/jpeg' | 'image/png', data: Buffer, width, height }]
+ */
+function pdfImages(buffer, { minPixels = 250_000, max = 60, maxBytes = 8_000_000 } = {}) {
+  const raw = buffer.toString('latin1');
+  const found = [];
+  for (const m of raw.matchAll(/\d+\s+\d+\s+obj\s*<<([\s\S]{0,4000}?)>>\s*stream\r?\n/g)) {
+    if (found.length >= max) break;
+    const dict = m[1];
+    if (!/\/Subtype\s*\/Image\b/.test(dict)) continue;
+    const width = Number(/\/Width\s+(\d+)/.exec(dict)?.[1] || 0);
+    const height = Number(/\/Height\s+(\d+)/.exec(dict)?.[1] || 0);
+    if (width * height < minPixels) continue;
+    const start = m.index + m[0].length;
+    const stop = raw.indexOf('endstream', start);
+    if (stop < 0) continue;
+    const data = buffer.subarray(start, stop);
+    try {
+      if (/\/DCTDecode\b/.test(dict)) {
+        if (data[0] === 0xff && data[1] === 0xd8 && data.length <= maxBytes) found.push({ mime: 'image/jpeg', data: Buffer.from(data), width, height });
+        continue;
+      }
+      if (/\/(CCITTFaxDecode|JBIG2Decode|JPXDecode|LZWDecode|RunLengthDecode)\b/.test(dict)) continue;
+      const bits = Number(/\/BitsPerComponent\s+(\d+)/.exec(dict)?.[1] || 8);
+      const channels = /\/DeviceRGB\b/.test(dict) ? 3 : /\/DeviceGray\b/.test(dict) || /\/ImageMask\s+true/.test(dict) ? 1 : 0;
+      if (!channels || ![1, 8].includes(bits) || (bits === 1 && channels !== 1)) continue;
+      let samples = /\/FlateDecode\b/.test(dict) ? zlib.inflateSync(data, { maxOutputLength: 80_000_000 }) : data;
+      const predictor = Number(/\/Predictor\s+(\d+)/.exec(dict)?.[1] || 1);
+      if (predictor > 1 && predictor < 10) continue; // TIFF predictor: rare, not supported
+      // An image mask paints with 1 = no ink unless /Decode [1 0]; PNG grey uses 1 = white. Flip when needed.
+      if (/\/ImageMask\s+true/.test(dict) && !/\/Decode\s*\[\s*1\s+0\s*\]/.test(dict) && predictor < 10) samples = Buffer.from(samples.map((b) => b ^ 0xff));
+      const png = toPng({ width, height, channels, bits, samples, filtered: predictor >= 10 });
+      if (png && png.length <= maxBytes) found.push({ mime: 'image/png', data: png, width, height });
+    } catch {
+      /* a damaged or unusual picture: skip it */
+    }
+  }
+  return found;
+}
+
+/** How many pages a PDF has: page objects in the file and inside compressed object streams. 0 when unknown. */
+function pdfPageCount(buffer) {
+  const raw = buffer.toString('latin1');
+  const pagesIn = (text) => (text.match(/\/Type\s*\/Page(?![a-zA-Z])/g) || []).length;
+  let count = pagesIn(raw);
+  for (const m of raw.matchAll(/<<([\s\S]{0,2000}?)>>\s*stream\r?\n/g)) {
+    if (!/\/Type\s*\/ObjStm/.test(m[1]) || !/\/FlateDecode/.test(m[1])) continue;
+    const start = m.index + m[0].length;
+    const stop = raw.indexOf('endstream', start);
+    if (stop < 0) continue;
+    try {
+      count += pagesIn(zlib.inflateSync(buffer.subarray(start, stop), { maxOutputLength: 20_000_000 }).toString('latin1'));
+    } catch {
+      /* skip a damaged stream */
+    }
+  }
+  return Math.min(count, 2000);
 }
 
 /** @returns {{ kind: 'image' | 'document', text: string }} */
@@ -181,4 +284,4 @@ function extractText({ name, mime = '', buffer }) {
   return text;
 }
 
-module.exports = { extractText, classify, Unreadable, IMAGE_TYPES, unzip };
+module.exports = { extractText, classify, Unreadable, IMAGE_TYPES, unzip, pdfTextPages, pdfImages, pdfPageCount, readable };

@@ -15,6 +15,7 @@ export function registerRoutes() {
   route('/lectures', () => import('./pages/lectures.js'));
   route('/lectures/review/:id', () => import('./pages/review.js'));
   route('/live/:id', () => import('./pages/live.js'));
+  route('/join/:code?', () => import('./pages/join.js'));
   route('/quiz/:id?', () => import('./pages/quiz.js'));
   route('/groups', () => import('./pages/groups.js'));
   route('/schedule', () => import('./pages/schedule.js'));
@@ -26,6 +27,7 @@ export function registerRoutes() {
   route('/participation/:id', () => import('./pages/session.js'));
   route('/career', () => import('./pages/career.js'));
   route('/classroom', () => import('./pages/classroom.js'));
+  route('/library', () => import('./pages/library.js'));
   route('/settings/:section?', () => import('./pages/settings.js'));
   route('/tools', () => import('./pages/tools.js'));
 

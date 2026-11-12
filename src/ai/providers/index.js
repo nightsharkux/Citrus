@@ -43,13 +43,18 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
   }
 
   /**
-   * A message's content is plain text, or text plus pictures for the model to look at.
-   * `images` are data URLs that the server itself produced from validated uploads.
+   * A message's content is plain text, or text plus pictures (and at most one PDF) for the model to look at.
+   * `images` are data URLs and `files` PDFs that the server itself produced from validated uploads.
    */
-  function content(text, images, limit) {
+  function content(text, images, limit, files) {
     const body = String(text).slice(0, limit);
-    if (!images?.length) return body;
-    return [{ type: 'text', text: body }, ...images.slice(0, 4).map((url) => ({ type: 'image_url', image_url: { url } }))];
+    if (!images?.length && !files?.length) return body;
+    return [
+      { type: 'text', text: body },
+      ...(images || []).slice(0, 4).map((url) => ({ type: 'image_url', image_url: { url } })),
+      // A PDF for the model to read itself (scans, unusual fonts): { name, mime, data: base64 }, produced by the server.
+      ...(files || []).slice(0, 1).map((f) => ({ type: 'file', file: { data: f.data, media_type: f.mime, filename: f.name } })),
+    ];
   }
 
   function buildMessages(input, history) {
@@ -59,7 +64,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
         .filter((h) => h && (h.role === 'user' || h.role === 'assistant'))
         .slice(-24)
         .map((h) => ({ role: h.role, content: content(h.content, h.images, 40_000) })),
-      { role: 'user', content: content(turn.text, turn.images, 90_000) },
+      { role: 'user', content: content(turn.text, turn.images, 90_000, turn.files) },
     ];
   }
 

@@ -4,6 +4,7 @@
  *
  *   ai.status(user)                      -> provider status for the user's institution
  *   ai.complete({ user, system, prompt, history })
+ *   ai.read({ user, system, prompt })    -> reading an uploaded page or picture (own rate limit, lookup model)
  *   ai.stream({ user, system, prompt, history, signal })   (async iterator of text)
  *   ai.retrieve(user, query)             -> numbered sources for citations
  *   ai.setProvider(user, mode)
@@ -116,6 +117,19 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     checkQuota(user);
     const s = settingsFor(user.institution_id);
     return providers.generate(s.mode, system, prompt, history, { maxTokens, task, web: webFor(user, web), onMeta, model: s.model });
+  }
+
+  // Reading uploaded documents goes a page at a time, so it has its own allowance: a 30-page scan must not use up
+  // the chat's, and the chat must not stop a document half read.
+  const readQuota = createRateLimiter({ windowMs: 60_000, max: Number(env.CAMPUS_AI_READ_PER_MINUTE || 60) });
+  /**
+   * Read a document page (text, or a picture as `prompt.images`) with the lookup model (Gemini by default), which
+   * reads scans and long text well. Throws 429 when the allowance is used; callers retry on the next round.
+   */
+  async function read({ user, system, prompt, maxTokens = 3000 }) {
+    if (!readQuota.hit(user.id)) throw tooMany('Reading pauses for a minute and then continues.');
+    const s = settingsFor(user.institution_id);
+    return providers.generate(s.mode, system, prompt, [], { maxTokens, task: 'search', model: s.model });
   }
 
   /** `onMeta({ searched })` says whether the web was searched for this answer. */
@@ -233,6 +247,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     setModel,
     setTools,
     complete,
+    read,
     stream,
     speak,
     speechInfo,

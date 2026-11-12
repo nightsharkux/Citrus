@@ -4,6 +4,11 @@
  * meetings and guided assignments. Includes shared notes, the workspace
  * assistant, meeting recordings with private-by-default audio, draft minutes
  * and live captions.
+ *
+ * Meetings: a member starts one (POST /api/workspaces/:id/meeting { action: 'start' }). While it runs, any
+ * member can turn on their microphone and their words become captions with their name; decisions, action items
+ * and questions added during it are notes. Ending it (action: 'end') drafts the minutes from both, shared with
+ * every member of the space. In lecture and assignment spaces only the lecturer or the owner runs one.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -52,6 +57,21 @@ function register(router, { db, config, access, ai, bus, audit }) {
     'SELECT r.* FROM meeting_recordings r JOIN workspaces w ON w.id = r.workspace_id WHERE r.id = ? AND w.institution_id = ?',
     id(rid), user.institution_id,
   );
+
+  /** Who may start a meeting or speak into captions: anyone in a group space; the lecturer or owner in a lecture. */
+  const canSpeak = (user, w) => access.teachesWorkspace(user, w) || w.creator_id === user.id || !['lecture', 'assignment'].includes(w.kind);
+  const meetingOf = (w) => (w.meeting_started ? {
+    started: w.meeting_started,
+    by: w.meeting_by ? db.get('SELECT name FROM users WHERE id = ?', w.meeting_by)?.name || '' : '',
+  } : null);
+  /** Captions and notes of the running (or a given) meeting, as text for the minutes. */
+  function meetingSource(w, since) {
+    const said = db.all('SELECT c.text, u.name FROM live_captions c LEFT JOIN users u ON u.id = c.author_id WHERE c.workspace_id = ? AND c.created >= ? ORDER BY c.id', w.id, since)
+      .map((c) => `${c.name ? `${c.name}: ` : ''}${c.text}`).join('\n');
+    const noted = db.all("SELECT n.category, n.content, u.name FROM workspace_notes n JOIN users u ON u.id = n.author_id WHERE n.workspace_id = ? AND n.created >= ? ORDER BY n.id", w.id, since)
+      .map((n) => `[${({ minutes: 'decision', task: 'action item' })[n.category] || n.category}] ${n.content} (${n.name})`).join('\n');
+    return { said, noted };
+  }
 
   router.get('/api/workspaces', (ctx) => {
     const u = ctx.user;
@@ -139,13 +159,19 @@ function register(router, { db, config, access, ai, bus, audit }) {
        FROM meeting_recordings WHERE workspace_id = ? AND (owner_id = ? OR shared = 1) ORDER BY id DESC LIMIT 50`,
       u.id, w.id, u.id,
     ).map((r) => ({ ...r, shared: !!r.shared, mine: r.owner_id === u.id }));
-    const reports = db.all('SELECT id, owner_id, recording_id, report, source, created FROM meeting_reports WHERE workspace_id = ? AND owner_id = ? ORDER BY id DESC LIMIT 30', w.id, u.id);
+    // Minutes of a meeting belong to everyone in the space; drafts someone made on their own stay theirs.
+    const reports = db.all(
+      `SELECT r.id, r.owner_id, r.recording_id, r.report, r.source, r.created, r.meeting_started, u.name AS owner
+       FROM meeting_reports r LEFT JOIN users u ON u.id = r.owner_id
+       WHERE r.workspace_id = ? AND (r.owner_id = ? OR r.meeting_started IS NOT NULL) ORDER BY r.id DESC LIMIT 30`,
+      w.id, u.id,
+    ).map((r) => ({ ...r, mine: r.owner_id === u.id }));
     const messages = db.all('SELECT id, role, content, created FROM ai_chats WHERE workspace_id = ? AND user_id = ? ORDER BY id DESC LIMIT 30', w.id, u.id).reverse();
     const members = db.all('SELECT u.id, u.name, u.role FROM workspace_members wm JOIN users u ON wm.user_id = u.id WHERE wm.workspace_id = ? ORDER BY u.name', w.id);
     const activeRecorders = db.get('SELECT COUNT(*) total FROM recording_signals WHERE workspace_id = ? AND started > ?', w.id, Date.now() - 4 * 3_600_000).total;
     const course = w.course_id ? db.get('SELECT id, code, title FROM courses WHERE id = ?', w.course_id) : null;
     return {
-      room: { ...w, live: !!w.live, isOwner: w.creator_id === u.id, canGuide: access.teachesWorkspace(u, w), course },
+      room: { ...w, live: !!w.live, isOwner: w.creator_id === u.id, canGuide: access.teachesWorkspace(u, w), canSpeak: canSpeak(u, w), course, meeting: meetingOf(w) },
       notes, recordings, reports, messages, members, activeRecorders,
       ...ai.status(u),
     };
@@ -204,7 +230,9 @@ function register(router, { db, config, access, ai, bus, audit }) {
   function workspaceSystem(user, w, question) {
     const notes = db.all('SELECT category, content FROM workspace_notes WHERE workspace_id = ? ORDER BY id DESC LIMIT 25', w.id).reverse().map((x) => `[${x.category}] ${x.content}`).join('\n').slice(0, 8500);
     const { references } = ai.retrieveContext(user, `${w.title} ${question}`);
-    return prompts.workspacePrompt({ user, workspace: w, sources: references, notes });
+    // During a meeting the assistant also knows what has been said so far ("what did we decide about the budget?").
+    const said = w.meeting_started ? meetingSource(w, w.meeting_started).said.slice(-12_000) : '';
+    return prompts.workspacePrompt({ user, workspace: w, sources: references, notes: said ? `${notes}\n\nSAID IN THE MEETING SO FAR (speech recognition)\n${said}` : notes });
   }
 
   router.post('/api/workspaces/:id/assistant', async (ctx) => {
@@ -249,8 +277,56 @@ function register(router, { db, config, access, ai, bus, audit }) {
 
   router.delete('/api/workspaces/:id/reports/:reportId', (ctx) => {
     const w = member(ctx.user, ctx.params.id);
-    db.run('DELETE FROM meeting_reports WHERE id = ? AND workspace_id = ? AND owner_id = ?', id(ctx.params.reportId), w.id, ctx.user.id);
+    const report = db.get('SELECT * FROM meeting_reports WHERE id = ? AND workspace_id = ?', id(ctx.params.reportId), w.id);
+    if (!report) throw notFound('Minutes not found');
+    if (report.owner_id !== ctx.user.id && w.creator_id !== ctx.user.id) throw forbidden('Only the person who ran the meeting or the space owner can delete these minutes');
+    db.run('DELETE FROM meeting_reports WHERE id = ?', report.id);
+    touch(w, 'notes');
     return { ok: true };
+  });
+
+  // --- Meetings: start, then end with minutes drafted from what was said and noted ---
+
+  router.post('/api/workspaces/:id/meeting', async (ctx) => {
+    const user = ctx.user;
+    const w = member(user, ctx.params.id);
+    const b = await ctx.json();
+    const action = oneOf(b.action, ['start', 'end'], 'Action');
+    if (!canSpeak(user, w)) throw forbidden('Only the lecturer or the space owner can run a meeting here');
+    if (action === 'start') {
+      if (w.meeting_started) return { meeting: meetingOf(w), resumed: true };
+      const started = isoNow();
+      db.run('UPDATE workspaces SET live = 1, meeting_started = ?, meeting_by = ? WHERE id = ?', started, user.id, w.id);
+      bus.publish(`workspace:${w.id}`, 'captions.state', { workspaceId: w.id, live: true, meeting: true });
+      touch(w, 'meeting');
+      ctx.status = 201;
+      return { meeting: meetingOf({ ...w, meeting_started: started, meeting_by: user.id }) };
+    }
+    if (!w.meeting_started) throw badRequest('No meeting is running');
+    const since = w.meeting_started;
+    db.run('UPDATE workspaces SET live = 0, meeting_started = NULL, meeting_by = NULL WHERE id = ?', w.id);
+    bus.publish(`workspace:${w.id}`, 'captions.state', { workspaceId: w.id, live: false, meeting: true });
+    const { said, noted } = meetingSource(w, since);
+    let report = null;
+    if (said.trim() || noted.trim()) {
+      const useAi = ai.status(user).aiEnabled;
+      const source = `Meeting started ${since}, ended ${isoNow()}.\n\nNOTED DURING THE MEETING\n${noted || '(nothing)'}\n\nWHAT WAS SAID (speech recognition, may contain errors)\n${said || '(nothing)'}`.slice(0, 40_000);
+      let text = '';
+      let label = 'Offline extraction';
+      if (useAi) {
+        try {
+          text = await ai.complete({ user, system: prompts.meetingPrompt(w.title), prompt: prompts.referenceBlock('NOTES', source.slice(0, 30_000)), maxTokens: 1500, task: 'summary' });
+          label = 'AI draft';
+        } catch {
+          text = '';
+        }
+      }
+      if (!text) text = offlineMinutes(`${noted}\n${said}`);
+      const reportId = db.insert('INSERT INTO meeting_reports(workspace_id, owner_id, recording_id, report, source, created, meeting_started) VALUES(?, ?, NULL, ?, ?, ?, ?)', w.id, user.id, text, label, isoNow(), since);
+      report = { id: reportId, report: text, source: label, meeting_started: since };
+    }
+    touch(w, 'meeting');
+    return { report, empty: !report };
   });
 
   // --- Recordings (private to the recorder unless shared) ---
@@ -329,7 +405,7 @@ function register(router, { db, config, access, ai, bus, audit }) {
 
   router.post('/api/workspaces/:id/live', async (ctx) => {
     const w = member(ctx.user, ctx.params.id);
-    if (!access.teachesWorkspace(ctx.user, w) && w.creator_id !== ctx.user.id) throw forbidden('Only the lecturer or space owner can start live captions');
+    if (!canSpeak(ctx.user, w)) throw forbidden('Only the lecturer or space owner can start live captions');
     const b = await ctx.json();
     db.run('UPDATE workspaces SET live = ? WHERE id = ?', b.active ? 1 : 0, w.id);
     if (b.active && b.reset) db.run('DELETE FROM live_captions WHERE workspace_id = ?', w.id);
@@ -340,17 +416,24 @@ function register(router, { db, config, access, ai, bus, audit }) {
   router.post('/api/workspaces/:id/captions', async (ctx) => {
     const w = member(ctx.user, ctx.params.id);
     if (!w.live) throw badRequest('Live captions are not running');
-    if (!access.teachesWorkspace(ctx.user, w) && w.creator_id !== ctx.user.id) throw forbidden('Only the speaker can add captions');
+    if (!canSpeak(ctx.user, w)) throw forbidden('Only the speaker can add captions');
     const b = await ctx.json();
     const line = text(b.text, { min: 1, max: 1000, label: 'Caption' });
     const captionId = db.insert('INSERT INTO live_captions(workspace_id, author_id, text, created) VALUES(?, ?, ?, ?)', w.id, ctx.user.id, line, isoNow());
-    bus.publish(`workspace:${w.id}`, 'caption', { workspaceId: w.id, id: captionId, text: line });
+    bus.publish(`workspace:${w.id}`, 'caption', { workspaceId: w.id, id: captionId, text: line, author: w.meeting_started ? ctx.user.name : '' });
     return { id: captionId };
   });
 
   router.get('/api/workspaces/:id/captions', (ctx) => {
     const w = member(ctx.user, ctx.params.id);
     const after = Number(ctx.query.get('after') || 0);
+    // During a meeting: what was said since it started, with who said it.
+    if (w.meeting_started) {
+      return {
+        live: true,
+        captions: db.all('SELECT c.id, c.text, c.created, u.name AS author FROM live_captions c LEFT JOIN users u ON u.id = c.author_id WHERE c.workspace_id = ? AND c.id > ? AND c.created >= ? ORDER BY c.id LIMIT 500', w.id, after, w.meeting_started),
+      };
+    }
     return { live: !!w.live, captions: db.all('SELECT id, text, created FROM live_captions WHERE workspace_id = ? AND id > ? ORDER BY id LIMIT 500', w.id, after) };
   });
 

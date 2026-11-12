@@ -60,7 +60,8 @@ export default {
             <div><h2>Knowledge library</h2><p class="small muted">${plural(d.knowledge.length, 'entry', 'entries')} · the assistant cites these as numbered sources</p></div>
             <div class="cluster">
               ${d.pack ? html`<button class="btn btn-sm" data-pack>${icon('download', 15)} Import ${session.site.id === 'oth' ? 'OTH public pack' : 'bundled pack'}</button>` : ''}
-              <button class="btn btn-sm" data-import>${icon('upload', 15)} Import file</button>
+              <a class="btn btn-sm btn-primary" href="/library">${icon('upload', 15)} Upload documents</a>
+              <button class="btn btn-sm" data-import>${icon('file', 15)} Import library file</button>
               <button class="btn btn-sm btn-primary" data-add>${icon('plus', 15)} Add entry</button>
             </div>
           </div>
@@ -163,6 +164,7 @@ function importSheet(ctx) {
     title: 'Import knowledge',
     content: html`<form class="form" id="import-form">
       <p class="small muted">Upload <b>.jsonl</b> (one record per line with title, content, category, sources, volatility) or a <b>.txt / .md</b> file — Markdown headings become separate entries. Re-importing JSONL updates matching IDs.</p>
+      <p class="small muted">Have PDFs, scans, photos or slides instead? Use <a href="/library">Documents</a>: Campus reads them for you, pictures too.</p>
       <label class="field"><span>File</span><input class="input" type="file" name="file" accept=".jsonl,.json,.txt,.md,text/plain,text/markdown" required></label>
       <label class="field"><span>Title (for text files)</span><input class="input" name="title" placeholder="Examination regulations summary"></label>
       <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Import</button></div>

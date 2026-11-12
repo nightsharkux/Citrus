@@ -24,7 +24,9 @@ const EXTRA_NAMES = {
   '/tools': ['tools', 'all tools', 'features', 'werkzeuge', 'alle werkzeuge', 'funktionen'],
   '/participation': ['participation', 'check in', 'check-in', 'attendance', 'teilnahme', 'anwesenheit', 'einchecken'],
   '/career': ['career', 'career explorer', 'careers', 'karriere', 'berufsorientierung'],
-  '/classroom': ['classroom', 'horsaal', 'klassenzimmer'],
+  '/classroom': ['classroom', 'horsaal', 'klassenzimmer', 'rooms and devices', 'room status', 'raumstatus'],
+  '/lectures': ['lectures', 'my lectures', 'live lecture', 'go live', 'live vorlesung'],
+  '/library': ['documents', 'my documents', 'uploads', 'dokumente', 'meine dokumente'],
   '/assistant': ['assistant', 'chat', 'assistent'],
 };
 

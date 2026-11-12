@@ -18,4 +18,7 @@ module.exports = [
   require('./015-open-spaces'),
   require('./016-lecture-schedule'),
   require('./017-live-moments'),
+  require('./018-classroom-flags'),
+  require('./019-meetings'),
+  require('./020-knowledge-documents'),
 ];
