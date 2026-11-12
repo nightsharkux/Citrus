@@ -25,6 +25,7 @@ import { DeepgramRecognition } from './recognition.js';
 import { WisprRecognition } from './wispr-recognition.js';
 import { GatewayRecognition } from './gateway-recognition.js';
 import { chooseMicrophone, microphoneRoute } from './microphone.js';
+import { wakeMatcher } from './wake-phrase.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
@@ -163,8 +164,7 @@ let interceptor = null;
 let recognizer = null;
 let enabled = false;
 let paused = false;
-let wakeRe = null;
-let stopRe = null;
+let wakeRe = null; // wakeMatcher(name)
 
 let mode = 'idle'; // idle | capture
 let captureFrom = 0; // index of the first result that belongs to the command
@@ -187,37 +187,10 @@ let mutedUntil = 0;
 const setState = (state, detail) => stateListeners.forEach((fn) => fn(state, detail));
 const emitText = (text, final) => textListeners.forEach((fn) => fn({ text, final }));
 
-/**
- * The wake phrase for an assistant name. Speech engines often mishear names, so
- * the pattern accepts the usual confusions (c/k, u/o/a, doubled s: "Campos", "Kampus", "Compass").
- */
-function phonetic(name) {
-  const plain = String(name || 'Campus').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ß/g, 'ss')
-    .replace(/ph/g, 'f').replace(/[^a-z\s]/g, '').replace(/(.)\1+/g, '$1').trim();
-  const vowel = { a: '[aeo]', e: '[eia]', i: '[iey]', o: '[oua]', u: '[uoaw]', y: '[iye]' };
-  const letter = { c: '[ckq]', k: '[ckq]', q: '[ckq]', s: '[sz]{1,2}', z: '[sz]{1,2}', v: '[vwf]', w: '[vwf]', f: '[fv]', t: '[td]', d: '[td]', b: '[bp]', p: '[bp]', g: '[gk]', h: 'h?', j: '[jy]', x: '(?:x|[ck]s)' };
-  return [...plain].map((c, i, all) => {
-    if (c === ' ') return '\\s?';
-    if (vowel[c]) return vowel[c] + (all[i + 1] && vowel[all[i + 1]] ? '?' : '');
-    return letter[c] || c;
-  }).join('');
-}
-
-function wakePattern(letters) {
-  const greeting = '(?:hey|hay|hi|hello|hallo|halo|okay|ok|yo|servus|moin|ey|hej)';
-  // "Hey Campus" can come anywhere; a bare "Campus" only at the start, so "the campus library" never wakes it.
-  return new RegExp(`(?:^|[\\s,.!?])${greeting}[\\s,.!?]+(${letters})(?=$|[\\s,.!?])[\\s,.:!?]*(.*)$|^\\W*(${letters})(?=$|[\\s,.!?])[\\s,.:!?]*(.*)$`, 'i');
-}
-
-/** { rest } when the phrase contains the wake word, with whatever was said after it. */
+/** { rest } when the phrase contains the wake word, with whatever was said after it. Rules: wake-phrase.js. */
 function matchWake(text) {
-  const m = wakeRe?.exec(String(text).trim());
-  if (!m) return null;
-  return { rest: String(m[2] ?? m[4] ?? '').trim() };
+  return wakeRe?.match(text) || null;
 }
-
-/** "Campus, stop" while Campus is talking. */
-const stopPattern = (letters) => new RegExp(`^\\W*(?:(?:hey|hay|hi|ok|okay|hallo|ey)\\W+)?${letters}\\W+(?:stop|stopp|quiet|cancel|enough|shut up|be quiet|halt|genug|ruhe|sei still)\\W*$`, 'i');
 
 function dispatch(text) {
   setState('sent', text);
@@ -305,7 +278,7 @@ function onResult(e) {
   if (speaking || now < mutedUntil) {
     // Campus is talking: it would hear itself. Only an explicit "Campus, stop" gets through.
     for (let i = e.resultIndex; i < e.results.length; i += 1) {
-      if (stopRe?.test(e.results[i][0].transcript.trim())) {
+      if (wakeRe?.isStop(e.results[i][0].transcript)) {
         stopSpeaking();
         return;
       }
@@ -317,7 +290,8 @@ function onResult(e) {
 
   if (mode === 'idle') {
     for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
-      if (matchWake(e.results[i][0].transcript)) {
+      // A misheard greeting ("hit campus") or the bare name waits for a whole word, so "hit campus tomorrow" stays asleep.
+      if (wakeRe?.ready(matchWake(e.results[i][0].transcript), e.results[i].isFinal)) {
         beginCapture(i, true);
         break;
       }
@@ -421,9 +395,7 @@ export const wake = {
       toast(problem, 'error', { duration: 6000 });
       return false;
     }
-    const letters = phonetic(name);
-    wakeRe = wakePattern(letters);
-    stopRe = stopPattern(letters);
+    wakeRe = wakeMatcher(name);
     enabled = true;
     paused = false;
     networkErrors = 0;
