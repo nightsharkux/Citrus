@@ -55,6 +55,18 @@ The turn-taking rules have automated tests. The browser parts (microphone, speec
 | Echo through loud speakers | If Campus still interrupts itself, raise the thresholds in `isInterruption` (`public/js/features/turns.js`). Headphones avoid echo entirely. |
 | On-device speech | Chrome and Edge send audio to their speech service. For a privacy-first deployment, replace `Recognition` in `voice.js` with an on-device engine. |
 
+## Classroom, meetings and documents
+
+These are tested against a stand-in gateway, not the real one yet.
+
+| Item | What to do |
+|---|---|
+| PDFs sent to the model | Upload one of the PDFs whose text cannot be decoded (for example the SPO for Industrial Engineering) in *Documents* and check that its pages come back. If the gateway refuses the `file` part for the lookup model, set `CAMPUS_AI_SEARCH_MODEL` to a model that accepts PDFs, or export the pages as pictures. |
+| Request size on Vercel | Vercel functions accept about 4.5 MB per request, so uploads larger than about 3 MB fail there although the app allows 10 MB. Move uploads to object storage (see *File storage*) or run on a server. |
+| Reading on Vercel | A document is read a few pages per request while the *Documents* page is open. Leaving pauses it; coming back resumes it. A background job would remove that need. |
+| "Hit Campus" | Try it on a real microphone in German and English. If false wakes happen, remove the word from `MISHEARD` in `features/wake-phrase.js`; if a mishearing is missing, add it there and to the tests. |
+| Transcript retention | Kept lecture transcripts stay until the lecturer deletes them. Add them to the retention clean-up once the university sets a period. |
+
 ## Planned features
 
 Each is marked `planned` in `config/capabilities.js` and shows as *In development*.

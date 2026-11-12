@@ -213,18 +213,35 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/lectures/:id/topics` | user | any |
 | GET | `/api/lectures/feed` | user | any |
 
+## library
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/library/documents` | user | lecturer, admin |
+| POST | `/api/library/documents` | user | lecturer, admin |
+| POST | `/api/library/documents/:id/read` | user | lecturer, admin |
+| GET | `/api/library/documents/:id/text` | user | lecturer, admin |
+| GET | `/api/library/export.txt` | user | lecturer, admin |
+| DELETE | `/api/library/documents/:id` | user | lecturer, admin |
+
 ## live
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
 | POST | `/api/live/sessions` | user | any |
+| POST | `/api/live/join` | user | any |
 | GET | `/api/live/mine` | user | any |
 | GET | `/api/live/sessions/:id/report` | user | any |
 | GET | `/api/live/sessions/:id/recap` | user | any |
 | GET | `/api/live/courses/:id/active` | user | any |
 | GET | `/api/live/sessions/:id` | user | any |
 | POST | `/api/live/sessions/:id/signal` | user | any |
+| POST | `/api/live/sessions/:id/flags` | user | any |
+| POST | `/api/live/sessions/:id/flags/:flagId/explain` | user | any |
+| POST | `/api/live/sessions/:id/student-ask` | user | any |
 | POST | `/api/live/sessions/:id/transcript` | user | any |
+| GET | `/api/live/sessions/:id/transcript.txt` | user | any |
+| DELETE | `/api/live/sessions/:id/transcript` | user | any |
 | POST | `/api/live/sessions/:id/notes` | user | any |
 | POST | `/api/live/sessions/:id/ask` | user | any |
 | POST | `/api/live/sessions/:id/end` | user | any |
@@ -414,6 +431,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 | DELETE | `/api/workspaces/:id/assistant` | user | any |
 | POST | `/api/workspaces/:id/analyze` | user | any |
 | DELETE | `/api/workspaces/:id/reports/:reportId` | user | any |
+| POST | `/api/workspaces/:id/meeting` | user | any |
 | POST | `/api/workspaces/:id/recording-signal` | user | any |
 | POST | `/api/workspaces/:id/recordings` | user | any |
 | GET | `/api/workspaces/recordings/:id/audio` | user | any |

@@ -286,3 +286,22 @@ listening → hearing (live words) → thinking → speaking → listening …
 - `voiceProblem()` explains why voice is unavailable: unsupported browser, or a page not served over HTTPS or localhost.
 
 To use an on-device engine (Whisper.cpp, Vosk) instead, replace `Recognition` in that file. Hardware pucks do their own speech-to-text and send text as `voice.query` events (see [HARDWARE.md](HARDWARE.md)).
+
+## Reading uploaded documents
+
+`ai.read({ user, system, prompt })` reads one uploaded page with the lookup model (`CAMPUS_AI_SEARCH_MODEL`, Gemini Flash by default) and has its own allowance (`CAMPUS_AI_READ_PER_MINUTE`, 60), so a long scan neither waits for nor uses up the chat's. A prompt may carry `images` (data URLs) or one PDF in `files` (`{ name, mime, data }`, sent as a Chat Completions `file` part). `src/modules/library/service.js` decides per file:
+
+| File | How it is read |
+|---|---|
+| PDF with readable text | Text layer, one entry per page (or per part when the content order does not match the page count) |
+| Scanned PDF | Each page picture (JPEG as is; grey, black-and-white or RGB pictures re-encoded as PNG) by the AI |
+| PDF with undecodable fonts and no page pictures | The PDF itself, five pages per request, `=== PAGE n ===` markers |
+| Photo, screenshot | The AI (`knowledgeReadPagePrompt`: exact transcription, tables as rows, `[Figure]`, `[unreadable]`) |
+| Word, PowerPoint, Excel, text | Text extraction, by part, slide or sheet |
+| `.jsonl` or the corpus `.txt` | Imported as it is |
+
+Afterwards `knowledgeCardPrompt` writes a short card (title, type, summary, applies to, key facts, keywords) that becomes the document's overview entry. Pages read by the AI are labelled "read from a picture by AI (unverified)" in the entry and `READ_METHOD=ai-vision` in the download.
+
+## Live lectures and meetings
+
+Students' questions about a lecture (`liveStudentAskPrompt`) and explanations of their flags (`liveFlagExplainPrompt`) use the lookup model with the lecture's transcript by minute, the lecturer's notes and the student's own flags. The lecturer's "Ask" also receives the flags (`FLAGS` block, anonymous). During a meeting the space assistant also sees what has been said so far, and ending the meeting runs `meetingPrompt` over the notes and captions taken since it started.
