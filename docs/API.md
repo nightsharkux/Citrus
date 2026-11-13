@@ -41,6 +41,24 @@ State-changing browser requests must be same-origin (CSRF protection).
 | PATCH | `/api/ai/settings` | user | admin |
 | POST | `/api/ai/test` | user | admin |
 
+## apps
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/apps` | user | any |
+| GET | `/api/apps/gallery` | user | any |
+| POST | `/api/apps` | user | any |
+| POST | `/api/apps/:id/change` | user | any |
+| PATCH | `/api/apps/:id` | user | any |
+| POST | `/api/apps/:id/share` | user | any |
+| POST | `/api/apps/:id/private` | user | any |
+| POST | `/api/apps/:id/review` | user | admin |
+| POST | `/api/apps/:id/add` | user | any |
+| DELETE | `/api/apps/:id/add` | user | any |
+| DELETE | `/api/apps/:id` | user | any |
+| GET | `/api/apps/:id` | user | any |
+| GET | `/api/apps/:id/frame` | user | any |
+
 ## assistant
 
 | Method | Path | Auth | Roles |
@@ -242,6 +260,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/live/sessions/:id/transcript` | user | any |
 | GET | `/api/live/sessions/:id/transcript.txt` | user | any |
 | DELETE | `/api/live/sessions/:id/transcript` | user | any |
+| GET | `/api/live/sessions/:id/notes/:noteId` | user | any |
+| GET | `/api/live/sessions/:id/notes/:noteId/file` | user | any |
 | POST | `/api/live/sessions/:id/notes` | user | any |
 | POST | `/api/live/sessions/:id/ask` | user | any |
 | POST | `/api/live/sessions/:id/end` | user | any |
@@ -277,6 +297,13 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/me/sessions/revoke-others` | user | any |
 | GET | `/api/me/export` | user | any |
 | POST | `/api/me/delete` | user | any |
+
+## meetings
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| GET | `/api/meetings` | user | any |
+| POST | `/api/meetings/quick` | user | any |
 
 ## meta
 
@@ -430,6 +457,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/workspaces/:id/assistant` | user | any |
 | DELETE | `/api/workspaces/:id/assistant` | user | any |
 | POST | `/api/workspaces/:id/analyze` | user | any |
+| POST | `/api/workspaces/:id/reports/:reportId/versions` | user | any |
+| GET | `/api/workspaces/:id/reports/:reportId/minutes.txt` | user | any |
 | DELETE | `/api/workspaces/:id/reports/:reportId` | user | any |
 | POST | `/api/workspaces/:id/meeting` | user | any |
 | POST | `/api/workspaces/:id/recording-signal` | user | any |

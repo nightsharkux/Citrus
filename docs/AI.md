@@ -305,3 +305,19 @@ Afterwards `knowledgeCardPrompt` writes a short card (title, type, summary, appl
 ## Live lectures and meetings
 
 Students' questions about a lecture (`liveStudentAskPrompt`) and explanations of their flags (`liveFlagExplainPrompt`) use the lookup model with the lecture's transcript by minute, the lecturer's notes and the student's own flags. The lecturer's "Ask" also receives the flags (`FLAGS` block, anonymous). During a meeting the space assistant also sees what has been said so far, and ending the meeting runs `meetingPrompt` over the notes and captions taken since it started.
+
+## Graphs
+
+`CHART_GUIDE` (in the chat and space prompts) asks the model for a fenced ` ```chart ` block with JSON whenever a graph is asked for or clearly helps: `type`, `title`, `caption`, `x`/`y` with labels and ranges, `series` (points or values), `functions` (formulas in x), `lines` and `annotations`. `public/js/core/markdown.js` hands the block to `core/chart.js`, which draws a self-contained SVG on white with round-number ticks, a light grid, labelled axes and a legend. Formulas go through a small parser (+ - * / ^, functions, pi, e); nothing is evaluated as code. `core/chart-actions.js` copies the figure as PNG or saves it as PNG or SVG.
+
+## Presentation: "What is Campus OS?"
+
+`features/pitch.js` decides when a heard phrase asks Campus to explain itself and holds the explanation, in English and German; `features/pitch-show.js` shows and speaks it with the face set to excited. It is checked before the wake word in the always-on listener, in voice conversations, and (only together with the wake word) on lecture and meeting microphones. The explanation is fixed text, so it works without the model.
+
+## Made tools
+
+`toolMakerPrompt` and `toolChangePrompt` ask the main model for a JSON tool: a name, a description, an icon and an HTML fragment that uses the theme's classes and CSS variables. `src/modules/apps/frame.js` wraps it in a page with four looks (glass, bold, minimal, night) and serves it with a CSP sandbox: inline script only, no network, no forms, its own origin. Ideas outside the guidelines come back as `{"refused": …}`. Shared tools wait for an administrator.
+
+## Meeting minutes
+
+Minutes use the main model (`task: 'chat'`), not the summary model: they are judged on the details they keep. `meetingPrompt` asks for summary, decisions, an action-item table, key details (numbers, dates, rooms, names as said), discussion, questions raised (including questions put to Campus during the meeting) and open points. `minutesVersionsPrompt` turns finished minutes into one or more new files from an instruction ("with and without the student questions").

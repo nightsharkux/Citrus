@@ -67,6 +67,16 @@ These are tested against a stand-in gateway, not the real one yet.
 | "Hit Campus" | Try it on a real microphone in German and English. If false wakes happen, remove the word from `MISHEARD` in `features/wake-phrase.js`; if a mishearing is missing, add it there and to the tests. |
 | Transcript retention | Kept lecture transcripts stay until the lecturer deletes them. Add them to the retention clean-up once the university sets a period. |
 
+## Presentation, graphs, tools and meetings
+
+| Item | What to do |
+|---|---|
+| The presentation line | Rehearse it once on the presentation laptop with *Listen for "Hey Campus"* on: say the line and check the explanation starts. Keep Ctrl/⌘+Shift+E as the fallback. Speech recognition must hear "you probably didn't understand that" or "in case that wasn't clear"; very noisy rooms may need a headset. |
+| Graphs from the real model | Ask for two or three graphs (a function, data, a bar chart) and check the model writes a ```chart block. If it describes graphs instead, strengthen `CHART_GUIDE`. |
+| Made tools | Make a clock, a timer and a group picker with the real model and try each look. Check the CSP sandbox in Chrome, Edge and Safari (the tool must run, and `fetch` from inside it must fail). |
+| Meeting speech | The browser's speech recognition misses names and numbers. For minutes that keep the details, configure Deepgram or Wispr (see `SPEECH.md`). |
+| The island on phones | Try the round button on an iPhone and an Android phone: drag it, open it, use each tool, and check it never covers the notes' own controls. |
+
 ## Planned features
 
 Each is marked `planned` in `config/capabilities.js` and shows as *In development*.

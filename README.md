@@ -1,6 +1,6 @@
 # Campus OS 1.1
 
-A university platform built around one calm home screen and **Campus**, an assistant that knows your courses. Students, lecturers and administrators each get their own views. One codebase serves several institution themes (an OTH Amberg-Weiden concept edition and a general edition).
+A classroom assistant for universities, built around the lecture: students give live feedback from their phones, the class status shows on screen and on the Campus Puck so the lecturer can explain again at once, professors review where explanations need work, students see where they got stuck, and participation is taken with the NFC chip already in student IDs. **Campus**, an assistant that knows your courses, makes information easy to reach on the side. Students, lecturers and administrators each get their own views. One codebase serves several institution themes (an OTH Amberg-Weiden concept edition and a general edition).
 
 > **Status:** a production-structured pilot. The code is complete and tested, but a real university deployment still needs HTTPS, your identity provider, a data-protection review and institutional approval. The OTH edition is an independent concept, **not** an official OTH Amberg-Weiden service.
 
@@ -14,6 +14,8 @@ A university platform built around one calm home screen and **Campus**, an assis
 | **Live lectures** | The lecturer goes live and shows a six-digit code; students join from their phones, say how they're following and flag the moments they need help with. The lecturer sees the class pulse and the flags without names. Campus listens, answers the lecturer mid-lecture, and (when the transcript is kept) answers students about the lecture and explains their flags afterwards. |
 | **Spaces** | Invite-code rooms with shared notes, an assistant with lecturer-defined behaviour, meetings (live captions from every member's microphone with names, one-tap decisions and action items, minutes drafted for everyone when it ends), optional audio recording, and live captions for lectures. |
 | **Documents** | Lecturers and administrators upload PDFs, scans, photos, slides, Word or Excel files as they are. Campus reads every page (pictures with the AI) into the knowledge library and offers it as one AI-readable `.txt`. |
+| **Meetings** | Meeting mode from the menu or Home: captions from everyone's microphone, one-tap decisions and action items, "Hey Campus, explain …" answered at once, minutes that can be split into separate files by chat or voice. |
+| **Make a tool** | Describe a small tool and Campus builds it in the Campus OS look; private until shared and approved, then in More tools. |
 | **Campus** | A moderated feed with events and RSVPs, jobs, housing and research calls. Opt-in interest matching. A campus guide with maps, official links and knowledge search. Room status. |
 | **Check-in** | Participation sessions with a rotating six-digit code, lecturer confirmation, or card taps on a registered reader. |
 | **Devices** | A signed device API for classroom pucks, NFC readers and door lights. Tapping a card starts a session only after the lecturer confirms it in the app. |
@@ -63,6 +65,10 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 - **Hands-free changes:** ask Campus to "add a study session tomorrow at 4 pm", "move it an hour later" or "open my schedule". It changes your own calendar, opens pages and switches the theme, shows what it did, and every change has an *Undo*. See [docs/AI.md](docs/AI.md#actions).
 - **Textbook explanations:** formulas, worked examples, tables and key ideas are laid out like a textbook, with real fractions, roots and exponents.
 - **Animated explanations:** when a picture helps, Campus's eye turns into a small animation, such as a formula, bars, steps or stick figures. You can turn this off in Settings → Assistant, and replay an illustration from the answer it belongs to.
+
+### For a presentation
+
+Turn on *Listen for "Hey Campus"*, explain Campus OS in your own words, then say "Now you probably didn't understand that, did you?" or "In case that wasn't clear, hey Campus, could you please elaborate further?". Campus explains the core features with an excited face. Ctrl/⌘+Shift+E does the same without the microphone.
 
 ### Turn on the extras
 
