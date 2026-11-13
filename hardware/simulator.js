@@ -46,6 +46,7 @@ function show(command) {
   switch (command.type) {
     case 'room.status': return `Door light → ${LIGHT[p.status] || p.status}${p.note ? ` (${p.note})` : ''}`;
     case 'display.message': return `Display: “${p.text}”`;
+    case 'class.pulse': return `Puck light → ${({ good: 'GREEN (following)', watch: 'AMBER (some unsure)', trouble: 'RED (explain again)', quiet: 'WHITE (waiting for answers)', off: 'OFF (lecture over)' })[p.status] || p.status}${p.answered ? `  ${p.following} following · ${p.unsure} unsure · ${p.lost} lost` : ''}`;
     case 'speak': return `Speaker: “${p.text}”`;
     case 'session.started': return `Session started by ${p.lecturer}${p.course ? ` for ${p.course}` : ''}`;
     case 'session.ended': return 'Session ended';

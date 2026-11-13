@@ -29,7 +29,7 @@ function lectureRow(l) {
   if (isLecturer()) {
     action = live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course.id}">Resume</a>`
       : l.state === 'upcoming' || l.state === 'open' ? html`<a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}" data-start="${l.id}" data-course="${l.course.id}">Start</a>`
-        : l.lastSession ? html`<a class="btn btn-sm" href="/lectures/review/${l.lastSession}">Review</a>` : '';
+        : l.lastSession ? html`<a class="btn btn-sm btn-ghost" href="/lectures/review/${l.lastSession}">Review</a> <a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}" data-start="${l.id}" data-course="${l.course.id}">Go live again</a>` : '';
   } else if (l.state === 'past' && l.enrolled && l.lastSession) {
     action = html`<a class="btn btn-sm" href="/lectures/review/${l.lastSession}">Recap</a>`;
   } else if (!l.enrolled) {

@@ -37,6 +37,22 @@ function offlineMinutes(notes) {
   ].join('\n\n');
 }
 
+/** The model's JSON array of { label, minutes }; anything unreadable gives []. */
+function readVersions(raw) {
+  const s = String(raw || '');
+  const a = s.indexOf('[');
+  const b = s.lastIndexOf(']');
+  if (a < 0 || b <= a) return [];
+  try {
+    return (JSON.parse(s.slice(a, b + 1)) || [])
+      .filter((v) => v && typeof v.minutes === 'string' && v.minutes.trim())
+      .slice(0, 4)
+      .map((v) => ({ label: String(v.label || 'Version').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Version', minutes: v.minutes.trim().slice(0, 60_000) }));
+  } catch {
+    return [];
+  }
+}
+
 function register(router, { db, config, access, ai, bus, audit }) {
   const isoNow = () => new Date().toISOString();
   // Recordings are files. A host without a writable disk (Vercel) cannot keep them.
@@ -72,6 +88,43 @@ function register(router, { db, config, access, ai, bus, audit }) {
       .map((n) => `[${({ minutes: 'decision', task: 'action item' })[n.category] || n.category}] ${n.content} (${n.name})`).join('\n');
     return { said, noted };
   }
+
+  /** Meeting mode, for Home and the Meetings page: meetings running in my spaces, recent minutes, where I can start one. */
+  router.get('/api/meetings', (ctx) => {
+    const u = ctx.user;
+    const spaces = db.all(
+      `SELECT w.* FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ?
+       WHERE w.institution_id = ? AND w.archived = 0 ORDER BY w.meeting_started IS NULL, w.id DESC LIMIT 60`,
+      u.id, u.institution_id,
+    );
+    const minutes = db.all(
+      `SELECT r.id, r.workspace_id, r.created, r.meeting_started, r.label, r.source, w.title AS space FROM meeting_reports r JOIN workspaces w ON w.id = r.workspace_id
+       JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = ?
+       WHERE w.institution_id = ? AND w.archived = 0 AND (r.owner_id = ? OR r.meeting_started IS NOT NULL) ORDER BY r.id DESC LIMIT 12`,
+      u.id, u.institution_id, u.id,
+    );
+    return {
+      running: spaces.filter((w) => w.meeting_started).map((w) => ({ space: { id: w.id, title: w.title, kind: w.kind }, ...meetingOf(w) })),
+      spaces: spaces.map((w) => ({ id: w.id, title: w.title, kind: w.kind, canSpeak: canSpeak(u, w), meeting: !!w.meeting_started })),
+      minutes,
+    };
+  });
+
+  /** "Start a meeting" without a space yet: a private meeting space, started straight away. */
+  router.post('/api/meetings/quick', async (ctx) => {
+    const u = ctx.user;
+    const b = await ctx.json();
+    const title = text(b.title, { min: 3, max: 120, optional: true, label: 'Title' }) || `Meeting ${new Date().toISOString().slice(0, 10)}`;
+    const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+    const started = isoNow();
+    const wid = db.insert(
+      "INSERT INTO workspaces(institution_id, creator_id, title, kind, course_id, join_code, guidance, instructions, open, created, live, meeting_started, meeting_by) VALUES(?, ?, ?, 'meeting', NULL, ?, 'direct', '', 0, ?, 1, ?, ?)",
+      u.institution_id, u.id, title, code, isoNow(), started, u.id,
+    );
+    db.run('INSERT INTO workspace_members(workspace_id, user_id, joined) VALUES(?, ?, ?)', wid, u.id, isoNow());
+    ctx.status = 201;
+    return { id: wid, joinCode: code };
+  });
 
   router.get('/api/workspaces', (ctx) => {
     const u = ctx.user;
@@ -161,7 +214,7 @@ function register(router, { db, config, access, ai, bus, audit }) {
     ).map((r) => ({ ...r, shared: !!r.shared, mine: r.owner_id === u.id }));
     // Minutes of a meeting belong to everyone in the space; drafts someone made on their own stay theirs.
     const reports = db.all(
-      `SELECT r.id, r.owner_id, r.recording_id, r.report, r.source, r.created, r.meeting_started, u.name AS owner
+      `SELECT r.id, r.owner_id, r.recording_id, r.report, r.source, r.created, r.meeting_started, r.label, r.parent_id, u.name AS owner
        FROM meeting_reports r LEFT JOIN users u ON u.id = r.owner_id
        WHERE r.workspace_id = ? AND (r.owner_id = ? OR r.meeting_started IS NOT NULL) ORDER BY r.id DESC LIMIT 30`,
       w.id, u.id,
@@ -242,6 +295,11 @@ function register(router, { db, config, access, ai, bus, audit }) {
     if (!ai.status(ctx.user).aiEnabled) throw unavailable('AI is not configured. An administrator can choose a provider in AI & knowledge.');
     const history = db.all('SELECT role, content FROM ai_chats WHERE workspace_id = ? AND user_id = ? ORDER BY id DESC LIMIT 8', w.id, ctx.user.id).reverse();
     const answer = await ai.complete({ user: ctx.user, system: workspaceSystem(ctx.user, w, prompt), prompt, history });
+    // During a meeting, questions put to Campus are part of what happened: the minutes list them under questions.
+    if (w.meeting_started) {
+      db.run("INSERT INTO workspace_notes(workspace_id, author_id, category, content, created) VALUES(?, ?, 'question', ?, ?)", w.id, ctx.user.id, `Asked Campus: ${prompt}`.slice(0, 2000), isoNow());
+      touch(w, 'notes');
+    }
     db.run('INSERT INTO ai_chats(workspace_id, user_id, role, content, created) VALUES(?, ?, ?, ?, ?)', w.id, ctx.user.id, 'user', prompt, isoNow());
     db.run('INSERT INTO ai_chats(workspace_id, user_id, role, content, created) VALUES(?, ?, ?, ?, ?)', w.id, ctx.user.id, 'assistant', answer, isoNow());
     return { answer };
@@ -273,6 +331,48 @@ function register(router, { db, config, access, ai, bus, audit }) {
     const label = useAi ? 'AI draft' : 'Offline extraction';
     const reportId = db.insert('INSERT INTO meeting_reports(workspace_id, owner_id, recording_id, report, source, created) VALUES(?, ?, ?, ?, ?, ?)', w.id, ctx.user.id, recordingId, report, label, isoNow());
     return { id: reportId, report, source: label };
+  });
+
+  /**
+   * New files from finished minutes, as the user asks by chat or voice: "one with the student questions and one
+   * without", "only the decisions", "keep only the budget part". Each version is its own report, shared like the
+   * minutes it came from.
+   */
+  router.post('/api/workspaces/:id/reports/:reportId/versions', async (ctx) => {
+    const w = member(ctx.user, ctx.params.id);
+    const report = db.get('SELECT * FROM meeting_reports WHERE id = ? AND workspace_id = ?', id(ctx.params.reportId), w.id);
+    if (!report || (report.owner_id !== ctx.user.id && !report.meeting_started)) throw notFound('Minutes not found');
+    const b = await ctx.json();
+    const instruction = text(b.instruction, { min: 3, max: 600, label: 'What to change' });
+    if (!ai.status(ctx.user).aiEnabled) throw unavailable('Versions are made by the AI, which is not connected yet.');
+    const raw = await ai.complete({
+      user: ctx.user, system: prompts.minutesVersionsPrompt(),
+      prompt: `${prompts.referenceBlock('MINUTES', report.report.slice(0, 30_000))}\n\n${prompts.referenceBlock('INSTRUCTION', instruction)}`,
+      maxTokens: 6000, task: 'chat',
+    });
+    const versions = readVersions(raw);
+    if (!versions.length) throw unavailable('Campus could not make that version. Try saying it differently.');
+    const parent = report.parent_id || report.id;
+    const made = versions.map((v) => {
+      const versionId = db.insert(
+        'INSERT INTO meeting_reports(workspace_id, owner_id, recording_id, report, source, created, meeting_started, label, parent_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        w.id, ctx.user.id, report.recording_id, v.minutes, 'AI version', isoNow(), report.meeting_started, v.label, parent,
+      );
+      return { id: versionId, label: v.label, report: v.minutes };
+    });
+    touch(w, 'notes');
+    ctx.status = 201;
+    return { versions: made };
+  });
+
+  /** One set of minutes as a plain-text file. */
+  router.get('/api/workspaces/:id/reports/:reportId/minutes.txt', (ctx) => {
+    const w = member(ctx.user, ctx.params.id);
+    const report = db.get('SELECT * FROM meeting_reports WHERE id = ? AND workspace_id = ?', id(ctx.params.reportId), w.id);
+    if (!report || (report.owner_id !== ctx.user.id && !report.meeting_started)) throw notFound('Minutes not found');
+    const name = `${w.title} ${report.meeting_started ? report.meeting_started.slice(0, 10) : ''} ${report.label || 'minutes'}`.replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').slice(0, 90);
+    ctx.res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}.txt"`, 'Cache-Control': 'no-store' });
+    ctx.res.end(`${w.title}${report.label ? ` · ${report.label}` : ''}\n${report.meeting_started ? `Meeting of ${report.meeting_started.slice(0, 16).replace('T', ' ')} UTC` : `Drafted ${report.created.slice(0, 10)}`} · ${report.source}. Review before sending.\n\n${report.report}\n`);
   });
 
   router.delete('/api/workspaces/:id/reports/:reportId', (ctx) => {
@@ -315,7 +415,8 @@ function register(router, { db, config, access, ai, bus, audit }) {
       let label = 'Offline extraction';
       if (useAi) {
         try {
-          text = await ai.complete({ user, system: prompts.meetingPrompt(w.title), prompt: prompts.referenceBlock('NOTES', source.slice(0, 30_000)), maxTokens: 1500, task: 'summary' });
+          // The main model, not the cheap summary one: minutes are judged on the details they keep.
+          text = await ai.complete({ user, system: prompts.meetingPrompt(w.title), prompt: prompts.referenceBlock('NOTES', source.slice(0, 30_000)), maxTokens: 2500, task: 'chat' });
           label = 'AI draft';
         } catch {
           text = '';
@@ -463,4 +564,4 @@ function register(router, { db, config, access, ai, bus, audit }) {
   });
 }
 
-module.exports = { register, offlineMinutes };
+module.exports = { register, offlineMinutes, readVersions };

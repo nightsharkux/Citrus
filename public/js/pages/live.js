@@ -17,8 +17,10 @@ import { pageHead, empty } from '../core/components.js';
 import { markdown } from '../core/markdown.js';
 import { toast, toastError, confirm, busy } from '../core/ui.js';
 import { createAttachments } from '../features/attach.js';
-import { createCaptioner, speak, stopSpeaking, voiceProblem, setRecognitionLecture } from '../features/voice.js';
+import { openNotesViewer } from '../features/notes-viewer.js';
+import { createCaptioner, speak, stopSpeaking, voiceProblem, setRecognitionLecture, dictate } from '../features/voice.js';
 import { wakeMatcher } from '../features/wake-phrase.js';
+import { notePitch } from '../features/pitch.js';
 import { time } from '../core/format.js';
 
 const SIGNALS = [
@@ -269,7 +271,20 @@ function createAsk(root, send, { onAnswer } = {}) {
 
 function mountWaiting(root, ctx) {
   ctx.live.on('live.started', () => ctx.refresh());
-  return mountJoinForm(root, ctx.navigate);
+  // Live events may not reach every page on some hosts: check now and then as well.
+  const courseId = Number(ctx.params.id);
+  const poll = setInterval(async () => {
+    const active = await api.get(`/live/courses/${courseId}/active`).catch(() => null);
+    if (active?.session) {
+      clearInterval(poll);
+      ctx.refresh();
+    }
+  }, 15_000);
+  const off = mountJoinForm(root, ctx.navigate);
+  return () => {
+    off();
+    clearInterval(poll);
+  };
 }
 
 // ------------------------------------------------------------------ lecturer: start
@@ -285,7 +300,9 @@ function start(d) {
         <li><span class="step-n">3</span><div><strong>${name} listens and helps</strong><p class="small muted">Turn on listening. Ask “Hey ${name}, explain the last thing I said”, and students can ask ${name} privately.</p></div></li>
       </ol>
       <section class="card stack">
-        <label class="field"><span>Title</span><input class="input" data-title maxlength="120" placeholder="Week 5: gradient descent"></label>
+        <div class="input-row"><label class="field"><span>Title</span><input class="input" data-title maxlength="120" placeholder="Week 5: gradient descent"></label>
+          <label class="field" style="max-width:200px"><span>Room</span><input class="input" data-room maxlength="60" placeholder="HSG 001"></label></div>
+        <span class="hint">With a room, the class status also shows on the Campus Puck registered there: green, amber or red.</span>
         <div class="field"><span>Notes (optional)</span>
           <div class="att-tray" data-tray hidden></div>
           <button class="btn" type="button" data-add-notes>${icon('upload', 16)} Add slides, pictures or PDFs</button>
@@ -298,7 +315,7 @@ function start(d) {
 }
 
 function mountStart(root, d, ctx) {
-  const attach = createAttachments({ tray: $('[data-tray]', root), onError: (m) => toast(m, 'error') });
+  const attach = createAttachments({ tray: $('[data-tray]', root), keepFiles: true, onError: (m) => toast(m, 'error') });
   const picker = Object.assign(document.createElement('input'), { type: 'file', multiple: true, hidden: true, accept: 'image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md' });
   root.append(picker);
   picker.addEventListener('change', () => {
@@ -312,7 +329,7 @@ function mountStart(root, d, ctx) {
       try {
         await attach.settled();
         const lecture = Number(ctx.query.get('lecture')) || undefined; // chosen from Lectures: start that scheduled lecture
-        const body = { course_id: d.courseId, lecture_id: lecture, title: $('[data-title]', root).value.trim(), notes: attach.ready().map((a) => a.id), keep_transcript: $('[data-keep]', root).checked };
+        const body = { course_id: d.courseId, lecture_id: lecture, title: $('[data-title]', root).value.trim(), room: $('[data-room]', root).value.trim(), notes: attach.ready().map((a) => a.id), keep_transcript: $('[data-keep]', root).checked };
         await api.post('/live/sessions', body);
         attach.sent();
         ctx.refresh();
@@ -356,6 +373,7 @@ function liveBar(view) {
     <button class="live-code" data-show-code title="Show the code full screen" aria-label="Join code ${s.joinCode}. Show full screen">${icon('maximize', 15)} Code <b class="mono">${spacedCode(s.joinCode)}</b></button>
     <span class="chip" data-present>${icon('users', 13)} <span data-present-n>${view.present}</span> in the room</span>
     <span class="live-bar-actions">
+      <button class="btn btn-sm" data-present-notes title="Show your notes full screen, with the tools at the bottom">${icon('maximize', 15)} <span>Full screen</span></button>
       <button class="btn btn-sm btn-primary" data-listen ${voiceProblem() ? 'disabled' : ''}>${icon('mic', 15)} <span>Start listening</span></button>
       <button class="btn btn-sm btn-ghost" data-end>${icon('stop', 15)} End</button>
     </span>
@@ -392,7 +410,7 @@ function lecturerScreen(view) {
         </section>
         <section class="card stack">
           <h2>Notes</h2>
-          <ul class="live-notes" data-notes>${view.notes.map((n) => html`<li>${icon(n.kind === 'image' ? 'image' : 'file', 15)} ${n.name}</li>`)}</ul>
+          <ul class="live-notes" data-notes>${noteItems(view.notes)}</ul>
           <div class="att-tray" data-tray hidden></div>
           <button class="btn btn-sm" data-add-notes>${icon('plus', 15)} Add pictures or PDFs</button>
         </section>
@@ -400,8 +418,15 @@ function lecturerScreen(view) {
     </div>`;
 }
 
+const noteItems = (notes) => notes.map((n, i) => html`<li><button class="note-open" data-open-note="${i}" title="Show full screen">${icon(n.kind === 'image' ? 'image' : 'file', 15)} <span>${n.name}</span>${icon('maximize', 14)}</button></li>`);
+
+/** The pulse as a short line for the island: a coloured dot and the counts. */
+function islandStatus(p, flagCount) {
+  return html`<span class="dot is-${p.status}"></span><span>${p.answered ? `${p.following} following · ${p.unsure} unsure · ${p.lost} lost` : 'Waiting for answers'}</span>${flagCount ? html`<span class="chip accent">${icon('flag', 12)} ${flagCount}</span>` : ''}`;
+}
+
 /** The join code, big enough for the back row. */
-function showCode(view, present) {
+function showCode(view, present, parent = document.body) {
   const code = view.session.joinCode;
   const el = document.createElement('div');
   el.className = 'live-projector';
@@ -413,7 +438,7 @@ function showCode(view, present) {
     <p class="live-projector-code mono">${spacedCode(code)}</p>
     <p class="live-projector-lead">or go to <b class="mono">${location.host}/join/${code}</b></p>
     <p class="live-projector-count"><span data-projector-n>${present}</span> in the room</p>`);
-  document.body.append(el);
+  parent.append(el);
   const close = () => {
     el.remove();
     document.removeEventListener('keydown', key);
@@ -421,7 +446,7 @@ function showCode(view, present) {
   const key = (e) => e.key === 'Escape' && close();
   document.addEventListener('keydown', key);
   el.addEventListener('click', (e) => e.target.closest('[data-close]') && close());
-  el.requestFullscreen?.().catch(() => {});
+  if (parent === document.body) el.requestFullscreen?.().catch(() => {}); // inside the notes viewer it already is
   return { el, close };
 }
 
@@ -435,6 +460,9 @@ function mountLecturer(root, d, ctx) {
   let heardAt = 0;
   let projector = null;
   let present = view.present;
+  let pulseNow = view.pulse;
+  let viewer = null;
+  let notes = [...view.notes];
   const flags = [...view.flags];
 
   const setPresent = (n) => {
@@ -450,6 +478,8 @@ function mountLecturer(root, d, ctx) {
     if (event.session !== sid) return;
     const card = $('[data-pulse]', root);
     if (card) card.outerHTML = pulseCard(event.pulse).value;
+    pulseNow = event.pulse;
+    viewer?.setStatus(islandStatus(pulseNow, flags.length));
     api.get(`/live/sessions/${sid}`).then((v) => {
       const line = $('[data-line]', root);
       if (line) line.outerHTML = timelineView(v.timeline).value;
@@ -466,6 +496,7 @@ function mountLecturer(root, d, ctx) {
     const counts = Object.fromEntries(Object.keys(FLAGS).map((k) => [k, flags.filter((f) => f.kind === k).length]));
     $('[data-flag-counts]', root).outerHTML = flagCounts(counts).value;
     $('[data-first]', root)?.remove();
+    viewer?.setStatus(islandStatus(pulseNow, flags.length));
   });
   ctx.live.on('live.presence', (event) => event.session === sid && setPresent(event.present));
   document.body.dataset.livePulse = view.pulse.status;
@@ -473,6 +504,17 @@ function mountLecturer(root, d, ctx) {
   // ---- ask
   const ask = createAsk(root, (question) => api.post(`/live/sessions/${sid}/ask`, { question }), { onAnswer: (r) => speak(r.answer) });
   const wake = wakeMatcher(name, { strict: true }); // a lecture microphone: "Hey Campus, …", never "the campus is…"
+  /** Ask Campus: the answer shows in the full-screen panel when the notes are open, otherwise on the page. */
+  const askNow = (question, noteName) => {
+    if (!viewer) return ask.ask(question);
+    const q = noteName ? `${question} (I am showing “${noteName}”.)` : question;
+    const pending = api.post(`/live/sessions/${sid}/ask`, { question: q }).then((r) => {
+      speak(r.answer);
+      return r;
+    });
+    viewer.answer(question, pending);
+    return pending;
+  };
 
   // ---- listening: speech goes to the server and to this device
   const lines = $('[data-lines]', root);
@@ -503,9 +545,11 @@ function mountLecturer(root, d, ctx) {
     captioner = createCaptioner({
       onFinal: (text) => {
         if (!text) return;
+        // "…, hey Campus, could you elaborate?" after explaining Campus OS: the presentation, not a question.
+        if (notePitch(text, { requireWake: true })) return;
         const asked = wake.match(text);
         if (asked && asked.rest.length >= 4) {
-          ask.ask(asked.rest);
+          askNow(asked.rest);
           return;
         }
         transcript.push({ at: Date.now(), text });
@@ -523,9 +567,50 @@ function mountLecturer(root, d, ctx) {
     setListening(true);
     $('[data-first]', root)?.remove();
   }
+  const syncViewerMic = () => viewer?.setItem('mic', { icon: captioner?.running ? 'mic-off' : 'mic', label: captioner?.running ? 'Stop listening' : 'Start listening' });
+
+  // ---- full-screen notes, with the island
+  function openViewer(start = 0) {
+    viewer?.close();
+    viewer = openNotesViewer({
+      sessionId: sid,
+      notes,
+      start,
+      status: islandStatus(pulseNow, flags.length),
+      onAsk: (q, noteName) => askNow(q, noteName),
+      onClose: () => {
+        viewer = null;
+      },
+      tools: [
+        { id: 'mic', icon: captioner?.running ? 'mic-off' : 'mic', label: captioner?.running ? 'Stop listening' : 'Start listening', onSelect: () => {
+          listen();
+          syncViewerMic();
+          viewer?.setActive('mic', !!captioner?.running);
+        } },
+        { id: 'voice', icon: 'campus', label: `Ask ${name} by voice`, onSelect: () => {
+          // While listening, "Hey Campus, …" already works; otherwise listen for one question now.
+          if (captioner?.running) {
+            viewer.answer(`Say “Hey ${name}, …” and your question.`, Promise.resolve({ answer: `I’m listening to the lecture. Start with “Hey ${name}” and I’ll answer here.` }));
+            return;
+          }
+          viewer.setActive('voice', true);
+          const ear = dictate({
+            onFinal: (q) => q && askNow(q),
+            onEnd: () => viewer?.setActive('voice', false),
+          });
+          if (!ear) viewer.setActive('voice', false);
+        } },
+        { id: 'code', icon: 'ticket', label: 'Show the join code', onSelect: () => {
+          projector?.close();
+          projector = showCode(view, present, viewer.el);
+        } },
+      ],
+    });
+    viewer.setActive('mic', !!captioner?.running);
+  }
 
   // ---- notes
-  const attach = createAttachments({ tray: $('[data-tray]', root), onError: (m) => toast(m, 'error'), onChange: () => {} });
+  const attach = createAttachments({ tray: $('[data-tray]', root), keepFiles: true, onError: (m) => toast(m, 'error'), onChange: () => {} });
   const picker = Object.assign(document.createElement('input'), { type: 'file', multiple: true, hidden: true, accept: 'image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md' });
   root.append(picker);
   picker.addEventListener('change', async () => {
@@ -537,7 +622,8 @@ function mountLecturer(root, d, ctx) {
       if (!ids.length) return;
       const v = await api.post(`/live/sessions/${sid}/notes`, { attachment_ids: ids });
       attach.sent();
-      render($('[data-notes]', root), html`${v.notes.map((n) => html`<li>${icon(n.kind === 'image' ? 'image' : 'file', 15)} ${n.name}</li>`)}`);
+      notes = v.notes;
+      render($('[data-notes]', root), html`${noteItems(notes)}`);
       toast(`Notes added. ${name} can use them now.`, 'success', { duration: 2200 });
     } catch (error) {
       toastError(error);
@@ -552,7 +638,12 @@ function mountLecturer(root, d, ctx) {
   };
 
   const offs = [
-    on(root, 'click', '[data-listen]', () => listen()),
+    on(root, 'click', '[data-listen]', () => {
+      listen();
+      syncViewerMic();
+    }),
+    on(root, 'click', '[data-present-notes]', () => openViewer(0)),
+    on(root, 'click', '[data-open-note]', (e, b) => openViewer(Number(b.dataset.openNote))),
     on(root, 'click', '[data-show-code]', () => {
       projector?.close();
       projector = showCode(view, present);
@@ -584,6 +675,7 @@ function mountLecturer(root, d, ctx) {
     clearInterval(clock);
     captioner?.stop();
     projector?.close();
+    viewer?.close();
     stopSpeaking();
     setRecognitionLecture(null);
     delete document.body.dataset.livePulse;

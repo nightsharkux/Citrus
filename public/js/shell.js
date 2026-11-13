@@ -13,6 +13,9 @@ import { avatar } from './core/components.js';
 import { navFor, allItems, isActive } from './nav.js';
 import { wordmark } from './core/brand.js';
 import { wake, stopSpeaking, isSpeaking } from './features/voice.js';
+import { onSpeakingChange } from './features/speaker.js';
+import { noteAnswered, startPitch } from './features/pitch.js';
+import { wireChartActions } from './core/chart-actions.js';
 import { matchCommand } from './features/commands.js';
 import { setLanguage, getLanguage } from './core/i18n.js';
 import { showTranslation } from './features/translate.js';
@@ -90,10 +93,26 @@ export function mountApp() {
     </div>`);
 
   wireShell();
+  wirePitch();
+  wireChartActions();
   syncFocus();
   live.connect();
   if (session.user.preferences?.voiceWake && !wake.enabled) wake.start(assistantName());
   syncWakeIndicator();
+}
+
+/**
+ * "What is Campus OS?" (features/pitch.js): heard by any microphone, or chosen in the command palette. The show
+ * module loads the first time it is needed.
+ */
+let pitchWired = false;
+function wirePitch() {
+  if (pitchWired) return;
+  pitchWired = true;
+  document.addEventListener('campus:pitch', () => import('./features/pitch-show.js').then((m) => m.showPitch()).catch(() => {}));
+  onSpeakingChange((speaking) => {
+    if (!speaking) noteAnswered();
+  });
 }
 
 /** Campus Focus: minutes left (0 when off). Notifications that are not urgent wait quietly in the inbox meanwhile. */
@@ -232,6 +251,11 @@ function wireShell() {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && session.user) {
       e.preventDefault();
       openPalette();
+    }
+    // Ctrl/⌘ + Shift + E: "What is Campus OS?" without the microphone, for presentations.
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'e' && session.user) {
+      e.preventDefault();
+      startPitch();
     }
     if (e.key === 'Escape' && isSpeaking()) stopSpeaking();
     if (e.target.matches?.('textarea, input')) {
@@ -379,6 +403,8 @@ async function openPalette() {
     { label: 'Ask Campus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
     { label: 'Ask Campus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
     { label: 'Talk to Campus', hint: 'Voice conversation', icon: 'waveform', run: () => talkToCampus({ threadId: currentThreadId() }), group: 'Actions' },
+    { label: 'Explain Campus OS', hint: 'The short presentation', icon: 'presentation', run: () => startPitch(), group: 'Actions' },
+    { label: 'Start a meeting', icon: 'message', href: '/meetings', group: 'Actions' },
     { label: 'New space', icon: 'plus', href: '/spaces?new=1', group: 'Actions' },
     { label: 'Add to schedule', icon: 'calendar', href: '/schedule?new=1', group: 'Actions' },
     { label: 'Post to campus feed', icon: 'message', href: '/campus?compose=1', group: 'Actions' },

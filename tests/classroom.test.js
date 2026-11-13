@@ -171,3 +171,97 @@ test('without "keep the transcript" nothing the lecturer says is stored', async 
     await app.close();
   }
 });
+
+test('a lecture that was ended and reopened can be rejoined, with the same code and notes', async () => {
+  const fixture = gateway();
+  const { app, courseId } = await setup(fixture);
+  try {
+    const note = await app.call('prof', 'POST', '/api/assistant/attachments', { name: 'week5.txt', mime: 'text/plain', data: Buffer.from('Gradient descent notes for week five.').toString('base64') });
+    const first = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, title: 'Week 5', notes: [note.body.attachment.id] });
+    const lectureId = app.db.get('SELECT lecture_id FROM live_sessions WHERE id = ?', first.body.session.id).lecture_id;
+    await app.call('ann', 'POST', `/api/live/sessions/${first.body.session.id}/signal`, { level: 1 });
+    await app.call('prof', 'POST', `/api/live/sessions/${first.body.session.id}/end`);
+    assert.equal((await app.call('ann', 'GET', `/api/live/courses/${courseId}/active`)).body.session, null);
+
+    // The lecturer reopens it from the course page.
+    const course = await app.call('prof', 'GET', `/api/courses/${courseId}`);
+    const lecture = course.body.lectures.find((l) => l.id === lectureId);
+    assert.equal(lecture.live, false);
+    assert.equal(lecture.lastSession, first.body.session.id);
+    const again = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, lecture_id: lectureId });
+    assert.equal(again.status, 201);
+    assert.notEqual(again.body.session.id, first.body.session.id);
+    assert.equal(again.body.session.joinCode, first.body.session.joinCode, 'the code on the screen still works');
+    assert.deepEqual(again.body.notes.map((n) => n.name), ['week5.txt'], 'the notes come back too');
+
+    // Students get back in: by the course, by the code and in the list of lectures.
+    const active = await app.call('ann', 'GET', `/api/live/courses/${courseId}/active`);
+    assert.equal(active.body.session.id, again.body.session.id);
+    assert.equal(active.body.session.lecture_id, lectureId);
+    assert.equal((await app.call('ann', 'POST', `/api/live/sessions/${again.body.session.id}/signal`, { level: 2 })).status, 200, 'and can answer again');
+    assert.equal((await app.call('ben', 'POST', '/api/live/join', { code: first.body.session.joinCode })).body.session, again.body.session.id);
+    const feed = await app.call('ann', 'GET', '/api/lectures/feed?scope=mine');
+    assert.equal(feed.body.lectures.find((l) => l.id === lectureId).state, 'live');
+
+    // Ending it from the course page ends the live session as well.
+    await app.call('prof', 'PATCH', `/api/lectures/${lectureId}`, { status: 'ended' });
+    assert.equal((await app.call('ann', 'GET', `/api/live/courses/${courseId}/active`)).body.session, null);
+  } finally {
+    await app.close();
+  }
+});
+
+test('the class status reaches the Campus Puck in the lecture room, as counts only', async () => {
+  const fixture = gateway();
+  const { app, courseId } = await setup(fixture);
+  try {
+    await app.call('admin', 'POST', '/api/devices', { name: 'Desk puck', kind: 'puck', room: 'HSG 001' });
+    await app.call('admin', 'POST', '/api/devices', { name: 'Other room', kind: 'puck', room: 'WTC 2' });
+    await app.register('cem');
+    await app.call('cem', 'POST', `/api/courses/${courseId}/enroll`);
+    const sid = (await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, title: 'Week 5', room: 'HSG 001' })).body.session.id;
+    for (const who of ['ann', 'ben', 'cem']) await app.call(who, 'POST', `/api/live/sessions/${sid}/signal`, { level: 3 });
+    await app.call('prof', 'POST', `/api/live/sessions/${sid}/end`);
+    const sent = app.db.all("SELECT d.room, c.payload FROM device_commands c JOIN devices d ON d.id = c.device_id WHERE c.type = 'class.pulse' ORDER BY c.id");
+    assert.ok(sent.every((c) => c.room === 'HSG 001'), 'only the lecture room');
+    const statuses = sent.map((c) => JSON.parse(c.payload).status);
+    assert.deepEqual([statuses[0], statuses.includes('trouble'), statuses.at(-1)], ['quiet', true, 'off']);
+    assert.ok(!sent.some((c) => /ann|ben|cem|user/i.test(c.payload)), 'no names');
+  } finally {
+    await app.close();
+  }
+});
+
+test('lecture notes open full screen for the lecturer: PDFs as PDFs, other files as text', async () => {
+  const fixture = gateway();
+  const { app, courseId } = await setup(fixture);
+  try {
+    const words = 'Gradient descent moves the weights against the slope of the loss function step by step';
+    const pdf = Buffer.from(`%PDF-1.4\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n4 0 obj << /Length 120 >>\nstream\nBT /F1 12 Tf 72 720 Td (${words}) Tj ET\nendstream\nendobj\ntrailer << /Root 1 0 R >>\n%%EOF\n`, 'latin1');
+    const upPdf = await app.call('prof', 'POST', '/api/assistant/attachments', { name: 'week5.pdf', mime: 'application/pdf', data: pdf.toString('base64'), keep_file: true });
+    assert.equal(upPdf.status, 200);
+    const upText = await app.call('prof', 'POST', '/api/assistant/attachments', { name: 'outline.md', mime: 'text/markdown', data: Buffer.from('# Week 5\n\nGradient descent, step size, convergence.').toString('base64') });
+    const started = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, title: 'Week 5', notes: [upPdf.body.attachment.id, upText.body.attachment.id] });
+    const sid = started.body.session.id;
+    const [pdfNote, textNote] = started.body.notes;
+
+    const one = await app.call('prof', 'GET', `/api/live/sessions/${sid}/notes/${pdfNote.id}`);
+    assert.equal(one.body.viewable, 'pdf');
+    const file = await app.call('prof', 'GET', `/api/live/sessions/${sid}/notes/${pdfNote.id}/file`, undefined, { raw: true });
+    assert.equal(file.status, 200);
+    assert.equal(file.headers.get('content-type'), 'application/pdf');
+    assert.equal(file.headers.get('x-frame-options'), 'SAMEORIGIN', 'the app itself may show it in a frame');
+    assert.match(file.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+    assert.equal((await file.arrayBuffer()).byteLength, pdf.length);
+
+    const other = await app.call('prof', 'GET', `/api/live/sessions/${sid}/notes/${textNote.id}`);
+    assert.equal(other.body.viewable, 'text');
+    assert.match(other.body.text, /Gradient descent, step size/);
+    assert.equal((await app.call('prof', 'GET', `/api/live/sessions/${sid}/notes/${textNote.id}/file`)).status, 404);
+
+    assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/notes/${pdfNote.id}/file`)).status, 403, 'students cannot open the notes');
+    assert.equal((await app.call('prof', 'GET', `/api/live/sessions/${sid}/notes/999999`)).status, 404);
+  } finally {
+    await app.close();
+  }
+});

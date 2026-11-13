@@ -68,6 +68,7 @@ Devices go *offline* in the admin view after 90 s without a heartbeat.
 |---|---|---|
 | `room.status` | `{ room, status, note }`, where status is `open` · `quiet` · `do_not_disturb` · `consultation` | door light, display |
 | `display.message` | `{ text }` | any device with a screen or LED |
+| `class.pulse` | `{ session, status, following, unsure, lost, answered }`, where status is `good` (green) · `watch` (amber) · `trouble` (red: explain again) · `quiet` (too few answers) · `off` (lecture over). Sent to devices in the lecture's room when the status changes. Counts only, never names. | puck, door light, display |
 | `speak` | `{ text }` (under 60 words, no markdown) | puck |
 | `session.started` | `{ lecturer, course, sessionId }` | puck, display |
 | `session.ended` | `{}` | puck, display |

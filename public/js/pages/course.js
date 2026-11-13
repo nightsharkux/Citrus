@@ -62,8 +62,8 @@ function lectureView(l, teacher) {
     <div class="card-head">
       <div><h2>${l.topic}</h2><p class="small muted">${l.starts ? whenLine(l) : shortDate(l.created)} · ${plural(l.topics.length, 'topic')}</p></div>
       <div class="cluster">${l.live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course_id}">${teacher ? 'Resume' : 'Join'}</a><span class="chip success"><span class="dot live"></span>Live</span>`
-        : teacher && l.status === 'active' && l.starts ? html`<a class="btn btn-sm" href="/live/${l.course_id}?lecture=${l.id}">Start</a>` : ''}${l.live ? '' : l.status === 'active' ? html`<span class="chip success"><span class="dot live"></span>Active</span>` : html`<span class="chip">Ended</span>`}
-        ${teacher ? html`<button class="btn btn-sm btn-ghost btn-icon" data-lecture-menu="${l.id}" data-status="${l.status}" aria-label="Lecture options">${icon('more', 18)}</button>` : ''}</div>
+        : teacher ? html`<button class="btn btn-sm ${l.lastSession ? '' : 'btn-primary'}" data-go-live="${l.id}">${icon('play', 14)} ${l.lastSession ? 'Go live again' : 'Go live'}</button>` : ''}${l.live ? '' : l.lastSession ? html`<a class="chip" href="/lectures/review/${l.lastSession}">${teacher ? 'Review' : 'Recap'}</a>` : ''}
+        ${teacher ? html`<button class="btn btn-sm btn-ghost btn-icon" data-lecture-menu="${l.id}" data-live="${l.liveSession || ''}" data-status="${l.status}" aria-label="Lecture options">${icon('more', 18)}</button>` : ''}</div>
     </div>
     ${l.topics.length ? html`<div class="topics">${l.topics.map((t) => topicView(t, teacher))}</div>` : html`<p class="muted small">${teacher ? 'Add the topics you’ll cover so students can tell you how it’s going.' : 'Topics appear here as your lecturer adds them.'}</p>`}
     ${teacher ? html`<form class="input-row mt-16" data-add-topic="${l.id}"><input class="input" name="title" placeholder="Add a topic, e.g. Binary search" required minlength="3"><button class="btn">${icon('plus', 16)} Add</button></form>` : ''}
@@ -140,11 +140,23 @@ export default {
           });
         },
       })),
+      // Going live (again) starts a live session for this lecture: students can join or rejoin it with the same code.
+      on(root, 'click', '[data-go-live]', (e, b) => busy(b, async () => {
+        try {
+          await api.post('/live/sessions', { course_id: id, lecture_id: Number(b.dataset.goLive) });
+          ctx.navigate(`/live/${id}`);
+        } catch (error) {
+          toastError(error);
+        }
+      })),
       on(root, 'click', '[data-lecture-menu]', (e, b) => menu(b, [
-        b.dataset.status === 'active'
-          ? { label: 'End lecture', icon: 'check-circle', onSelect: () => api.patch(`/lectures/${b.dataset.lectureMenu}`, { status: 'ended' }).then(ctx.refresh, toastError) }
-          : { label: 'Reopen lecture', icon: 'refresh', onSelect: () => api.patch(`/lectures/${b.dataset.lectureMenu}`, { status: 'active' }).then(ctx.refresh, toastError) },
-      ])),
+        b.dataset.live
+          ? { label: 'End the live lecture', icon: 'stop', onSelect: () => api.post(`/live/sessions/${b.dataset.live}/end`).then(ctx.refresh, toastError) }
+          : { label: 'Reopen and go live', icon: 'refresh', onSelect: () => api.post('/live/sessions', { course_id: id, lecture_id: Number(b.dataset.lectureMenu) }).then(() => ctx.navigate(`/live/${id}`), toastError) },
+        b.dataset.status === 'active' && !b.dataset.live
+          ? { label: 'Mark as finished', icon: 'check-circle', onSelect: () => api.patch(`/lectures/${b.dataset.lectureMenu}`, { status: 'ended' }).then(ctx.refresh, toastError) }
+          : null,
+      ].filter(Boolean))),
       on(root, 'click', '[data-add-check]', (e, b) => sheet({
         title: 'New concept check',
         content: html`<form class="form" id="check-form">

@@ -85,7 +85,11 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     return {
       course: { ...course, lecturer, enrolled },
       isTeacher,
-      lectures: lectures.map((l) => ({ ...l, live: !!db.get('SELECT 1 AS live FROM live_sessions WHERE lecture_id = ? AND ended IS NULL', l.id), topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) })),
+      lectures: lectures.map((l) => {
+        const live = db.get('SELECT id FROM live_sessions WHERE lecture_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', l.id);
+        const last = db.get('SELECT id FROM live_sessions WHERE lecture_id = ? ORDER BY id DESC LIMIT 1', l.id);
+        return { ...l, live: !!live, liveSession: live?.id || null, lastSession: last?.id || null, topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) };
+      }),
     };
   }
 
@@ -172,7 +176,17 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     if (!lecture) throw forbidden('Not your lecture');
     const b = await ctx.json();
     if (b.status === undefined && b.starts === undefined && b.room === undefined) throw badRequest('Nothing to change');
-    if (b.status !== undefined) db.run('UPDATE lectures SET status = ? WHERE id = ?', oneOf(b.status, ['active', 'ended'], 'Status'), lecture.id);
+    if (b.status !== undefined) {
+      const status = oneOf(b.status, ['active', 'ended'], 'Status');
+      db.run('UPDATE lectures SET status = ? WHERE id = ?', status, lecture.id);
+      // Ending a lecture ends its live session too, so students are not left in a lecture that is over.
+      if (status === 'ended') {
+        for (const s of db.all('SELECT id FROM live_sessions WHERE lecture_id = ? AND ended IS NULL', lecture.id)) {
+          db.run('UPDATE live_sessions SET ended = ? WHERE id = ?', now(), s.id);
+          bus.publish(`course:${lecture.course_id}`, 'live.ended', { session: s.id });
+        }
+      }
+    }
     if (b.starts !== undefined || b.room !== undefined || b.duration_minutes !== undefined) {
       const when = readSchedule({ starts: b.starts ?? lecture.starts, duration_minutes: b.duration_minutes ?? (lecture.starts && lecture.ends ? Math.round((Date.parse(lecture.ends) - Date.parse(lecture.starts)) / 60000) : undefined), room: b.room ?? lecture.room });
       db.run('UPDATE lectures SET starts = ?, ends = ?, room = ? WHERE id = ?', when.starts, when.ends, when.room, lecture.id);

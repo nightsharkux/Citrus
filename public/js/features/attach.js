@@ -63,7 +63,7 @@ async function preparePicture(file) {
  * @param onChange  called whenever the list or a status changes
  * @param onError   called with a message for a file that was refused
  */
-export function createAttachments({ tray, onChange = () => {}, onError = () => {} }) {
+export function createAttachments({ tray, onChange = () => {}, onError = () => {}, keepFiles = false }) {
   let items = [];
   let seq = 0;
 
@@ -95,7 +95,8 @@ export function createAttachments({ tray, onChange = () => {}, onError = () => {
         throw new Error('Too large (3 MB limit)');
       }
       const data = await toBase64(blob);
-      const { attachment } = await api.post('/assistant/attachments', { name: item.name, mime: blob.type || file.type, data });
+      // keepFiles: lecture notes keep their PDF pages, so the lecturer can show them full screen.
+      const { attachment } = await api.post('/assistant/attachments', { name: item.name, mime: blob.type || file.type, data, ...(keepFiles ? { keep_file: true } : {}) });
       if (!items.includes(item)) {
         api.del(`/assistant/attachments/${attachment.id}`).catch(() => {});
         return;

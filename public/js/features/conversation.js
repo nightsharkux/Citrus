@@ -36,6 +36,7 @@ import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
 import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker, microphoneMuffles } from './voice.js';
+import { notePitch } from './pitch.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
 import { matchCommand } from './commands.js';
@@ -435,6 +436,11 @@ function createConversation({ threadId: startThread }) {
     skipHeard();
     if (!text) {
       listen();
+      return;
+    }
+    // The presentation line ("you probably didn't understand that, did you?"): Campus explains itself instead.
+    if (notePitch(text)) {
+      close();
       return;
     }
     const command = conversationCommand(text);

@@ -6,7 +6,7 @@ module.exports = {
   shortName: 'Campus OS',
   institution: 'Campus OS Demonstration University',
   assistant: 'Campus',
-  tagline: 'University workspace',
+  tagline: 'Student project',
   logo: null,
   conceptNotice: 'Institution-managed Campus OS pilot.',
   timezone: 'Europe/Berlin',

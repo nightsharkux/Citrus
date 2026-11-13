@@ -10,7 +10,7 @@ module.exports = {
   shortName: 'Campus OS',
   institution: 'OTH Amberg-Weiden — Independent Concept',
   assistant: 'Campus',
-  tagline: 'Amberg · Weiden',
+  tagline: 'Student project',
   logo: '/assets/oth-aw-logo.jpg',
   conceptNotice: 'Independent concept for OTH Amberg-Weiden. Not an official university service.',
   timezone: 'Europe/Berlin',

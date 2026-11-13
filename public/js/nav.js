@@ -1,44 +1,52 @@
 /**
  * Navigation per role. `tabs` are the five mobile tab-bar slots ('more' opens
- * the full menu). Change navigation here — nothing else needs editing.
+ * the full menu). `hidden` pages are not in the menu but can be opened by search,
+ * voice and All tools. Change navigation here — nothing else needs editing.
  */
 const item = (href, label, icon, extra = {}) => ({ href, label, icon, ...extra });
 
 const COMMON_FOOT = [item('/tools', 'All tools', 'layers'), item('/settings', 'Settings', 'settings')];
 
 export const NAV = {
-  // Student and lecturer: only the classroom loop is in the main list. Everything else sits under "More".
+  // The menu shows the classroom loop: lectures with live feedback, check-in with the student ID, progress, meetings.
+  // Everything else is in All tools (and still reachable by search and by voice: `hidden` items).
   student: {
     primary: [
       item('/home', 'Home', 'home'),
       item('/lectures', 'Lectures', 'presentation'),
-      item('/courses', 'Courses', 'book'),
-      item('/learning', 'Review', 'graduation'),
-      item('/participation', 'Check-in', 'clipboard'),
+      item('/participation', 'Check-in', 'nfc'),
+      item('/learning', 'My progress', 'trending'),
+      item('/assistant', 'Ask Campus', 'campus'),
     ],
     secondary: [
-      item('/assistant', 'Ask Campus', 'campus'), item('/schedule', 'Schedule', 'calendar'), item('/quiz', 'Quizzes', 'target'),
+      item('/courses', 'Courses', 'book'), item('/meetings', 'Meetings', 'message'), item('/schedule', 'Schedule', 'calendar'),
+      item('/quiz', 'Quizzes', 'target'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+    ],
+    hidden: [
       item('/spaces', 'Spaces', 'grid'), item('/groups', 'Study groups', 'users'), item('/campus', 'Campus life', 'compass'),
-      item('/campus/map', 'Campus map', 'map-pin'), item('/career', 'Career explorer', 'briefcase'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+      item('/campus/map', 'Campus map', 'map-pin'), item('/career', 'Career explorer', 'briefcase'), item('/apps', 'My tools', 'layers'),
     ],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/lectures', '/courses', '/learning', 'more'],
+    tabs: ['/home', '/lectures', '/participation', '/learning', 'more'],
   },
   lecturer: {
     primary: [
       item('/home', 'Home', 'home'),
       item('/lectures', 'Lectures', 'presentation'),
+      item('/participation', 'Participation', 'nfc'),
       item('/courses', 'Teaching', 'book'),
-      item('/classroom', 'Rooms & devices', 'door'),
-      item('/participation', 'Participation', 'clipboard'),
+      item('/meetings', 'Meetings', 'message'),
     ],
     secondary: [
-      item('/assistant', 'Ask Campus', 'campus'), item('/library', 'Documents', 'library'), item('/schedule', 'Schedule', 'calendar'), item('/quiz', 'Quizzes', 'target'),
-      item('/spaces', 'Spaces', 'grid'), item('/campus', 'Campus life', 'compass'), item('/campus/map', 'Campus map', 'map-pin'),
-      item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+      item('/assistant', 'Ask Campus', 'campus'), item('/library', 'Documents', 'library'), item('/classroom', 'Rooms & devices', 'door'),
+      item('/schedule', 'Schedule', 'calendar'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+    ],
+    hidden: [
+      item('/quiz', 'Quizzes', 'target'), item('/spaces', 'Spaces', 'grid'), item('/campus', 'Campus life', 'compass'),
+      item('/campus/map', 'Campus map', 'map-pin'), item('/apps', 'My tools', 'layers'),
     ],
     foot: COMMON_FOOT,
-    tabs: ['/home', '/lectures', '/courses', '/classroom', 'more'],
+    tabs: ['/home', '/lectures', '/participation', '/courses', 'more'],
   },
   admin: {
     primary: [
@@ -53,16 +61,18 @@ export const NAV = {
       item('/admin/institution', 'Institution', 'shield'),
       item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
-    secondary: [item('/quiz', 'Quizzes', 'target'), item('/campus/map', 'Campus map', 'map-pin'), item('/campus', 'Campus life', 'compass'), item('/schedule', 'Schedule', 'calendar'), item('/spaces', 'Spaces', 'grid'), item('/classroom', 'Rooms & devices', 'door'), item('/participation', 'Participation', 'clipboard')],
+    secondary: [item('/meetings', 'Meetings', 'message'), item('/participation', 'Participation', 'nfc'), item('/classroom', 'Rooms & devices', 'door'), item('/schedule', 'Schedule', 'calendar'), item('/spaces', 'Spaces', 'grid')],
+    hidden: [item('/quiz', 'Quizzes', 'target'), item('/campus/map', 'Campus map', 'map-pin'), item('/campus', 'Campus life', 'compass'), item('/apps', 'My tools', 'layers')],
     foot: COMMON_FOOT,
     tabs: ['/home', '/admin/people', '/assistant', '/admin/moderation', 'more'],
   },
 };
 
 export const navFor = (role) => NAV[role] || NAV.student;
+/** Every page a role can open by name (search, voice): the menu plus the pages that live in All tools. */
 export const allItems = (role) => {
   const n = navFor(role);
-  return [...n.primary, ...n.secondary, ...n.foot];
+  return [...n.primary, ...n.secondary, ...n.foot, ...(n.hidden || [])];
 };
 
 /** Is `href` the active section for `path`? */

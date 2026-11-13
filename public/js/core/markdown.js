@@ -3,7 +3,8 @@
  * lists, tables, blockquotes (a bold first word makes a callout), rules, fenced
  * code, inline code, bold, italic, links, [n] citations and maths ($…$ inline,
  * $$…$$ on its own lines). Everything is escaped first; only known patterns
- * become tags. Maths is drawn by ./math.js.
+ * become tags. Maths is drawn by ./math.js, and ```chart blocks become real
+ * graphs (./chart.js).
  *
  *   markdown(text, { citations, streaming })
  *
@@ -12,6 +13,7 @@
  */
 import { escape, raw } from './dom.js';
 import { mathHtml } from './math.js';
+import { chartFigure } from './chart.js';
 
 const MATH_ENV = /^\s*\\begin\{(align\*?|aligned|equation\*?|gather\*?|cases|array|[pbBvV]?matrix|split|eqnarray\*?)\}/;
 
@@ -231,8 +233,11 @@ function blocks(lines, opts) {
       const code = [];
       i += 1;
       for (; i < lines.length && !isFence(lines[i]); i += 1) code.push(lines[i]);
+      const closed = i < lines.length;
       i += 1;
-      out.push(`<pre${lang ? ` data-lang="${escape(lang)}"` : ''}><code>${escape(code.join('\n'))}</code></pre>`);
+      // A graph: drawn as a real figure (core/chart.js), not shown as its data.
+      if (/^(chart|graph|plot)$/i.test(lang)) out.push(chartFigure(code.join('\n'), { streaming: opts.streaming && !closed }));
+      else out.push(`<pre${lang ? ` data-lang="${escape(lang)}"` : ''}><code>${escape(code.join('\n'))}</code></pre>`);
     } else if (mathBlockAt(lines, i)) {
       const found = mathBlockAt(lines, i);
       out.push(mathBlock(found, opts.streaming));

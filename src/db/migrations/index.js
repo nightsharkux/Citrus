@@ -21,4 +21,6 @@ module.exports = [
   require('./018-classroom-flags'),
   require('./019-meetings'),
   require('./020-knowledge-documents'),
+  require('./021-minutes-versions'),
+  require('./022-custom-tools'),
 ];

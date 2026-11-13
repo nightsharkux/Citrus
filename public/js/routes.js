@@ -28,6 +28,10 @@ export function registerRoutes() {
   route('/career', () => import('./pages/career.js'));
   route('/classroom', () => import('./pages/classroom.js'));
   route('/library', () => import('./pages/library.js'));
+  route('/meetings', () => import('./pages/meetings.js'));
+  route('/apps', () => import('./pages/apps.js'));
+  route('/apps/gallery', () => import('./pages/apps-gallery.js'));
+  route('/apps/:id', () => import('./pages/app.js'));
   route('/settings/:section?', () => import('./pages/settings.js'));
   route('/tools', () => import('./pages/tools.js'));
 

@@ -15,7 +15,11 @@ import { onSubmit, toast, toastError, confirm, menu, copyText, busy } from '../c
 import { markdown } from '../core/markdown.js';
 import { debounce } from '../core/live.js';
 import { createRecorder } from '../features/recorder.js';
-import { createCaptioner } from '../features/voice.js';
+import { createCaptioner, dictate, speak } from '../features/voice.js';
+import { wakeMatcher } from '../features/wake-phrase.js';
+import { notePitch } from '../features/pitch.js';
+import { speechLine } from './meetings.js';
+import { assistantName } from '../core/store.js';
 import { printDocument } from '../features/print.js';
 import { KIND, GUIDANCE } from './spaces.js';
 import { faceMark } from '../features/face.js';
@@ -122,16 +126,31 @@ function mountNotes(root, d, ctx) {
 const QUICK = [['minutes', 'Decision', 'check-circle'], ['task', 'Action item', 'clipboard'], ['question', 'Question', 'bulb'], ['note', 'Note', 'file']];
 const minutesSince = (iso) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
 
+const VERSION_IDEAS = [
+  ['Two files: one with the student questions and one without', 'With and without questions'],
+  ['Without the students’ questions', 'Without questions'],
+  ['Only the decisions and action items', 'Decisions only'],
+  ['A short summary for people who were not there', 'Short summary'],
+];
+
 function minutesList(d) {
   const reports = d.reports;
   if (!reports.length) return html`<div style="padding:0 20px 20px">${empty({ icon: 'clipboard', title: 'No minutes yet', body: 'When a meeting ends, the minutes appear here for everyone in the space.' })}</div>`;
-  return html`<div class="stack" style="padding:4px 20px 20px;--gap:12px">${reports.map((r, i) => html`<details class="report" ${i === 0 ? 'open' : ''}>
-    <summary class="spread"><span><strong>${r.meeting_started ? `Meeting ${dateTime(r.meeting_started)}` : `Draft ${dateTime(r.created)}`}</strong><span class="small muted"> · ${r.source}${r.owner && !r.mine ? ` · ${r.owner}` : ''}</span></span>
+  const ai = d.aiEnabled;
+  return html`<div class="stack" style="padding:4px 20px 20px;--gap:12px">${reports.map((r, i) => html`<details class="report ${r.parent_id ? 'is-version' : ''}" ${i === 0 ? 'open' : ''}>
+    <summary class="spread"><span><strong>${r.label || (r.meeting_started ? `Meeting ${dateTime(r.meeting_started)}` : `Draft ${dateTime(r.created)}`)}</strong><span class="small muted"> · ${r.label && r.meeting_started ? `${dateTime(r.meeting_started)} · ` : ''}${r.source}${r.owner && !r.mine ? ` · ${r.owner}` : ''}</span></span>
       <span class="cluster" style="--gap:4px">
-        <button class="btn btn-ghost btn-icon btn-sm" data-copy-report="${r.id}" aria-label="Copy">${icon('copy', 15)}</button>
-        <button class="btn btn-ghost btn-icon btn-sm" data-print="${r.id}" aria-label="Print or save as PDF">${icon('download', 15)}</button>
-        ${r.mine || d.room.isOwner ? html`<button class="btn btn-ghost btn-icon btn-sm" data-del-report="${r.id}" aria-label="Delete">${icon('trash', 15)}</button>` : ''}</span></summary>
+        <button class="btn btn-ghost btn-icon btn-sm" data-copy-report="${r.id}" aria-label="Copy" title="Copy">${icon('copy', 15)}</button>
+        <a class="btn btn-ghost btn-icon btn-sm" href="/api/workspaces/${d.room.id}/reports/${r.id}/minutes.txt" aria-label="Download as text" title="Download as .txt">${icon('download', 15)}</a>
+        <button class="btn btn-ghost btn-icon btn-sm" data-print="${r.id}" aria-label="Print or save as PDF" title="Print or save as PDF">${icon('file', 15)}</button>
+        ${r.mine || d.room.isOwner ? html`<button class="btn btn-ghost btn-icon btn-sm" data-del-report="${r.id}" aria-label="Delete" title="Delete">${icon('trash', 15)}</button>` : ''}</span></summary>
     <div class="prose small mt-8">${markdown(r.report)}</div>
+    ${ai && !r.parent_id ? html`<form class="minutes-versions" data-versions="${r.id}">
+      <p class="small muted">Make separate files from these minutes. Type or say what you need.</p>
+      <div class="flag-kinds">${VERSION_IDEAS.map(([instruction, label]) => html`<button type="button" class="chip outline" data-idea="${instruction}">${label}</button>`)}</div>
+      <div class="composer"><textarea name="instruction" rows="1" maxlength="600" placeholder="e.g. keep only the budget discussion" aria-label="What should the new file contain?"></textarea>
+        <div class="composer-actions"><button type="button" class="btn btn-ghost btn-icon" data-say aria-label="Say it">${icon('mic', 18)}</button><button class="btn btn-primary btn-icon" aria-label="Make the files">${icon('arrow-up', 18)}</button></div></div>
+    </form>` : ''}
   </details>`)}</div>`;
 }
 
@@ -190,6 +209,7 @@ function meeting(d) {
       <span class="live-live"><span class="dot live"></span>Meeting</span>
       <span class="small" data-elapsed>${minutesSince(w.meeting.started)} min</span>
       <span class="small muted">Started by ${w.meeting.by || 'a member'}</span>
+      <span class="small muted meeting-speech" title="${speechLine()}">${icon('info', 13)} Say “Hey ${assistantName()}, explain …” to ask</span>
       <span class="live-bar-actions">
         ${w.canSpeak ? html`<button class="btn btn-sm btn-primary" data-mic>${icon('mic', 15)} <span>Turn on my mic</span></button>
         <button class="btn btn-sm btn-danger" data-meeting-end>${icon('stop', 15)} End meeting</button>` : ''}
@@ -272,6 +292,33 @@ function minutesHandlers(root, d, ctx) {
       e.preventDefault();
       const r = d.reports.find((x) => x.id === Number(b.dataset.print));
       printDocument({ title: `${d.room.title} — minutes`, subtitle: `${dateTime(r.meeting_started || r.created)} · ${r.source} · Review before distributing`, body: markdown(r.report) });
+    }),
+    on(root, 'click', '[data-idea]', (e, b) => {
+      const field = b.closest('form').instruction;
+      field.value = b.dataset.idea;
+      field.focus();
+    }),
+    on(root, 'click', '[data-say]', (e, b) => {
+      const field = b.closest('form').instruction;
+      b.classList.add('is-active');
+      dictate({ onInterim: (t) => (field.value = t), onFinal: (t) => (field.value = t), onEnd: () => {
+        b.classList.remove('is-active');
+        if (field.value.trim()) b.closest('form').requestSubmit();
+      } });
+    }),
+    on(root, 'submit', '[data-versions]', (e, form) => {
+      e.preventDefault();
+      const instruction = form.instruction.value.trim();
+      if (instruction.length < 3) return toast('Say or type what the new file should contain.', 'info');
+      busy(form.querySelector('button:not([type])'), async () => {
+        try {
+          const r = await api.post(`/workspaces/${id}/reports/${form.dataset.versions}/versions`, { instruction });
+          toast(r.versions.length > 1 ? `${r.versions.length} files made: ${r.versions.map((v) => v.label).join(' and ')}.` : `Made: ${r.versions[0].label}.`, 'success', { duration: 4200 });
+          ctx.refresh();
+        } catch (error) {
+          toastError(error);
+        }
+      });
     }),
     on(root, 'click', '[data-copy-report]', (e, b) => {
       e.preventDefault();
@@ -362,7 +409,17 @@ function mountMeeting(root, d, ctx) {
       return;
     }
     captioner = createCaptioner({
-      onFinal: (text) => text && api.post(`/workspaces/${id}/captions`, { text }).catch(() => {}),
+      onFinal: (text) => {
+        if (!text) return;
+        if (notePitch(text, { requireWake: true })) return;
+        // "Hey Campus, explain …" (or any question to Campus): answered at once, and kept in the meeting's record.
+        const asked = wake.match(text);
+        if (asked && asked.rest.length >= 4) {
+          askCampus(asked.rest, { aloud: true });
+          return;
+        }
+        api.post(`/workspaces/${id}/captions`, { text }).catch(() => {});
+      },
       onInterim: (text) => (interim.textContent = text),
     });
     if (!captioner) {
@@ -402,9 +459,22 @@ function mountMeeting(root, d, ctx) {
     });
   }));
 
-  // ---- ask Campus about the meeting so far
+  // ---- ask Campus about the meeting so far, typed or by voice ("Hey Campus, explain …")
   const askForm = $('#meeting-ask', root);
   const answer = $('#meeting-answer', root);
+  const wake = wakeMatcher(assistantName(), { strict: true });
+  async function askCampus(q, { aloud = false } = {}) {
+    answer.hidden = false;
+    render(answer, html`<p class="small muted">${q}</p><span class="typing"><i></i><i></i><i></i></span>`);
+    answer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    try {
+      const r = await api.post(`/workspaces/${id}/assistant`, { prompt: q });
+      render(answer, html`<p class="small muted">${q}</p><div class="prose small mt-8">${markdown(r.answer)}</div>`);
+      if (aloud) speak(r.answer);
+    } catch (error) {
+      render(answer, html`<div class="notice danger">${icon('alert', 18)}<span>${error.message}</span></div>`);
+    }
+  }
   askForm.prompt.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -416,14 +486,7 @@ function mountMeeting(root, d, ctx) {
     const q = form.prompt.value.trim();
     if (q.length < 2) return;
     form.prompt.value = '';
-    answer.hidden = false;
-    render(answer, html`<p class="small muted">${q}</p><span class="typing"><i></i><i></i><i></i></span>`);
-    try {
-      const r = await api.post(`/workspaces/${id}/assistant`, { prompt: q });
-      render(answer, html`<p class="small muted">${q}</p><div class="prose small mt-8">${markdown(r.answer)}</div>`);
-    } catch (error) {
-      render(answer, html`<div class="notice danger">${icon('alert', 18)}<span>${error.message}</span></div>`);
-    }
+    askCampus(q);
   }));
 
   offs.push(on(root, 'click', '[data-mic]', () => mic()));

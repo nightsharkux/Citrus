@@ -52,6 +52,8 @@ function lecturerView(d) {
 
 const flagLabel = (kind) => (FLAGS[kind] || FLAGS.confused)[0];
 
+const liveAgain = (courseId) => html`<a class="notice accent live-again" href="/live/${courseId}" style="text-decoration:none;margin-bottom:16px" data-live-again>${icon('presentation', 18)}<span><strong>This lecture is live again.</strong> Tap to rejoin.</span><span class="btn btn-sm btn-primary" style="margin-left:auto">Rejoin</span></a>`;
+
 /** The moments students flagged, grouped by minute, with what was being said when the transcript was kept. */
 function lecturerFlags(flags = []) {
   if (!flags.length) return '';
@@ -118,16 +120,37 @@ export default {
   title: 'Lecture review',
   async load(ctx) {
     const id = ctx.params.id;
-    return { lecturer: isLecturer(), data: await api.get(`/live/sessions/${id}/${isLecturer() ? 'report' : 'recap'}`) };
+    const data = await api.get(`/live/sessions/${id}/${isLecturer() ? 'report' : 'recap'}`);
+    // The lecturer may have reopened the lecture: then the student can go straight back in.
+    const active = isLecturer() ? null : await api.get(`/live/courses/${data.session.course_id}/active`).catch(() => null);
+    const again = active?.session && active.session.id !== data.session.id && active.session.lecture_id === data.session.lecture_id ? active.session : null;
+    return { lecturer: isLecturer(), data, again };
   },
-  render({ lecturer, data }) {
-    return lecturer ? lecturerView(data) : studentView(data);
+  render({ lecturer, data, again }) {
+    return html`${again ? liveAgain(data.session.course_id) : ''}${lecturer ? lecturerView(data) : studentView(data)}`;
   },
   mount(root, data, ctx) {
     const sid = data.data.session.id;
+    const courseId = data.data.session.course_id;
     // The lecturer's page keeps filling in while the AI writes its notes.
     if (data.lecturer && !data.data.session.ended) {
       ctx.live.on('live.moment', () => ctx.refresh());
+    }
+    // A student who just left: if the lecture comes back, show "Rejoin". Live events, and a slow check as a fallback
+    // for hosts where live events do not reach every open page.
+    let poll = 0;
+    if (!data.lecturer && !data.again) {
+      ctx.live.on('live.started', (e) => (!e.lecture || e.lecture === data.data.session.lecture_id) && ctx.refresh());
+      const endedAgo = Date.now() - Date.parse(data.data.session.ended || 0);
+      if (endedAgo < 2 * 3_600_000) {
+        poll = setInterval(async () => {
+          const active = await api.get(`/live/courses/${courseId}/active`).catch(() => null);
+          if (active?.session && active.session.id !== sid) {
+            clearInterval(poll);
+            ctx.refresh();
+          }
+        }, 20_000);
+      }
     }
     const offs = [
       on(root, 'click', '[data-explain]', (e, button) => busy(button, async () => {
@@ -168,6 +191,9 @@ export default {
         }
       }),
     ];
-    return () => offs.forEach((off) => off());
+    return () => {
+      offs.forEach((off) => off());
+      clearInterval(poll);
+    };
   },
 };

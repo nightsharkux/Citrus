@@ -18,10 +18,20 @@ const item = (id, label, status, route, description, roles) => Object.freeze({ i
 
 module.exports = Object.freeze([
   {
+    group: 'The classroom',
+    items: [
+      item('live-lecture', 'Live lecture', 'limited', '/lectures', 'The lecturer goes live and shows a six-digit code; students type it on their phones (that joins the course too). Students signal whether they follow, are unsure or are lost, and flag moments they need help with (didn’t get it, too fast, need an example, a question, with a note); the lecturer sees the class pulse, a minute-by-minute timeline and the flags live, without names. Campus follows the lecture through the browser microphone, knows the prepared notes (pictures and PDFs are read) and answers questions such as “explain the last thing I said” or “what are students stuck on?”. When the lecturer keeps the transcript (the default, chosen at the start), students can ask Campus about the lecture privately, during it and afterwards, and get each flag explained; only the lecturer can download or delete the transcript. Without it, only the last minutes stay in memory. Speech recognition needs Chrome, Edge or Safari, and AI answers can be wrong. The room light is not yet driven by the pulse.'),
+      item('checkin', 'Participation sessions', 'available', '/participation', 'Course check-ins with lecturer confirmation.'),
+      item('nfc', 'NFC tap with app confirmation', 'configuration', '/admin/devices', 'Tap a card at a registered reader, confirm in the app. Needs a reader.', STAFF),
+      item('lecture-review', 'Lecture review and recaps', 'available', '/lectures', 'After each lecture the lecturer sees where the class struggled, minute by minute, with what was being said and what students flagged; each student gets a private recap with explanations of their flags and a quiz. The way to improve teaching and understanding over time.'),
+      item('puck', 'Campus Puck', 'configuration', '/admin/devices', 'Shows the live class status in the lecture room (green, amber, red) so the lecturer can explain again at once. Signed device API for voice questions, room status and session start.', STAFF),
+      item('meetings', 'Meetings with minutes', 'limited', '/meetings', 'Start a meeting from Meetings or Home, or in a space: every member can turn on their microphone and what they say appears for everyone with their name; decisions, action items and questions are added with one tap; ending it drafts the minutes for all members. Audio recording is optional, with consent. The minutes are an AI draft to review. Speech recognition needs Chrome, Edge or Safari.'),
+    ],
+  },
+  {
     group: 'Study',
     items: [
       item('courses', 'Courses and lectures', 'available', '/courses', 'Your modules, lectures and topics in one place.'),
-      item('live-lecture', 'Live lecture', 'limited', '/lectures', 'The lecturer goes live and shows a six-digit code; students type it on their phones (that joins the course too). Students signal whether they follow, are unsure or are lost, and flag moments they need help with (didn’t get it, too fast, need an example, a question, with a note); the lecturer sees the class pulse, a minute-by-minute timeline and the flags live, without names. Campus follows the lecture through the browser microphone, knows the prepared notes (pictures and PDFs are read) and answers questions such as “explain the last thing I said” or “what are students stuck on?”. When the lecturer keeps the transcript (the default, chosen at the start), students can ask Campus about the lecture privately, during it and afterwards, and get each flag explained; only the lecturer can download or delete the transcript. Without it, only the last minutes stay in memory. Speech recognition needs Chrome, Edge or Safari, and AI answers can be wrong. The room light is not yet driven by the pulse.'),
       item('comprehension', 'Understanding checks', 'available', '/courses', 'Tell your lecturer privately how well a topic landed.'),
       item('quizzes', 'Concept checks', 'available', '/courses', 'Short multiple-choice checks published during a lecture.'),
       item('review', 'Spaced review queue', 'available', '/learning', 'Revisit difficult topics and missed checks at the right time.'),
@@ -45,6 +55,7 @@ module.exports = Object.freeze([
       item('study-groups', 'Study groups', 'available', '/groups', 'Say what you want a group for and Campus matches you with students looking for the same. Your name and e-mail are shared only if you agree.'),
       item('web-search', 'Web search', 'limited', '/assistant', 'Campus looks things up on the web when its own sources are not enough, or for every message while the globe button is on, and links the pages it used. Runs through the AI Gateway (Perplexity). An administrator can turn it off.'),
       item('natural-voices', 'Natural voices', 'configuration', '/settings/assistant', 'Answers read aloud by the AI Gateway’s speech models (OpenAI, Gemini, Microsoft or ElevenLabs) without gaps between sentences, with a choice of voices. Text to speech is in beta on the gateway: until it is enabled for your account, browsers use their own voices.'),
+      item('graphs', 'Graphs in answers', 'limited', '/assistant', 'Ask for a graph and Campus draws a real figure, like one in a textbook: functions, data, bars, pie charts, with labelled axes and marked points. Copy it as a picture or save it as PNG or SVG. The numbers come from the AI, so check them.'),
       item('explainers', 'Animated explanations', 'limited', '/assistant', 'Campus’s eye turns into small animations — formulas, steps, figures — while it explains. Depends on the AI model.'),
       item('citations', 'Knowledge search with citations', 'available', '/campus/guide', 'Answers grounded in the approved knowledge library, with sources.'),
       item('website-knowledge', 'University website knowledge', 'limited', '/assistant', 'About 3,000 passages from the public OTH Amberg-Weiden website in German and English (programmes, services, contacts, procedures) are searchable with sources. Copied from the public pages on the date shown with each source; the staff directory is not included. Confirm anything important on the live page.'),
@@ -53,7 +64,6 @@ module.exports = Object.freeze([
       item('spaces', 'Workspaces and shared notes', 'available', '/spaces', 'Invite-only spaces for groups, lectures and meetings.'),
       item('transcription', 'Audio transcription', 'planned', null, 'Automatic transcription of uploaded recordings.'),
       item('live-recognition', 'External speech recognition', 'configuration', '/settings/assistant', 'Wispr Flow and Deepgram recognize German and English together with microphone echo cancellation and noise suppression. Wispr requires approved API access and returns phrases after a pause. Provider configuration is required; browser recognition remains available.'),
-      item('meetings', 'Meetings with minutes', 'limited', '/spaces', 'Start a meeting in a space: every member can turn on their microphone and what they say appears for everyone with their name; decisions, action items and questions are added with one tap; ending it drafts the minutes for all members. Audio recording is optional, with consent. The minutes are an AI draft to review. Speech recognition needs Chrome, Edge or Safari.'),
       item('guidance', 'Lecturer-defined AI guidance', 'available', '/spaces', 'Coach, Socratic, direct or assessment-safe assistant behaviour.'),
       item('conversation', 'Voice conversation', 'limited', '/assistant', 'Talk with Campus hands-free: it listens, answers out loud, then listens again, and you can interrupt it. On computers with GPT-Live on the AI Gateway it hears you while it talks and answers as soon as you finish. Start it with the waveform button or “Hey Campus, let’s talk”. Listening uses configured Wispr Flow or Deepgram, otherwise browser recognition. Requires microphone access over HTTPS or on this computer.'),
       item('focus', 'Campus Focus', 'available', '/inbox', 'A do-not-disturb setting for 30 minutes to 4 hours. Pop-ups and push notifications pause and everything waits in your inbox; urgent device taps still come through. The moon in the top bar turns it on and off.'),
@@ -78,11 +88,8 @@ module.exports = Object.freeze([
   {
     group: 'Classrooms and devices',
     items: [
-      item('checkin', 'Participation sessions', 'available', '/participation', 'Course check-ins with lecturer confirmation.'),
       item('codes', 'Live check-in codes', 'available', '/participation', 'A rotating six-digit code shown in the room.'),
       item('room-status', 'Room status', 'available', '/campus/rooms', 'Open, quiet, do not disturb or consultation — visible to everyone.'),
-      item('nfc', 'NFC tap with app confirmation', 'configuration', '/admin/devices', 'Tap a card at a registered reader, confirm in the app. Needs a reader.', STAFF),
-      item('puck', 'Classroom voice puck gateway', 'configuration', '/admin/devices', 'Signed device API for voice questions, room status and session start.', STAFF),
       item('door-light', 'Door status light', 'configuration', '/admin/devices', 'Registered lights mirror the room status automatically.', STAFF),
       item('nearby', 'Nearby lecture discovery', 'planned', null, 'Bluetooth proximity hints. Requires native apps and beacons.'),
       item('iot', 'Projector and room equipment control', 'planned', null, 'Needs vendor-approved equipment integrations.'),
@@ -103,6 +110,13 @@ module.exports = Object.freeze([
       item('privacy', 'Personal data export and deletion', 'available', '/settings/privacy', 'Download everything about you, or delete your account.'),
       item('compliance', 'Institutional security and GDPR review', 'planned', null, 'A process with your data-protection office, not a code feature.'),
       item('i18n', 'German interface', 'limited', '/settings/assistant', 'The whole interface switches between German and English. A few catalogue texts are English only.'),
+    ],
+  },
+  {
+    group: 'Your own tools',
+    items: [
+      item('make-a-tool', 'Make a tool', 'limited', '/apps', 'Describe a small tool, such as a big clock for the projector or a group picker, and Campus makes it in the Campus OS look, with a choice of looks. It stays yours unless you share it. Tools run on their own, with no access to your account or the internet. Made by the AI, so try it before relying on it.'),
+      item('more-tools', 'More tools', 'limited', '/apps/gallery', 'Tools people at your university made and shared, checked by an administrator first. Add the ones you like to My tools.'),
     ],
   },
 ]);

@@ -26,6 +26,7 @@ import { WisprRecognition } from './wispr-recognition.js';
 import { GatewayRecognition } from './gateway-recognition.js';
 import { chooseMicrophone, microphoneRoute } from './microphone.js';
 import { wakeMatcher } from './wake-phrase.js';
+import { notePitch, setPitchName } from './pitch.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
@@ -288,6 +289,17 @@ function onResult(e) {
   networkErrors = 0;
   quickEnds = 0;
 
+  // "You probably didn't understand that, did you?" after someone explains Campus OS: Campus explains itself
+  // (pitch.js). Checked on every phrase, before the wake word, so the command never reaches the assistant.
+  for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
+    if (notePitch(e.results[i][0].transcript)) {
+      ignoreBefore = e.results.length;
+      clearCapture();
+      setState('listening', 'pitch');
+      return;
+    }
+  }
+
   if (mode === 'idle') {
     for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
       // A misheard greeting ("hit campus") or the bare name waits for a whole word, so "hit campus tomorrow" stays asleep.
@@ -396,6 +408,7 @@ export const wake = {
       return false;
     }
     wakeRe = wakeMatcher(name);
+    setPitchName(name);
     enabled = true;
     paused = false;
     networkErrors = 0;

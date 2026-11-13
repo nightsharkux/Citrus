@@ -81,6 +81,16 @@ def on_room_status(payload):
     # e.g. set_led(colour)
 
 
+PULSE = {"good": "green", "watch": "amber", "trouble": "red", "quiet": "white", "off": "off"}
+
+
+def on_class_pulse(payload):
+    # The live class status during a lecture: red means many students are lost, so explain again.
+    colour = PULSE.get(payload.get("status"), "off")
+    print(f"[puck] {colour.upper()}  {payload.get('following', 0)} following, {payload.get('unsure', 0)} unsure, {payload.get('lost', 0)} lost")
+    # e.g. set_ring(colour)
+
+
 def on_speak(payload):
     print(f"[speaker] {payload.get('text')}")
     # e.g. subprocess.run(["espeak-ng", payload["text"]])
@@ -92,6 +102,7 @@ def on_message(payload):
 
 HANDLERS = {
     "room.status": on_room_status,
+    "class.pulse": on_class_pulse,
     "speak": on_speak,
     "display.message": on_message,
     "session.started": lambda p: on_message({"text": f"Session started by {p.get('lecturer')}"}),

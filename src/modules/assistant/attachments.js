@@ -65,9 +65,11 @@ function createAttachments({ db }) {
     }
     const truncated = text.length > TEXT_PER_DOCUMENT;
     const kept = text.slice(0, TEXT_PER_DOCUMENT);
+    // Lecture notes (keep_file) keep a PDF's pages as well, so the lecturer can show it full screen. Others keep text only.
+    const pdf = body.keep_file === true && bytes.length > 5 && bytes.toString('latin1', 0, 5) === '%PDF-';
     const attachmentId = db.insert(
-      "INSERT INTO assistant_attachments(user_id, kind, name, mime, size, text, created) VALUES(?, 'document', ?, ?, ?, ?, ?)",
-      user.id, name, String(body.mime || '').slice(0, 100), bytes.length, kept, iso(),
+      "INSERT INTO assistant_attachments(user_id, kind, name, mime, size, text, data, created) VALUES(?, 'document', ?, ?, ?, ?, ?, ?)",
+      user.id, name, pdf ? 'application/pdf' : String(body.mime || '').slice(0, 100), bytes.length, kept, pdf ? bytes.toString('base64') : '', iso(),
     );
     return { id: attachmentId, kind: 'document', name, mime: String(body.mime || ''), size: bytes.length, chars: kept.length, truncated };
   }

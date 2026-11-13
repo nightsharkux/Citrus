@@ -7,6 +7,8 @@
  * Command types sent today:
  *   room.status      { room, status, note }       door lights, displays
  *   display.message  { text }                     any device with a screen/LED
+ *   class.pulse      { session, status, following, unsure, lost, answered }
+ *                    the live class status in the lecture's room: good · watch · trouble · quiet · off (pucks)
  *   speak            { text }                     voice puck
  *   session.started  { lecturer, course, sessionId }
  *   session.ended    {}

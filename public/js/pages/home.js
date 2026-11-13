@@ -21,13 +21,13 @@ async function load() {
     const [overview, events] = await Promise.all([api.get('/admin/overview'), schedule]);
     return { role, overview, events: events.events };
   }
-  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] }), soft(api.get('/lectures/feed?scope=mine'), { lectures: [] })];
+  const shared = [schedule, soft(api.get('/courses'), { courses: [] }), soft(api.get('/participation'), { sessions: [] }), soft(api.get('/connect/posts'), { posts: [] }), soft(api.get('/lectures/feed?scope=mine'), { lectures: [] }), soft(api.get('/meetings'), { running: [], minutes: [] })];
   if (role === 'student') {
-    const [events, courses, participation, feed, live, review] = await Promise.all([...shared, soft(api.get('/review'), { stats: { dueNow: 0 }, due: [] })]);
-    return { role, events: events.events, courses: courses.courses.filter((c) => c.enrolled), participation: participation.sessions, posts: feed.posts, live, review };
+    const [events, courses, participation, feed, live, meetings, review] = await Promise.all([...shared, soft(api.get('/review'), { stats: { dueNow: 0 }, due: [] })]);
+    return { role, events: events.events, courses: courses.courses.filter((c) => c.enrolled), participation: participation.sessions, posts: feed.posts, live, meetings, review };
   }
-  const [events, courses, participation, feed, live, activations] = await Promise.all([...shared, soft(api.get('/activations'), { activations: [] })]);
-  return { role, events: events.events, courses: courses.courses, participation: participation.sessions, posts: feed.posts, live, activations: activations.activations };
+  const [events, courses, participation, feed, live, meetings, activations] = await Promise.all([...shared, soft(api.get('/activations'), { activations: [] })]);
+  return { role, events: events.events, courses: courses.courses, participation: participation.sessions, posts: feed.posts, live, meetings, activations: activations.activations };
 }
 
 function heroFor(data) {
@@ -64,17 +64,17 @@ function quickActions(data) {
   if (data.role === 'lecturer') {
     return [
       ['/lectures', 'presentation', 'Go live', 0],
-      ['/participation?new=1', 'clipboard', 'Check-in', 0],
-      ['/classroom', 'door', 'Room status', 0],
-      ['/schedule', 'calendar', 'Schedule', 0],
+      ['/participation?new=1', 'nfc', 'Check-in', 0],
+      ['/meetings', 'message', 'Meeting', (data.meetings?.running || []).length],
+      ['/courses', 'trending', 'How it went', 0],
       ['/assistant', 'campus', 'Ask', 0],
     ];
   }
   return [
     ['/join', 'presentation', 'Join lecture', 0],
-    ['/participation', 'clipboard', 'Check in', openSessions],
-    ['/learning', 'graduation', 'Review', data.review?.stats?.dueNow || 0],
-    ['/schedule', 'calendar', 'Schedule', 0],
+    ['/participation', 'nfc', 'Check in', openSessions],
+    ['/learning', 'trending', 'My progress', data.review?.stats?.dueNow || 0],
+    ['/meetings', 'message', 'Meeting', (data.meetings?.running || []).length],
     ['/assistant', 'campus', 'Ask', 0],
   ];
 }
@@ -131,6 +131,40 @@ function lecturesCard(feed) {
   </section>`;
 }
 
+/**
+ * What Campus OS is for, once, for new people: the classroom loop in three lines. Dismissed for good on this device.
+ */
+const INTRO_KEY = 'campus-intro-dismissed';
+function introCard(role) {
+  try {
+    if (localStorage.getItem(INTRO_KEY)) return '';
+  } catch {
+    /* no storage: show it */
+  }
+  const lines = role === 'student'
+    ? [['presentation', 'In lectures', 'Tell your lecturer how you’re following and flag the moments you need help with. Nobody sees your name.'],
+      ['trending', 'Afterwards', 'See where you got stuck, get each flag explained and practise it.'],
+      ['nfc', 'Check in', 'Tap your student ID on the reader, or type the code.']]
+    : [['presentation', 'While you teach', 'See live how the class follows, on screen and on the Campus Puck, and explain again when it turns red.'],
+      ['trending', 'Afterwards', 'Review where the class struggled and what was being said, to improve the explanation.'],
+      ['nfc', 'Participation', 'Students tap their student ID; you confirm.']];
+  return html`<section class="card intro-card" data-intro>
+    <div class="spread"><h2>What Campus OS does</h2><button class="btn btn-ghost btn-icon btn-sm" data-intro-close aria-label="Got it">${icon('x', 16)}</button></div>
+    <div class="intro-grid">${lines.map(([glyph, title, body]) => html`<div><span class="tile accent">${icon(glyph, 18)}</span><strong>${title}</strong><span class="small muted">${body}</span></div>`)}</div>
+    <p class="small muted mt-8">On the side, ask Campus anything about your courses and the university. Everything else is under <a href="/tools">All tools</a>.</p>
+  </section>`;
+}
+
+/** Meeting mode: running meetings to join, or start one. */
+function meetingCard(meetings) {
+  const running = meetings?.running || [];
+  return html`<section class="card meeting-card">
+    <div class="spread"><div><h2>Meetings</h2><p class="small muted">${running.length ? `${running.length === 1 ? 'A meeting is' : `${running.length} meetings are`} running in your spaces.` : 'Campus writes the minutes while you talk.'}</p></div>
+      <a class="btn btn-sm btn-primary" href="/meetings">${icon('play', 14)} Start</a></div>
+    ${running.length ? html`<div class="list mt-8">${running.slice(0, 2).map((m) => html`<a class="list-row" href="/spaces/${m.space.id}/meeting"><span class="tile accent">${icon('message', 16)}</span><span class="body"><span class="title">${m.space.title}</span><span class="sub">Started by ${m.by || 'a member'} ${ago(m.started)}</span></span><span class="trail"><span class="chip success"><span class="dot live"></span>Join</span></span></a>`)}</div>` : ''}
+  </section>`;
+}
+
 /** Recent finished lectures: a student catches up on them (their own recap, a quiz); a lecturer sees where the class got lost. */
 function lastLecturesCard(feed) {
   const lecturer = session.user.role !== 'student';
@@ -147,9 +181,11 @@ function studentBody(data) {
   const open = data.participation.filter((s) => s.open && !s.mine);
   return html`
     ${open.length ? html`<a class="notice accent" href="/participation/${open[0].id}" style="text-decoration:none">${icon('clipboard', 18)}<span><strong>${open[0].code} check-in is open.</strong> ${open[0].title}${open[0].room ? ` · ${open[0].room}` : ''}. Tap to check in.</span></a>` : ''}
+    ${introCard('student')}
     <div class="home-grid">
-      <div class="stack">${lecturesCard(data.live)}${lastLecturesCard(data.live)}</div>
+      <div class="stack">${lastLecturesCard(data.live) || upNext(data)}</div>
       <div class="stack">
+        ${meetingCard(data.meetings)}
         <section class="card">
           <div class="spread"><div><div class="stat-value" data-count="${due}">${due}</div><div class="stat-label">${due === 1 ? 'card to review' : 'cards to review'}</div></div><span class="tile lg success">${icon('graduation', 26)}</span></div>
           <a class="btn ${due ? 'btn-primary' : ''} btn-block mt-16" href="/learning">${due ? 'Start review' : 'Open review'}</a>
@@ -168,9 +204,11 @@ function lecturerBody(data) {
   const recent = data.participation.slice(0, 3);
   return html`
     ${pending.map((a) => html`<a class="notice accent" href="/classroom?activation=${a.id}" style="text-decoration:none">${icon('nfc', 18)}<span><strong>Confirm sign-in at ${a.room || a.device}.</strong> You tapped your card. Tap here to start the session.</span></a>`)}
+    ${introCard('lecturer')}
     <div class="home-grid">
-      <div class="stack">${lecturesCard(data.live)}${lastLecturesCard(data.live)}</div>
+      <div class="stack">${lastLecturesCard(data.live) || upNext(data)}</div>
       <div class="stack">
+        ${meetingCard(data.meetings)}
         <section class="card flush">
           <div class="card-head"><h2>Your courses</h2><a class="btn btn-sm btn-ghost" href="/courses">All ${icon('chevron-right', 16)}</a></div>
           ${data.courses.length ? html`<div class="list" style="padding-bottom:8px">${data.courses.slice(0, 5).map((c) => row({ href: `/courses/${c.id}`, tile: courseTile(c.code), title: c.title, sub: `${c.code} · ${plural(c.enrolled_count || 0, 'student')}` }))}</div>`
@@ -259,6 +297,14 @@ export default {
     ctx.live.on('live.ended', refresh);
 
     const offs = [
+      on(root, 'click', '[data-intro-close]', () => {
+        try {
+          localStorage.setItem(INTRO_KEY, '1');
+        } catch {
+          /* fine: it shows again next time */
+        }
+        $('[data-intro]', root)?.remove();
+      }),
       // Students answer "how am I following" with one tap, right here.
       on(root, 'click', '[data-quick]', async (e, button) => {
         const group = button.closest('[data-session]');

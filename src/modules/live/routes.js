@@ -62,7 +62,7 @@ function byMinute(rows, maxChars = TRANSCRIPT_FOR_AI) {
   return out.trim().slice(-maxChars);
 }
 
-function register(router, { db, ai, access, bus, site, notifier }) {
+function register(router, { db, ai, access, bus, site, notifier, deviceCommands }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
   const moments = createMoments({ db, ai, bus, transcripts });
@@ -98,7 +98,15 @@ function register(router, { db, ai, access, bus, site, notifier }) {
   };
   const activeOf = (courseId) => db.get('SELECT * FROM live_sessions WHERE course_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', courseId);
 
-  /** Six digits no other running lecture at the university uses. */
+  /**
+   * Six digits no other running lecture at the university uses. Reopening a lecture keeps the code it had, so
+   * students who saw it on the screen can come back with it.
+   */
+  function joinCodeFor(institutionId, lectureId) {
+    const before = lectureId ? db.get("SELECT join_code FROM live_sessions WHERE lecture_id = ? AND join_code != '' ORDER BY id DESC LIMIT 1", lectureId) : null;
+    if (before && !db.get('SELECT 1 FROM live_sessions WHERE institution_id = ? AND join_code = ? AND ended IS NULL', institutionId, before.join_code)) return before.join_code;
+    return newJoinCode(institutionId);
+  }
   function newJoinCode(institutionId) {
     for (let i = 0; i < 20; i += 1) {
       const code = String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
@@ -121,7 +129,7 @@ function register(router, { db, ai, access, bus, site, notifier }) {
   const flagCounts = (flags) => Object.fromEntries(FLAG_KINDS.map((k) => [k, flags.filter((f) => f.kind === k).length]));
   const storedLines = (sessionId) => db.get('SELECT COUNT(*) AS n FROM live_transcript WHERE session_id = ?', sessionId).n;
 
-  const publicSession = (s) => ({ id: s.id, course_id: s.course_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript });
+  const publicSession = (s) => ({ id: s.id, course_id: s.course_id, lecture_id: s.lecture_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript });
   const listening = (s) => !s.ended && Date.now() - transcripts.lastAt(s.id) < LISTENING_MS;
 
   /** What Campus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. */
@@ -137,10 +145,25 @@ function register(router, { db, ai, access, bus, site, notifier }) {
     return pulse(signalsOf(s.id), { enrolled: enrolledCount(s.course_id) });
   }
 
+  /**
+   * The class status on the Campus Puck (and any door light or display) in the lecture's room: green, amber or red,
+   * so the lecturer sees at a glance when to explain again. Sent only when the status changes. Counts only.
+   */
+  const lastPuck = new Map();
+  function puck(s, p) {
+    if (!deviceCommands) return 0;
+    const room = s.lecture_id ? db.get('SELECT room FROM lectures WHERE id = ?', s.lecture_id)?.room : '';
+    const status = s.ended ? 'off' : p.status;
+    if (!room || lastPuck.get(s.id) === status) return 0;
+    lastPuck.set(s.id, status);
+    return deviceCommands.toRoom(s.institution_id, room, 'class.pulse', { session: s.id, status, following: p.following, unsure: p.unsure, lost: p.lost, answered: p.answered });
+  }
+
   /** Tell the lecturer's open screens that the pulse moved. Anonymous aggregates only. */
   function announce(s) {
     const p = livePulse(s);
     bus.publish(`user:${s.lecturer_id}`, 'live.pulse', { session: s.id, pulse: p });
+    puck(s, p);
     moments.onPulse(s, p); // when the class tips into trouble, keep that moment for the lecturer's review
   }
 
@@ -197,17 +220,23 @@ function register(router, { db, ai, access, bus, site, notifier }) {
       const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, created) VALUES(?, ?, ?, ?, ?)', course.id, title, isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), isoNow());
       lecture = db.get('SELECT * FROM lectures WHERE id = ?', lectureId);
     }
-    db.run("UPDATE lectures SET status = 'active' WHERE id = ?", lecture.id);
+    // Reopening an ended lecture: a new session with the same code, the same notes and the same transcript choice.
+    const previous = db.get('SELECT * FROM live_sessions WHERE lecture_id = ? ORDER BY id DESC LIMIT 1', lecture.id);
+    const room = text(b.room, { max: 60, optional: true, label: 'Room' });
+    db.run("UPDATE lectures SET status = 'active', ends = CASE WHEN ends IS NULL OR ends < ? THEN ? ELSE ends END WHERE id = ?", isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), lecture.id);
+    if (room) db.run('UPDATE lectures SET room = ? WHERE id = ?', room, lecture.id);
     // Keeping the transcript is the default: it is what lets Campus answer about the lecture afterwards.
-    const keep = b.keep_transcript === false ? 0 : 1;
+    const keep = b.keep_transcript === false ? 0 : b.keep_transcript === true || !previous ? 1 : previous.keep_transcript;
     const sessionId = db.insert(
       'INSERT INTO live_sessions(institution_id, course_id, lecturer_id, lecture_id, title, started, join_code, keep_transcript) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
-      user.institution_id, course.id, user.id, lecture.id, title, isoNow(), newJoinCode(user.institution_id), keep,
+      user.institution_id, course.id, user.id, lecture.id, title, isoNow(), joinCodeFor(user.institution_id, lecture.id), keep,
     );
+    if (previous) db.run('INSERT OR IGNORE INTO live_notes(session_id, attachment_id) SELECT ?, attachment_id FROM live_notes WHERE session_id = ?', sessionId, previous.id);
     attachNotes(user, sessionId, b.notes);
-    bus.publish(`course:${course.id}`, 'live.started', { session: sessionId, title });
+    bus.publish(`course:${course.id}`, 'live.started', { session: sessionId, title, lecture: lecture.id, again: !!previous });
     const students = db.all('SELECT user_id FROM enrollments WHERE course_id = ?', course.id).map((r) => r.user_id);
-    notifier.notify(students, { kind: 'course', title: `${title} is live`, body: `${course.code}. Open it to tell your lecturer how you're following.`, link: `/live/${course.id}` });
+    notifier.notify(students, { kind: 'course', title: previous ? `${title} is live again` : `${title} is live`, body: `${course.code}. Open it to tell your lecturer how you're following.`, link: `/live/${course.id}` });
+    puck(sessionFor(user, sessionId), { status: 'quiet', following: 0, unsure: 0, lost: 0, answered: 0 });
     ctx.status = 201;
     return lecturerView(sessionFor(user, sessionId));
   });
@@ -448,6 +477,37 @@ function register(router, { db, ai, access, bus, site, notifier }) {
     return { ok: true };
   });
 
+  /** One note of a lecture, to show full screen: a picture, a PDF (its pages) or, for other files, the text. */
+  const noteOf = (s, noteId) => {
+    const note = notesOf(s.id).find((n) => n.id === Number(noteId));
+    if (!note) throw notFound('Note not found');
+    return note;
+  };
+  const viewable = (n) => (n.kind === 'image' ? 'image' : n.mime === 'application/pdf' && n.data ? 'pdf' : 'text');
+
+  router.get('/api/live/sessions/:id/notes/:noteId', (ctx) => {
+    const n = noteOf(teaching(ctx.user, ctx.params.id), ctx.params.noteId);
+    const how = viewable(n);
+    return { id: n.id, kind: n.kind, name: n.name, mime: n.mime, viewable: how, ...(how === 'text' ? { text: n.text || '' } : {}) };
+  });
+
+  router.get('/api/live/sessions/:id/notes/:noteId/file', (ctx) => {
+    const n = noteOf(teaching(ctx.user, ctx.params.id), ctx.params.noteId);
+    if (viewable(n) === 'text') throw notFound('This note has no file to show');
+    const bytes = Buffer.from(n.data, 'base64');
+    // Shown inside the app (an iframe for PDFs), so this response may be framed by the app itself, and only by it.
+    ctx.res.writeHead(200, {
+      'Content-Type': n.kind === 'image' ? n.mime : 'application/pdf',
+      'Content-Length': bytes.length,
+      'Content-Disposition': `inline; filename="${n.name.replace(/[^\w. -]+/g, '_')}"`,
+      'Cache-Control': 'private, max-age=3600',
+      'X-Frame-Options': 'SAMEORIGIN',
+      // Only framing is set here: a stricter policy on the PDF itself can stop the browser's PDF viewer from drawing it.
+      'Content-Security-Policy': "frame-ancestors 'self'",
+    });
+    ctx.res.end(bytes);
+  });
+
   router.post('/api/live/sessions/:id/notes', async (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     const b = await ctx.json();
@@ -486,6 +546,8 @@ function register(router, { db, ai, access, bus, site, notifier }) {
     moments.forget(s.id);
     if (s.lecture_id) db.run("UPDATE lectures SET status = 'ended', ends = CASE WHEN ends IS NULL OR ends > ? THEN ? ELSE ends END WHERE id = ?", isoNow(), isoNow(), s.lecture_id);
     const summary = lecturerView(sessionFor(ctx.user, s.id));
+    puck({ ...s, ended: isoNow() }, summary.pulse);
+    lastPuck.delete(s.id);
     bus.publish(`course:${s.course_id}`, 'live.ended', { session: s.id });
     return summary;
   });
