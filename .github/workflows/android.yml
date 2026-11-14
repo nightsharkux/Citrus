@@ -1,0 +1,36 @@
+# Builds the Campus OS Android app (android/) and keeps the APK as a download on the workflow run.
+# Set the repository variable CAMPUS_URL (Settings → Secrets and variables → Actions → Variables) to build the app
+# with your Campus OS address; without it, the app asks for the address the first time it opens.
+name: Android app
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build the APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon -PcampusUrl="${{ vars.CAMPUS_URL }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: campus-os-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

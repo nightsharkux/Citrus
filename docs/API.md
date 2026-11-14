@@ -259,6 +259,10 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/live/sessions/:id/student-ask` | user | any |
 | POST | `/api/live/sessions/:id/transcript` | user | any |
 | GET | `/api/live/sessions/:id/transcript.txt` | user | any |
+| GET | `/api/live/sessions/:id/record.txt` | user | any |
+| POST | `/api/live/sessions/:id/ai-notes` | user | any |
+| POST | `/api/live/sessions/:id/review-chat` | user | any |
+| POST | `/api/live/sessions/:id/audio` | user | any |
 | DELETE | `/api/live/sessions/:id/transcript` | user | any |
 | GET | `/api/live/sessions/:id/notes/:noteId` | user | any |
 | GET | `/api/live/sessions/:id/notes/:noteId/file` | user | any |
@@ -467,6 +471,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 | PATCH | `/api/workspaces/recordings/:id` | user | any |
 | DELETE | `/api/workspaces/recordings/:id` | user | any |
 | POST | `/api/workspaces/:id/live` | user | any |
+| POST | `/api/workspaces/:id/audio` | user | any |
 | POST | `/api/workspaces/:id/captions` | user | any |
 | GET | `/api/workspaces/:id/captions` | user | any |
 | POST | `/api/workspaces/:id/captions/summary` | user | any |

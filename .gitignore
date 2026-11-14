@@ -28,3 +28,13 @@ campusos.tgz
 
 # Python bytecode from scripts/
 __pycache__/
+
+# Android app builds (android/)
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore

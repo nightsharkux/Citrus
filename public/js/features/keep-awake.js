@@ -3,17 +3,18 @@
  * lecture or meeting (that stops the microphone in the browser). Uses the Screen Wake Lock API: Chrome and Edge on
  * Android and computers, Safari on iPhone (16.4+, and in the home-screen app from iOS 18.4).
  *
- * Inside the Campus OS Android app (android/), the app also starts its recording service, which keeps recording
- * with the screen off and after the app is closed (window.CampusNative, see android/README.md).
+ * Inside the Campus OS Android app (android/), it also starts the app's recording service, which keeps recording
+ * with the screen off, in the background and after the app is closed, and sends the audio to `target` to become
+ * transcript lines (features/native.js, android/README.md).
  *
- *   const awake = keepAwake({ label: 'Lecture', target: '/api/live/sessions/12/audio' });
+ *   const awake = keepAwake({ label: 'Lecture · Week 5', target: '/api/live/sessions/12/audio' });
  *   awake.release();
  */
-const native = () => globalThis.CampusNative || null;
+import { native } from './native.js';
 
-export const canKeepAwake = () => !!globalThis.navigator?.wakeLock || !!native();
+export const canKeepAwake = () => !!globalThis.navigator?.wakeLock || native.available();
 /** True inside the Android app, which records in the background on its own. */
-export const recordsInBackground = () => !!native()?.startRecording;
+export const recordsInBackground = () => native.available();
 
 export function keepAwake({ label = 'Campus OS', target = '' } = {}) {
   let lock = null;
@@ -34,11 +35,7 @@ export function keepAwake({ label = 'Campus OS', target = '' } = {}) {
   const onVisible = () => document.visibilityState === 'visible' && request();
   document.addEventListener('visibilitychange', onVisible);
   request();
-  try {
-    native()?.startRecording?.(JSON.stringify({ label, target }));
-  } catch {
-    /* an older app without the recording service */
-  }
+  native.send('start', { label, target });
   return {
     release() {
       if (released) return;
@@ -46,11 +43,7 @@ export function keepAwake({ label = 'Campus OS', target = '' } = {}) {
       document.removeEventListener('visibilitychange', onVisible);
       lock?.release().catch(() => {});
       lock = null;
-      try {
-        native()?.stopRecording?.();
-      } catch {
-        /* nothing to stop */
-      }
+      native.send('stop');
     },
     get held() {
       return !!lock;

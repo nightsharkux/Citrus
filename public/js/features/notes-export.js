@@ -4,9 +4,22 @@
  */
 import { notesPdf, parseMarkdown } from '../core/pdf.js';
 import { parseChart, chartSvg } from '../core/chart.js';
+import { native } from './native.js';
 
-/** Save a file to the device (Downloads on Android and computers, Files on iPhone). */
-export function saveFile(blob, name) {
+/** A file as base64, for the Android app. */
+const base64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = () => reject(reader.error);
+  reader.readAsDataURL(blob);
+});
+
+/** Save a file to the device (Downloads on Android and computers, Files on iPhone; the Android app saves it itself). */
+export async function saveFile(blob, name) {
+  if (native.available()) {
+    native.send('save', { name, mime: blob.type || 'application/octet-stream', data: await base64(blob) });
+    return;
+  }
   const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
   document.body.append(link);
   link.click();
@@ -61,5 +74,5 @@ const accent = () => getComputedStyle(document.documentElement).getPropertyValue
 /** Make the PDF of some notes and save it. `figure`: the minute-by-minute timeline from the lecture record. */
 export async function savePdf({ markdown, name, title = '', subtitle = '', kicker = 'Campus OS', figure = null }) {
   const bytes = notesPdf({ markdown, title, subtitle, kicker, figure, accent: accent(), images: await chartImages(markdown) });
-  saveFile(new Blob([bytes], { type: 'application/pdf' }), name.endsWith('.pdf') ? name : `${name}.pdf`);
+  await saveFile(new Blob([bytes], { type: 'application/pdf' }), name.endsWith('.pdf') ? name : `${name}.pdf`);
 }

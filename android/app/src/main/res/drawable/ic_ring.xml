@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The Campus OS ring, for the launcher icon (adaptive icon foreground, 108 x 108 with a 72 x 72 safe zone). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,31a23,23 0 1,1 0,46a23,23 0 1,1 0,-46"
+        android:strokeWidth="10">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:endX="77"
+                android:endY="77"
+                android:startX="31"
+                android:startY="31"
+                android:type="linear">
+                <item android:color="#FFFF9A4D" android:offset="0" />
+                <item android:color="#FFF2557A" android:offset="0.5" />
+                <item android:color="#FF8B6CFF" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

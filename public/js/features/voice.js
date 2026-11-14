@@ -28,6 +28,7 @@ import { chooseMicrophone, microphoneRoute } from './microphone.js';
 import { wakeMatcher } from './wake-phrase.js';
 import { notePitch, setPitchName } from './pitch.js';
 import { keepAwake } from './keep-awake.js';
+import { native } from './native.js';
 
 const NativeRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let cloudRestUntil = 0;
@@ -671,26 +672,67 @@ export function createListener({ onResult, onSession, onRecovering, onTrouble, o
 
 /** Continuous transcription. onFinal(text) per finished phrase; onInterim(text) while speaking. */
 /**
+ * In the Android app without speech recognition in the page (Android's web view has none, and no cloud
+ * recognition is set up): the app records the whole time and the server writes the transcript from the audio,
+ * about every 30 seconds.
+ */
+function appCaptioner({ label, target, onStop }) {
+  let awake = null;
+  return {
+    start() {
+      if (awake) return;
+      awake = keepAwake({ label, target });
+      native.send('capture');
+      toast('Recording in the app. The transcript is written about every 30 seconds, also with the screen off.', 'info', { duration: 4200 });
+    },
+    stop() {
+      if (!awake) return;
+      awake.release();
+      awake = null;
+      onStop();
+    },
+    get running() {
+      return !!awake;
+    },
+  };
+}
+
+/**
  * Listening through a whole lecture or meeting. Keeps the screen awake while it runs; when the phone locks anyway
  * and the browser stops the microphone, it starts again by itself as soon as the page is visible (the lecture record
  * tags the gap). `label` and `target` go to the Android app's recording service (features/keep-awake.js).
  */
 export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => {}, label = 'Campus OS', target = '' }) {
-  if (voiceProblem()) return null;
+  if (voiceProblem()) return target && native.available() ? appCaptioner({ label, target, onStop }) : null;
   let rec = null;
   let running = false;
   let hearing = false;
   let awake = null;
+  // In the Android app, off screen: the app's recording service has the microphone until the app is back.
+  let handedOver = false;
   let networkFailures = 0;
   const resumeWake = wake.enabled;
   const onVisible = () => {
-    if (document.visibilityState === 'visible' && running && !hearing) start();
+    if (document.visibilityState === 'visible' && running && !hearing && !handedOver) start();
+  };
+  const onApp = (event) => {
+    if (!running) return;
+    handedOver = event.type === 'campus-native-background';
+    if (handedOver) {
+      try {
+        rec?.stop();
+      } catch {
+        /* already stopped */
+      }
+    } else if (!hearing) start();
   };
   const start = () => {
     if (!running && resumeWake) wake.pause();
     if (!running) {
       awake = keepAwake({ label, target });
       document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('campus-native-background', onApp);
+      window.addEventListener('campus-native-foreground', onApp);
     }
     running = true;
     hearing = true;
@@ -722,7 +764,7 @@ export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => 
     rec.onend = () => {
       hearing = false;
       // Locked or in the background: the browser will not listen now; carry on when the page is back.
-      if (running && document.visibilityState === 'hidden') return;
+      if (running && (document.visibilityState === 'hidden' || handedOver)) return;
       if (running) setTimeout(() => running && !hearing && start(), networkFailures ? Math.min(8000, 500 * 2 ** networkFailures) : 250);
       else finish();
     };
@@ -735,6 +777,9 @@ export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => 
   /** Stopped for good (by the user, or the microphone was blocked): let the screen sleep again. */
   const finish = () => {
     document.removeEventListener('visibilitychange', onVisible);
+    window.removeEventListener('campus-native-background', onApp);
+    window.removeEventListener('campus-native-foreground', onApp);
+    handedOver = false;
     awake?.release();
     awake = null;
     if (resumeWake) wake.resume();
