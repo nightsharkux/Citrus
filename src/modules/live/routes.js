@@ -41,6 +41,7 @@ const { badRequest, forbidden, notFound, conflict, unavailable, tooMany } = requ
 const { liveAskPrompt, liveStudentAskPrompt, liveFlagExplainPrompt, lectureNotesPrompt, lectureReviewPrompt, lectureQuickTakePrompt, FLAG_LABELS } = require('../../ai/prompts');
 const { recordText, recordSummary, transcriptText } = require('./record');
 const { createRecordSource } = require('./record-source');
+const { topicFilesText } = require('../courses/sections');
 const { readAudio, transcribe, spread } = require('../speech/transcribe');
 const { createRateLimiter } = require('../../http/rate-limit');
 const { assistantNameFor } = require('../account/preferences');
@@ -135,6 +136,15 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     `SELECT a.id, a.kind, a.name, a.mime, a.size, a.text, a.data FROM live_notes n JOIN assistant_attachments a ON a.id = n.attachment_id WHERE n.session_id = ?`,
     sessionId,
   );
+  /**
+   * What Campus reads as the lecture's notes: the files the lecturer added to the lecture, plus the readable files
+   * of the course topic the lecture belongs to (and the topics around it).
+   */
+  const notesFor = (s) => {
+    const seen = attachments.forModel(notesOf(s.id));
+    const topic = topicFilesText(db, s.lecture_id);
+    return topic ? { ...seen, blocks: [...seen.blocks, topic] } : seen;
+  };
   /** Flags without names: what the lecturer and the AI see. */
   const flagsOf = (sessionId) => db.all('SELECT id, kind, minute, note, created FROM live_flags WHERE session_id = ? ORDER BY id', sessionId);
   const flagCounts = (flags) => Object.fromEntries(FLAG_KINDS.map((k) => [k, flags.filter((f) => f.kind === k).length]));
@@ -239,7 +249,9 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     }
     const title = text(b.title, { max: 120, optional: true, label: 'Title' }) || lecture?.topic || `${course.code} lecture`;
     if (!lecture) {
-      const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, created) VALUES(?, ?, ?, ?, ?)', course.id, title, isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), isoNow());
+      // "Go live" inside a topic of the course outline: the new lecture belongs to that topic.
+      const section = b.section_id ? db.get('SELECT id FROM course_sections WHERE id = ? AND course_id = ?', id(b.section_id, 'Topic'), course.id) : null;
+      const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, created, section_id) VALUES(?, ?, ?, ?, ?, ?)', course.id, title, isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), isoNow(), section?.id || null);
       lecture = db.get('SELECT * FROM lectures WHERE id = ?', lectureId);
     }
     // Reopening an ended lecture: a new session with the same code, the same notes and the same transcript choice.
@@ -416,7 +428,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     if (!flag) throw notFound('Flag not found');
     if (flag.explanation) return { id: flag.id, explanation: flag.explanation };
     if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
-    const seen = attachments.forModel(notesOf(s.id));
+    const seen = notesFor(s);
     const heard = heardText(s, { from: flag.minute - 4, to: flag.minute + 1, maxChars: 6000 });
     const turn = { text: [`<TRANSCRIPT>\n${heard || '(nothing was heard around this minute)'}\n</TRANSCRIPT>`, ...seen.blocks].join('\n\n'), images: seen.images };
     const explanation = String(await ai.complete({ user, system: liveFlagExplainPrompt({ kind: flag.kind, note: flag.note, minute: flag.minute, language: language(user) }), prompt: turn, maxTokens: 600, task: 'search' })).trim();
@@ -432,7 +444,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     const question = text(b.question, { min: 2, max: 600, label: 'Question' });
     if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
     const course = db.get('SELECT code, title FROM courses WHERE id = ?', s.course_id);
-    const seen = attachments.forModel(notesOf(s.id));
+    const seen = notesFor(s);
     const heard = heardText(s);
     const flags = db.all('SELECT kind, minute, note FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, user.id)
       .map((f) => `minute ${f.minute}: ${FLAG_LABELS[f.kind]}${f.note ? ` · "${f.note}"` : ''}`);
@@ -546,7 +558,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     if (!ai.status(user).aiEnabled) throw unavailable('Notes are written by the AI, which is not connected yet. The .txt record works without it.');
     if (!notesWriting.hit(user.id)) throw tooMany('Campus is still writing. Wait a minute and try again.');
     const record = recordOf(user, s, audience, { studentId: forStudent || user.id });
-    const seen = attachments.forModel(notesOf(s.id));
+    const seen = notesFor(s);
     const heard = audience === 'student' && s.keep_transcript ? heardText(s, { maxChars: 30_000 }) : '';
     const prompt = {
       text: [`<RECORD>\n${recordText({ ...record, notes: [] }).slice(0, 110_000)}\n</RECORD>`, heard ? `<TRANSCRIPT>\n${heard}\n</TRANSCRIPT>` : '', ...seen.blocks].filter(Boolean).join('\n\n'),
@@ -580,7 +592,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
       .slice(-12)
       .map((h) => ({ role: h.role, content: h.content.slice(0, 8000) }));
     const record = recordOf(user, s, 'lecturer');
-    const seen = attachments.forModel(notesOf(s.id));
+    const seen = notesFor(s);
     const system = `${lectureReviewPrompt({ user, assistantName: assistantNameFor(user, site), title: s.title, course: record.meta.course, language: language(user) })}\n\n<RECORD>\n${recordText({ ...record, notes: [] }).slice(0, 110_000)}\n</RECORD>`;
     const answer = await ai.complete({ user, system, prompt: { text: [message, ...seen.blocks].join('\n\n'), images: seen.images }, history, maxTokens: 3000, task: 'chat' });
     return { answer: String(answer).trim() };
@@ -659,7 +671,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
 
     const course = db.get('SELECT code, title FROM courses WHERE id = ?', s.course_id);
     const view = lecturerView(s);
-    const seen = attachments.forModel(notesOf(s.id));
+    const seen = notesFor(s);
     const heard = transcripts.recent(s.id) || heardText(s, { from: minuteOf(s) - 8 });
     const system = liveAskPrompt({
       user, assistantName: assistantNameFor(user, site), course, title: s.title,

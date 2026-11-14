@@ -9,6 +9,7 @@
 const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
+const { registerSections } = require('./sections');
 
 /**
  * The optional time and room of a lecture: starts (an ISO time), duration_minutes (default 60, up to 8 hours), room.
@@ -28,6 +29,7 @@ function readSchedule(b) {
 function register(router, { db, access, bus, notifier, audit, rooms }) {
   const now = () => new Date().toISOString();
   const touchCourse = (courseId) => bus.publish(`course:${courseId}`, 'course.updated', { courseId });
+  registerSections(router, { db, access, bus }); // topics, files and links: the course page as an outline
 
   /** Full course view for one user; polls hide the correct answer from students until they answer. */
   function snapshot(user, course) {
@@ -159,7 +161,10 @@ function register(router, { db, access, bus, notifier, audit, rooms }) {
     const b = await ctx.json();
     const topic = text(b.topic, { min: 3, max: 160, label: 'Lecture title' });
     const when = readSchedule(b);
-    const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, room, created) VALUES(?, ?, ?, ?, ?, ?)', course.id, topic, when.starts, when.ends, when.room, now());
+    // A lecture can belong to a topic of the course outline (or to the whole course).
+    const sectionId = b.section_id === undefined || b.section_id === null || b.section_id === '' ? null : db.get('SELECT id FROM course_sections WHERE id = ? AND course_id = ?', id(b.section_id, 'Topic'), course.id)?.id;
+    if (sectionId === undefined) throw badRequest('That topic is not in this course');
+    const lectureId = db.insert('INSERT INTO lectures(course_id, topic, starts, ends, room, created, section_id) VALUES(?, ?, ?, ?, ?, ?, ?)', course.id, topic, when.starts, when.ends, when.room, now(), sectionId);
     audit(ctx.user, 'lecture_created', lectureId);
     touchCourse(course.id);
     if (when.starts) {

@@ -108,7 +108,7 @@ export function lectureChart(record, { student = false } = {}) {
 
   // Time along the bottom.
   const step = dur > 5400 ? 15 : dur > 2700 ? 10 : 5;
-  for (let t = 0; t <= dur; t += step * 60) out.push(`<text x="${xt(t).toFixed(1)}" y="${H - 6}" class="lc-axis" text-anchor="${t === 0 ? 'start' : 'middle'}">${Math.round(t / 60)} min</text>`);
+  for (let t = 0; t <= dur; t += step * 60) out.push(`<text x="${xt(t).toFixed(1)}" y="${H - 6}" class="lc-axis" text-anchor="${t === 0 ? 'start' : dur - t < step * 30 ? 'end' : 'middle'}">${Math.round(t / 60)} min</text>`);
   out.push('</svg>');
   return out.join('');
 }

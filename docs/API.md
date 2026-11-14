@@ -140,10 +140,22 @@ State-changing browser requests must be same-origin (CSRF protection).
 | PATCH | `/api/connect/preferences` | user | any |
 | POST | `/api/connect/command` | user | any |
 
+## course-items
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| PATCH | `/api/course-items/:id` | user | any |
+| DELETE | `/api/course-items/:id` | user | any |
+| GET | `/api/course-items/:id/file` | user | any |
+
 ## courses
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
+| GET | `/api/courses/:id/outline` | user | any |
+| POST | `/api/courses/:id/sections` | user | any |
+| POST | `/api/courses/:id/files` | user | any |
+| POST | `/api/courses/:id/links` | user | any |
 | GET | `/api/courses` | user | any |
 | POST | `/api/courses` | user | lecturer, admin |
 | PATCH | `/api/courses/:id` | user | lecturer, admin |
@@ -227,6 +239,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
+| PATCH | `/api/lectures/:id/section` | user | any |
 | PATCH | `/api/lectures/:id` | user | any |
 | POST | `/api/lectures/:id/topics` | user | any |
 | GET | `/api/lectures/feed` | user | any |
@@ -259,6 +272,9 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/live/sessions/:id/student-ask` | user | any |
 | POST | `/api/live/sessions/:id/transcript` | user | any |
 | GET | `/api/live/sessions/:id/transcript.txt` | user | any |
+| POST | `/api/live/sessions/:id/share` | user | any |
+| POST | `/api/live/sessions/:id/quick-take` | user | any |
+| POST | `/api/live/sessions/:id/students/:userId/message` | user | any |
 | GET | `/api/live/sessions/:id/record.txt` | user | any |
 | POST | `/api/live/sessions/:id/ai-notes` | user | any |
 | POST | `/api/live/sessions/:id/review-chat` | user | any |
@@ -401,6 +417,13 @@ State-changing browser requests must be same-origin (CSRF protection).
 | DELETE | `/api/revision/:id` | user | any |
 | POST | `/api/revision` | user | any |
 | POST | `/api/revision/:id/result` | user | any |
+
+## sections
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| PATCH | `/api/sections/:id` | user | any |
+| DELETE | `/api/sections/:id` | user | any |
 
 ## speech
 

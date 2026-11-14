@@ -11,6 +11,7 @@ import { whenLine } from './lectures.js';
 import { shortDate, plural } from '../core/format.js';
 import { sheet, onSubmit, toast, toastError, confirm, menu, busy } from '../core/ui.js';
 import { debounce } from '../core/live.js';
+import { outlineView, mountOutline } from '../features/course-outline.js';
 
 const LEVELS = [[1, 'Lost'], [2, 'Getting there'], [3, 'Got it']];
 const LETTERS = 'ABCDE';
@@ -58,7 +59,7 @@ function topicView(t, teacher) {
 }
 
 function lectureView(l, teacher) {
-  return html`<section class="card lecture">
+  return html`<section class="card lecture" id="lecture-${l.id}">
     <div class="card-head">
       <div><h2>${l.topic}</h2><p class="small muted">${l.starts ? whenLine(l) : shortDate(l.created)} · ${plural(l.topics.length, 'topic')}</p></div>
       <div class="cluster">${l.live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course_id}">${teacher ? 'Resume' : 'Join'}</a><span class="chip success"><span class="dot live"></span>Live</span>`
@@ -73,7 +74,8 @@ function lectureView(l, teacher) {
 export default {
   title: (d) => d.course.code,
   async load(ctx) {
-    return api.get(`/courses/${ctx.params.id}`);
+    const [data, outline] = await Promise.all([api.get(`/courses/${ctx.params.id}`), api.get(`/courses/${ctx.params.id}/outline`).catch(() => null)]);
+    return { ...data, outline };
   },
   render(data) {
     const { course, lectures, isTeacher } = data;
@@ -90,6 +92,8 @@ export default {
       })}
       ${student ? html`<div class="notice" style="margin-bottom:20px">${icon('lock', 18)}<span>Your ratings are private. Your lecturer only sees totals for the whole class.</span></div>` : ''}
       <div class="stack stagger">
+        ${outlineView(data.outline)}
+        ${lectures.length ? html`<h2 class="section-title">Lectures and concept checks</h2>` : ''}
         ${lectures.length ? lectures.map((l) => lectureView(l, isTeacher)) : html`<div class="card">${empty({ icon: 'presentation', title: 'No lectures yet', body: isTeacher ? 'Create a lecture, then add topics as you go.' : 'Your lecturer hasn’t published anything yet.', action: isTeacher ? html`<button class="btn btn-primary" data-new-lecture>Create first lecture</button>` : '' })}</div>`}
       </div>`;
   },
@@ -202,6 +206,10 @@ export default {
       ])),
     ];
     ctx.live.on('course.updated', debounce((d) => d.courseId === id && ctx.refresh(), 600));
-    return () => offs.forEach((off) => off());
+    const outlineOff = mountOutline(root, data.outline, ctx);
+    return () => {
+      offs.forEach((off) => off());
+      outlineOff();
+    };
   },
 };

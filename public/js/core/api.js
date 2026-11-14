@@ -39,8 +39,8 @@ export const api = {
   del: (path, options) => request('DELETE', path, undefined, options),
 
   /** Upload raw bytes (e.g. an audio recording). */
-  async upload(path, blob) {
-    const res = await fetch(`/api${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': blob.type.split(';')[0] }, body: blob });
+  async upload(path, blob, headers = {}) {
+    const res = await fetch(`/api${path}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': blob.type.split(';')[0] || 'application/octet-stream', ...headers }, body: blob });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new ApiError(data.error || 'Upload failed', res.status, data);
     return data;
