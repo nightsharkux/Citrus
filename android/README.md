@@ -34,15 +34,16 @@ Needs JDK 17 or newer and the Android SDK (Android Studio installs both).
 
 ```sh
 cd android
-./gradlew assembleDebug                                              # asks for the address on first start
-./gradlew assembleDebug -PcampusUrl=https://campus.example.edu      # or with your address built in
+./gradlew assembleDebug                                              # opens the live site, https://campusos-mdu.vercel.app
+./gradlew assembleDebug -PcampusUrl=https://campus.example.edu      # or another server
+./gradlew assembleDebug -PcampusUrl=                                 # or ask for the address on first start
 ```
 
 The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Copy it to the phone and open it (allow installing
 from this source when Android asks).
 
-GitHub builds it too: **Actions → Android app → the latest run → Artifacts → campus-os-android**. Set the repository
-variable `CAMPUS_URL` to build it with your address.
+GitHub builds it too: **Actions → Android app → the latest run → Artifacts → campus-os-android**. It opens the live
+site (`campusUrl` in `gradle.properties`); set the repository variable `CAMPUS_URL` to build it for another server.
 
 The debug build is signed with a debug key, which is fine for installing it yourself. For the Play Store, make a
 release key and build `assembleRelease`; never commit the key (`*.jks` and `*.keystore` are ignored).

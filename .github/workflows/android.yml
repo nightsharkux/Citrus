@@ -26,9 +26,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Build the APK
+        env:
+          CAMPUS_URL: ${{ vars.CAMPUS_URL }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon -PcampusUrl="${{ vars.CAMPUS_URL }}"
+          # The address in gradle.properties (the live site), unless the repository variable CAMPUS_URL names another.
+          ./gradlew assembleDebug --no-daemon ${CAMPUS_URL:+-PcampusUrl="$CAMPUS_URL"}
       - uses: actions/upload-artifact@v4
         with:
           name: campus-os-android
