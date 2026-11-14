@@ -20,7 +20,8 @@ import { wakeMatcher } from '../features/wake-phrase.js';
 import { notePitch } from '../features/pitch.js';
 import { speechLine } from './meetings.js';
 import { assistantName } from '../core/store.js';
-import { printDocument } from '../features/print.js';
+import { savePdf, saveFile } from '../features/notes-export.js';
+import { takesFor, takeBlob, dropTake, takeName } from '../features/recording-store.js';
 import { KIND, GUIDANCE } from './spaces.js';
 import { faceMark } from '../features/face.js';
 
@@ -142,7 +143,7 @@ function minutesList(d) {
       <span class="cluster" style="--gap:4px">
         <button class="btn btn-ghost btn-icon btn-sm" data-copy-report="${r.id}" aria-label="Copy" title="Copy">${icon('copy', 15)}</button>
         <a class="btn btn-ghost btn-icon btn-sm" href="/api/workspaces/${d.room.id}/reports/${r.id}/minutes.txt" aria-label="Download as text" title="Download as .txt">${icon('download', 15)}</a>
-        <button class="btn btn-ghost btn-icon btn-sm" data-print="${r.id}" aria-label="Print or save as PDF" title="Print or save as PDF">${icon('file', 15)}</button>
+        <button class="btn btn-ghost btn-icon btn-sm" data-print="${r.id}" aria-label="Save as PDF" title="Save as PDF">${icon('file', 15)}</button>
         ${r.mine || d.room.isOwner ? html`<button class="btn btn-ghost btn-icon btn-sm" data-del-report="${r.id}" aria-label="Delete" title="Delete">${icon('trash', 15)}</button>` : ''}</span></summary>
     <div class="prose small mt-8">${markdown(r.report)}</div>
     ${ai && !r.parent_id ? html`<form class="minutes-versions" data-versions="${r.id}">
@@ -176,8 +177,20 @@ function recorderCard() {
       <span class="rec-time"></span>
     </div>
     <label class="check"><input type="checkbox" id="rec-consent"> Everyone present knows this is being recorded and agrees.</label>
-    <p class="hint">Audio is private to you until you share it. The minutes don’t need it: they come from what was said and noted.</p>
+    <p class="hint">Audio is private to you until you share it. The minutes don’t need it: they come from what was said and noted. The screen stays on while recording, and every second is kept on this phone, so closing the app does not lose it.</p>
+    <div data-local-recs></div>
   </section>`;
+}
+
+/** Recordings kept on this phone (not uploaded yet, or the server had no room for audio). */
+async function showLocalTakes(root, workspaceId) {
+  const box = $('[data-local-recs]', root);
+  if (!box) return;
+  const takes = await takesFor(workspaceId);
+  const mins = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  render(box, takes.length ? html`<div class="stack mt-8" style="--gap:6px"><p class="small"><strong>On this phone</strong></p>
+    ${takes.map((t) => html`<div class="spread small local-take"><span>${dateTime(t.started)} · ${mins(t.seconds)} · ${bytes(t.bytes)}</span>
+      <span class="cluster" style="--gap:4px"><button class="btn btn-sm" data-take-save="${t.id}">${icon('download', 14)} Save</button><button class="btn btn-sm btn-ghost btn-icon" data-take-drop="${t.id}" aria-label="Delete from this phone" title="Delete from this phone">${icon('trash', 14)}</button></span></div>`)}</div>` : '');
 }
 
 function meeting(d) {
@@ -246,10 +259,33 @@ function mountRecorder(root, d, ctx) {
   const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
   const recorder = createRecorder({
     workspaceId: d.room.id,
+    title: d.room.title,
     canvas: $('#rec-canvas', root),
     onTick: (s) => ($('#rec-time', root).textContent = fmt(s)),
-    onSaved: (r) => toast(r.warning || 'Recording saved. Find it under Recordings after the meeting.', r.warning ? 'info' : 'success'),
+    onSaved: (r) => {
+      toast(r.warning || 'Recording saved. Find it under Recordings after the meeting.', r.warning ? 'info' : 'success');
+      $('#rec-state', root).textContent = 'Optional';
+    },
+    onKept: () => {
+      toast('Saved to this phone. It also stays listed here until you delete it.', 'info', { duration: 4200 });
+      $('#rec-state', root).textContent = 'Optional';
+      showLocalTakes(root, d.room.id);
+    },
     onError: toastError,
+  });
+  showLocalTakes(root, d.room.id);
+  root.addEventListener('click', async (e) => {
+    const save = e.target.closest?.('[data-take-save]');
+    const drop = e.target.closest?.('[data-take-drop]');
+    if (save) {
+      const take = (await takesFor(d.room.id)).find((t) => t.id === save.dataset.takeSave);
+      const blob = take && (await takeBlob(take.id));
+      if (blob) saveFile(blob, takeName(take));
+    } else if (drop) {
+      if (!(await confirm({ title: 'Delete this recording from the phone?', message: 'Save it first if you still need it.', confirmLabel: 'Delete', danger: true }))) return;
+      await dropTake(drop.dataset.takeDrop);
+      showLocalTakes(root, d.room.id);
+    }
   });
   const setState = (on_) => {
     button.classList.toggle('is-recording', on_);
@@ -288,10 +324,21 @@ function minutesHandlers(root, d, ctx) {
         toastError(error);
       }
     })),
-    on(root, 'click', '[data-print]', (e, b) => {
+    // Minutes as a formatted PDF, made on this device and saved to it.
+    on(root, 'click', '[data-print]', async (e, b) => {
       e.preventDefault();
       const r = d.reports.find((x) => x.id === Number(b.dataset.print));
-      printDocument({ title: `${d.room.title} — minutes`, subtitle: `${dateTime(r.meeting_started || r.created)} · ${r.source} · Review before distributing`, body: markdown(r.report) });
+      try {
+        await savePdf({
+          markdown: r.report,
+          title: `${d.room.title}${r.label ? ` · ${r.label}` : ''}`,
+          subtitle: `${dateTime(r.meeting_started || r.created)} · ${r.source} · Review before distributing`,
+          kicker: 'Campus OS · Meeting minutes',
+          name: `${d.room.title}-${(r.meeting_started || r.created).slice(0, 10)}-${r.label || 'minutes'}`.replace(/[^\w-]+/g, '-').replace(/-+/g, '-'),
+        });
+      } catch (error) {
+        toastError(error);
+      }
     }),
     on(root, 'click', '[data-idea]', (e, b) => {
       const field = b.closest('form').instruction;
@@ -421,6 +468,8 @@ function mountMeeting(root, d, ctx) {
         api.post(`/workspaces/${id}/captions`, { text }).catch(() => {});
       },
       onInterim: (text) => (interim.textContent = text),
+      label: `Meeting · ${d.room.title}`,
+      target: `/api/workspaces/${id}/audio`,
     });
     if (!captioner) {
       return toast('Speech recognition needs Chrome, Edge or Safari. You can still take notes.', 'error');
@@ -618,6 +667,8 @@ function mountLive(root, d, ctx) {
       captioner = createCaptioner({
         onFinal: (text) => text && api.post(`/workspaces/${id}/captions`, { text }).catch(() => {}),
         onInterim: (text) => (interim.textContent = text),
+        label: `Captions · ${d.room.title}`,
+        target: `/api/workspaces/${id}/audio`,
       });
       if (!captioner) return toast('Live captions need Chrome, Edge or Safari.', 'error');
       await busy(b, () => api.post(`/workspaces/${id}/live`, { active: true, reset: !d.captions.captions.length }));

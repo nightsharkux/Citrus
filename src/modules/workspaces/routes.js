@@ -16,6 +16,8 @@ const crypto = require('node:crypto');
 const { text, oneOf, id, optionalId } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, unavailable } = require('../../http/errors');
 const prompts = require('../../ai/prompts');
+const { minutesText } = require('./minutes-text');
+const { readAudio, transcribe, spread } = require('../speech/transcribe');
 
 const KINDS = ['meeting', 'lecture', 'discussion', 'assignment', 'study'];
 const GUIDANCE = ['coach', 'socratic', 'direct', 'assessment'];
@@ -365,14 +367,23 @@ function register(router, { db, config, access, ai, bus, audit }) {
     return { versions: made };
   });
 
-  /** One set of minutes as a plain-text file. */
+  /**
+   * One set of minutes as a plain-text file: instructions any AI can follow, the minutes, and what was noted and said
+   * in that meeting, each line tagged with its time.
+   */
   router.get('/api/workspaces/:id/reports/:reportId/minutes.txt', (ctx) => {
     const w = member(ctx.user, ctx.params.id);
     const report = db.get('SELECT * FROM meeting_reports WHERE id = ? AND workspace_id = ?', id(ctx.params.reportId), w.id);
     if (!report || (report.owner_id !== ctx.user.id && !report.meeting_started)) throw notFound('Minutes not found');
     const name = `${w.title} ${report.meeting_started ? report.meeting_started.slice(0, 10) : ''} ${report.label || 'minutes'}`.replace(/[^\w.-]+/g, '-').replace(/-+/g, '-').slice(0, 90);
+    // The meeting ran from its start until the first minutes were written.
+    const original = report.parent_id ? db.get('SELECT created FROM meeting_reports WHERE id = ?', report.parent_id) : report;
+    const until = new Date(Date.parse(original?.created || report.created) + 60_000).toISOString();
+    const inMeeting = !!report.meeting_started;
+    const notes = inMeeting ? db.all('SELECT n.category, n.content, n.created, u.name AS author FROM workspace_notes n LEFT JOIN users u ON u.id = n.author_id WHERE n.workspace_id = ? AND n.created >= ? AND n.created <= ? ORDER BY n.id LIMIT 400', w.id, report.meeting_started, until) : [];
+    const said = inMeeting ? db.all('SELECT c.text, c.created, u.name AS author FROM live_captions c LEFT JOIN users u ON u.id = c.author_id WHERE c.workspace_id = ? AND c.created >= ? AND c.created <= ? ORDER BY c.id LIMIT 4000', w.id, report.meeting_started, until) : [];
     ctx.res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="${name}.txt"`, 'Cache-Control': 'no-store' });
-    ctx.res.end(`${w.title}${report.label ? ` · ${report.label}` : ''}\n${report.meeting_started ? `Meeting of ${report.meeting_started.slice(0, 16).replace('T', ' ')} UTC` : `Drafted ${report.created.slice(0, 10)}`} · ${report.source}. Review before sending.\n\n${report.report}\n`);
+    ctx.res.end(minutesText({ meeting: { title: w.title, started: report.meeting_started, label: report.label, source: report.source, created: report.created }, report: report.report, notes, said }));
   });
 
   router.delete('/api/workspaces/:id/reports/:reportId', (ctx) => {
@@ -512,6 +523,23 @@ function register(router, { db, config, access, ai, bus, audit }) {
     if (b.active && b.reset) db.run('DELETE FROM live_captions WHERE workspace_id = ?', w.id);
     bus.publish(`workspace:${w.id}`, 'captions.state', { workspaceId: w.id, live: !!b.active });
     return { ok: true, live: !!b.active };
+  });
+
+  /**
+   * Meeting audio from the Android app's background recording (screen off, app closed): transcribed into captions at
+   * the times they were said. The audio is not kept.
+   */
+  router.post('/api/workspaces/:id/audio', async (ctx) => {
+    const w = member(ctx.user, ctx.params.id);
+    if (!w.live) throw badRequest('Live captions are not running');
+    if (!canSpeak(ctx.user, w)) throw forbidden('Only the speaker can add captions');
+    const piece = await readAudio(ctx);
+    const lines = spread(await transcribe({ ai, user: ctx.user, buffer: piece.buffer, mime: piece.mime, language: ctx.user.preferences?.language === 'de' ? 'de' : 'en' }), piece.startedAt, piece.durationMs);
+    for (const line of lines) {
+      const captionId = db.insert('INSERT INTO live_captions(workspace_id, author_id, text, created) VALUES(?, ?, ?, ?)', w.id, ctx.user.id, line.text, line.created);
+      bus.publish(`workspace:${w.id}`, 'caption', { workspaceId: w.id, id: captionId, text: line.text, author: w.meeting_started ? ctx.user.name : '' });
+    }
+    return { lines: lines.length };
   });
 
   router.post('/api/workspaces/:id/captions', async (ctx) => {

@@ -546,6 +546,29 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 .review-moment:first-child { border-top: 0; }
 .review-quote { margin: 10px 0 0; padding: 8px 14px; border-left: 3px solid var(--hairline-strong); color: var(--text-2); font-size: 14px; }
 
+/* The lecture part by part: averages, a bar per part, follow-ups and targets marked. */
+.review-averages { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; padding: 4px 20px 16px; }
+.review-averages > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius); background: var(--fill-1, var(--fill-2)); }
+.review-big { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.review-section { padding: 14px 20px; border-top: 1px solid var(--hairline); }
+.review-section.is-follow, .review-section.is-target { box-shadow: inset 3px 0 0 var(--danger); }
+.review-meter { height: 8px; margin-top: 10px; border-radius: 999px; background: var(--fill-2); overflow: hidden; }
+.review-meter i { display: block; height: 100%; border-radius: inherit; background: var(--text-3, var(--hairline-strong)); transition: width 0.4s ease; }
+.review-meter i.is-good { background: var(--success); }
+.review-meter i.is-watch { background: var(--warning); }
+.review-meter i.is-trouble { background: var(--danger); }
+.review-points-mini { margin: 6px 0 0; padding-left: 18px; color: var(--text-2); }
+.review-notes-ready { padding: 12px 14px; border-radius: var(--radius); background: var(--accent-soft); }
+.review-notes-ready .prose { max-height: 420px; overflow: auto; }
+
+/* Talking the lecture through with Campus. */
+.coach-log { display: grid; gap: 10px; }
+.coach-log:empty { display: none; }
+.coach-msg { padding: 12px 14px; border-radius: 16px; background: var(--fill-2); max-width: 100%; overflow-wrap: anywhere; }
+.coach-msg.is-me { justify-self: end; max-width: 85%; background: var(--accent-soft); white-space: pre-wrap; }
+.coach-idea { cursor: pointer; font: inherit; font-size: 13px; }
+.coach-idea:hover { border-color: var(--accent); }
+
 /* Documents for Campus: the drop zone and the reading progress. */
 .drop-zone { display: grid; justify-items: center; gap: 8px; padding: 36px 20px; text-align: center; border: 2px dashed var(--hairline-strong); cursor: pointer; transition: border-color var(--fast), background var(--fast); }
 .drop-zone:hover, .drop-zone.is-over { border-color: var(--accent); background: var(--accent-soft); }

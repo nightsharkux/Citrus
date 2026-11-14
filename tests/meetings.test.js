@@ -143,7 +143,10 @@ test('meeting mode: start in one tap, questions to Campus are kept, minutes spli
     const file = await app.call('ann', 'GET', `/api/workspaces/${quick.body.id}/reports/${split.body.versions[1].id}/minutes.txt`, undefined, { raw: true });
     assert.equal(file.status, 200);
     assert.match(file.headers.get('content-disposition'), /Without-student-questions\.txt/);
-    assert.match(await file.text(), /Review on Friday/);
+    const minutesFile = await file.text();
+    assert.match(minutesFile, /Review on Friday/);
+    assert.match(minutesFile, /INSTRUCTIONS FOR ANY AI[\s\S]*=== DATA ===[\s\S]*--- MINUTES ---/, 'instructions any AI can follow come first');
+    assert.match(minutesFile, /\[QUESTION t=00:00:\d\d [^\]]+\] Asked Campus: Explain recursion/, 'what was noted, tagged with its time');
     assert.equal((await app.call('ben', 'GET', `/api/workspaces/${quick.body.id}/reports/${split.body.versions[1].id}/minutes.txt`)).status, 403);
     assert.equal((await app.call('ben', 'POST', `/api/workspaces/${quick.body.id}/reports/${ended.body.report.id}/versions`, { instruction: 'only decisions' })).status, 403);
   } finally {
