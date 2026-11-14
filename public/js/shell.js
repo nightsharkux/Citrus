@@ -11,7 +11,7 @@ import { live } from './core/live.js';
 import { toast, sheet, menu } from './core/ui.js';
 import { avatar } from './core/components.js';
 import { navFor, allItems, isActive } from './nav.js';
-import { wordmark } from './core/brand.js';
+import { wordmark, ringMark } from './core/brand.js';
 import { wake, stopSpeaking, isSpeaking } from './features/voice.js';
 import { onSpeakingChange } from './features/speaker.js';
 import { noteAnswered, startPitch } from './features/pitch.js';
@@ -66,7 +66,7 @@ export function mountApp() {
       </div>
       <div class="sidebar-foot">
         ${nav.foot.map(navLink)}
-        ${session.site.logo ? html`<div class="edition-logo"><img src="${session.site.logo}" alt=""><small>Independent concept</small></div>` : ''}
+        ${session.site.tagline ? html`<div class="edition-logo">${ringMark(18)}<small>${session.site.tagline}</small></div>` : ''}
         <button class="profile-chip" data-user-menu>${avatar(u.name)}<span class="body"><strong>${u.name}</strong><small>${roleLabel(u.role)}${u.requested_role === 'lecturer' ? ' · lecturer pending' : ''}</small></span>${icon('more', 18)}</button>
       </div>
     </aside>

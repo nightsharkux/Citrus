@@ -6,13 +6,12 @@
  */
 module.exports = {
   id: 'oth',
-  name: 'Campus OS · OTH Amberg-Weiden',
+  name: 'Campus OS · Student project',
   shortName: 'Campus OS',
   institution: 'OTH Amberg-Weiden — Independent Concept',
   assistant: 'Campus',
   tagline: 'Student project',
-  logo: '/assets/oth-aw-logo.jpg',
-  conceptNotice: 'Independent concept for OTH Amberg-Weiden. Not an official university service.',
+  conceptNotice: 'A student project. Not an official service of OTH Amberg-Weiden.',
   timezone: 'Europe/Berlin',
   palette: {
     accent: '#F07A2E',
