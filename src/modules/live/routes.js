@@ -38,8 +38,9 @@
 const crypto = require('node:crypto');
 const { text, id, integer, oneOf } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict, unavailable, tooMany } = require('../../http/errors');
-const { liveAskPrompt, liveStudentAskPrompt, liveFlagExplainPrompt, lectureNotesPrompt, lectureReviewPrompt, FLAG_LABELS } = require('../../ai/prompts');
-const { buildRecord, recordText, recordSummary } = require('./record');
+const { liveAskPrompt, liveStudentAskPrompt, liveFlagExplainPrompt, lectureNotesPrompt, lectureReviewPrompt, lectureQuickTakePrompt, FLAG_LABELS } = require('../../ai/prompts');
+const { recordText, recordSummary, transcriptText } = require('./record');
+const { createRecordSource } = require('./record-source');
 const { readAudio, transcribe, spread } = require('../speech/transcribe');
 const { createRateLimiter } = require('../../http/rate-limit');
 const { assistantNameFor } = require('../account/preferences');
@@ -199,14 +200,25 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
   function studentView(s, user) {
     const mine = db.get('SELECT level, created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', s.id, user.id);
     const flags = db.all('SELECT id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, user.id);
-    return { session: publicSession(s), mine: mine || null, flags, listening: listening(s), minute: minuteOf(s), present: presentCount(s.id), notes: notesOf(s.id).length };
+    return { session: publicSession(s), mine: mine || null, flags, listening: listening(s), minute: minuteOf(s), present: presentCount(s.id), notes: notesOf(s.id).length, shareName: sharesName(s.id, user.id) };
   }
 
-  /** The student is in the room: counted for the lecturer, once. */
+  /**
+   * The student is in the room: counted for the lecturer, once. Whether they show their name starts as they chose
+   * in their last lecture.
+   */
   function arrive(s, user) {
     if (s.ended || user.role !== 'student') return;
-    const r = db.run('INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined) VALUES(?, ?, ?)', s.id, user.id, isoNow());
+    const last = db.get('SELECT share_name FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1', user.id);
+    const r = db.run('INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, ?)', s.id, user.id, isoNow(), last?.share_name ? 1 : 0);
     if (r?.changes) bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present: presentCount(s.id) });
+  }
+  const sharesName = (sessionId, userId) => !!db.get('SELECT share_name FROM live_attendees WHERE session_id = ? AND user_id = ?', sessionId, userId)?.share_name;
+
+  /** Students who chose to show their name in this lecture: id → { name, email }. */
+  function namedStudents(sessionId) {
+    const rows = db.all('SELECT u.id, u.name, u.email FROM live_attendees a JOIN users u ON u.id = a.user_id WHERE a.session_id = ? AND a.share_name = 1 ORDER BY u.name', sessionId);
+    return new Map(rows.map((r) => [r.id, { name: r.name, email: r.email }]));
   }
 
   // ---- routes ----------------------------------------------------------------------------------------------
@@ -305,7 +317,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     const s = teaching(ctx.user, ctx.params.id);
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
     const flags = flagsOf(s.id).map((f) => ({ ...f, excerpt: s.keep_transcript ? heardText(s, { from: f.minute - 1, to: f.minute, maxChars: 500 }) : '' }));
-    return { ...lecturerView(s), flags, course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer')) };
+    return { ...lecturerView(s), flags, course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer'), { detail: true }) };
   });
 
   /**
@@ -332,7 +344,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
       // Campus can answer about this lecture when it kept what it heard.
       canAsk: !!s.keep_transcript && storedLines(s.id) > 0,
       // Their own results, section by section, next to the class average: what to work on.
-      record: recordSummary(recordOf(ctx.user, s, 'student')),
+      record: recordSummary(recordOf(ctx.user, s, 'student'), { detail: true }),
+      shareName: sharesName(s.id, ctx.user.id),
     };
   });
 
@@ -450,21 +463,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
   const audienceOf = (user, s) => (access.teachingCourse(user, s.course_id) ? 'lecturer' : 'student');
 
   /** Everything that happened in the lecture, as the record for the lecturer or for one student. */
-  function recordOf(user, s, audience) {
-    const course = db.get('SELECT code, title FROM courses WHERE id = ?', s.course_id);
-    const student = audience === 'student';
-    return buildRecord({
-      session: s, course, audience, userId: user.id,
-      lecturer: db.get('SELECT name FROM users WHERE id = ?', s.lecturer_id)?.name || '',
-      enrolled: enrolledCount(s.course_id),
-      transcript: student || !s.keep_transcript ? [] : db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', s.id),
-      signals: signalsOf(s.id),
-      flags: db.all('SELECT user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? ORDER BY id', s.id),
-      struggles: db.all("SELECT lost, unsure, answered, note, created FROM live_moments WHERE session_id = ? AND kind = 'struggle' ORDER BY id", s.id),
-      points: db.all("SELECT note AS text, created FROM live_moments WHERE session_id = ? AND kind = 'point' ORDER BY id", s.id),
-      notes: student ? [] : notesOf(s.id).map((n) => ({ name: n.name, text: n.text })),
-    });
-  }
+  const records = createRecordSource({ db, access });
+  const recordOf = (user, s, audience, { studentId = user.id } = {}) => records.load(s, { audience, studentId });
   const fileBase = (s) => {
     const course = db.get('SELECT code FROM courses WHERE id = ?', s.course_id);
     return `${course.code}-${s.title}-${s.started.slice(0, 10)}`.replace(/[^\w-]+/g, '-').replace(/-+/g, '-').slice(0, 80);
@@ -474,11 +474,52 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     ctx.res.end(body);
   }
 
-  /** The lecture record with the kept transcript, for its lecturer. Gone once the transcript is deleted. */
+  /** The plain transcript (with its own short instructions), for its lecturer. Gone once the transcript is deleted. */
   router.get('/api/live/sessions/:id/transcript.txt', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     if (!storedLines(s.id)) throw notFound(s.keep_transcript ? 'Nothing was heard in this lecture.' : 'The transcript of this lecture was not kept.');
-    sendText(ctx, `${fileBase(s)}-transcript.txt`, recordText(recordOf(ctx.user, s, 'lecturer')));
+    sendText(ctx, `${fileBase(s)}-transcript.txt`, transcriptText(recordOf(ctx.user, s, 'lecturer')));
+  });
+
+  /** A student shows (or hides) their name to the lecturer, with their answers and flags in this lecture. */
+  router.post('/api/live/sessions/:id/share', async (ctx) => {
+    const user = ctx.user;
+    const s = attending(user, ctx.params.id);
+    const b = await ctx.json();
+    const share = b.share === true ? 1 : 0;
+    db.run('INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, ?)', s.id, user.id, isoNow(), share);
+    db.run('UPDATE live_attendees SET share_name = ? WHERE session_id = ? AND user_id = ?', share, s.id, user.id);
+    return { share: !!share };
+  });
+
+  /**
+   * Campus's quick take for the lecturer: the few points worth discussing or acting on, each tied to its time and
+   * part, before the full notes or a conversation.
+   */
+  router.post('/api/live/sessions/:id/quick-take', async (ctx) => {
+    const user = ctx.user;
+    const s = teaching(user, ctx.params.id);
+    if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
+    if (!notesWriting.hit(user.id)) throw tooMany('Campus is still thinking. Wait a minute and try again.');
+    const record = recordOf(user, s, 'lecturer');
+    const system = lectureQuickTakePrompt({ language: language(user), title: s.title });
+    const answer = await ai.complete({ user, system, prompt: `<RECORD>\n${recordText({ ...record, notes: [] }).slice(0, 110_000)}\n</RECORD>`, maxTokens: 700, task: 'chat' });
+    return { markdown: String(answer).trim() };
+  });
+
+  /**
+   * The lecturer helps one student who chose to show their name: a message from the lecturer, for example to talk
+   * after class or to say notes are coming. Arrives as a notification that opens the student's recap.
+   */
+  router.post('/api/live/sessions/:id/students/:userId/message', async (ctx) => {
+    const user = ctx.user;
+    const s = teaching(user, ctx.params.id);
+    const studentId = id(ctx.params.userId, 'Student');
+    if (!sharesName(s.id, studentId)) throw forbidden('This student has not shown their name in this lecture');
+    const b = await ctx.json();
+    const message = text(b.text, { min: 2, max: 600, label: 'Message' });
+    notifier.notify([studentId], { kind: 'course', title: `${user.name.split(' ')[0]}: ${s.title}`, body: message, link: `/lectures/review/${s.id}` });
+    return { ok: true };
   });
 
   /** The tagged record as .txt, with the instructions any AI follows. A student gets only their own results. */
@@ -496,10 +537,15 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
   router.post('/api/live/sessions/:id/ai-notes', async (ctx) => {
     const user = ctx.user;
     const s = joined(user, ctx.params.id);
-    const audience = audienceOf(user, s);
+    const b = await ctx.json();
+    // A lecturer may ask for the study notes of one student who showed their name, to give to them.
+    const forStudent = b.student_id !== undefined && b.student_id !== null ? id(b.student_id, 'Student') : null;
+    const lecturer = audienceOf(user, s) === 'lecturer';
+    if (forStudent && (!lecturer || !sharesName(s.id, forStudent))) throw forbidden('This student has not shown their name in this lecture');
+    const audience = lecturer && !forStudent ? 'lecturer' : 'student';
     if (!ai.status(user).aiEnabled) throw unavailable('Notes are written by the AI, which is not connected yet. The .txt record works without it.');
     if (!notesWriting.hit(user.id)) throw tooMany('Campus is still writing. Wait a minute and try again.');
-    const record = recordOf(user, s, audience);
+    const record = recordOf(user, s, audience, { studentId: forStudent || user.id });
     const seen = attachments.forModel(notesOf(s.id));
     const heard = audience === 'student' && s.keep_transcript ? heardText(s, { maxChars: 30_000 }) : '';
     const prompt = {
@@ -509,7 +555,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     const system = lectureNotesPrompt({ audience, language: language(user), assistantName: assistantNameFor(user, site), title: s.title, course: record.meta.course });
     const markdown = String(await ai.complete({ user, system, prompt, maxTokens: 5000, task: 'chat' })).trim();
     if (!markdown) throw unavailable('Campus could not write the notes this time. Try again.');
-    const name = `${fileBase(s)}-${audience === 'student' ? 'my-notes' : 'lecture-notes'}`;
+    const who = forStudent ? namedStudents(s.id).get(forStudent)?.name || 'student' : '';
+    const name = `${fileBase(s)}-${forStudent ? `notes-for-${who.replace(/[^\w-]+/g, '-')}` : audience === 'student' ? 'my-notes' : 'lecture-notes'}`;
     return {
       audience, name, markdown,
       record: recordSummary(record),

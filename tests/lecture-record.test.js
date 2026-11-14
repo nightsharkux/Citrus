@@ -38,7 +38,7 @@ test('the record ties every result to its second and section, and averages are t
   assert.match(txt, /=== INSTRUCTIONS FOR ANY AI/);
   assert.match(txt, /\[AVERAGE scope=lecture\] understood=\d+% status=\w+/);
   assert.match(txt, /\[AVERAGE scope=P2\] understood=\d+% lowest=\d+% status=trouble flags=2 #follow-up/);
-  assert.match(txt, /\[MINUTE 8 P2\] understood=\d+% answered=\d+ status=trouble #follow-up/);
+  assert.match(txt, /\[MINUTE 8 P2\] understood=\d+% answered=\d+ following=0 unsure=\d+ lost=\d+ status=trouble #follow-up/);
   assert.match(txt, /\[CLASS t=00:07:01 P2\] following=0 unsure=0 lost=3 answered=3 understood=0% status=trouble #follow-up/);
   assert.match(txt, /\[SAY t=00:06:50 P2\] The characteristic polynomial/);
   assert.match(txt, /\[FLAG t=00:06:55 P2\] kind=didnt-get-this note="what is lambda\?" #follow-up/);
@@ -166,6 +166,75 @@ test('lecturer and students download their record, Campus writes notes from it, 
     // A student's private question sees their own results.
     await app.call('ann', 'POST', `/api/live/sessions/${sid}/student-ask`, { question: 'What should I review?' });
     assert.match(JSON.stringify(fixture.state.calls.at(-1).messages.at(-1).content), /<MY_RESULTS>[\s\S]*target=P2/);
+
+    // Ask Campus, the general assistant, knows the lecture when it is named or linked.
+    const before = fixture.state.calls.length;
+    assert.equal((await app.call('prof', 'POST', '/api/assistant/messages', { prompt: 'What went wrong in my last lecture?' })).status, 200);
+    const asked = fixture.state.calls.slice(before).map((c) => c.messages[0].content).find((c) => /LECTURE RECORD/.test(c));
+    assert.ok(asked, 'the lecture record is in the assistant\'s context');
+    assert.match(asked, /Eigenvalues[\s\S]*\[SAY t=00:00:30 P1\] Eigenvectors keep/);
+    const mark = fixture.state.calls.length;
+    await app.call('ann', 'POST', '/api/assistant/messages', { prompt: 'Explain my results', lecture_id: sid });
+    const hers = fixture.state.calls.slice(mark).map((c) => c.messages[0].content).find((c) => /LECTURE RECORD/.test(c));
+    assert.match(hers, /MY LECTURE RECORD[\s\S]*\[YOU t=00:05:00 P2\] lost/);
+    assert.doesNotMatch(hers, /characteristic polynomial|ben asks privately/, 'a student gets only their own record');
+    const other = fixture.state.calls.length;
+    await app.call('newbie', 'POST', '/api/assistant/messages', { prompt: 'Tell me about it', lecture_id: sid });
+    assert.ok(!fixture.state.calls.slice(other).some((c) => /LECTURE RECORD/.test(c.messages[0].content)), 'not a lecture they took part in');
+  } finally {
+    await app.close();
+  }
+});
+
+test('a student may show their name: the lecturer then sees their answers and can help them personally', async () => {
+  const fixture = gateway();
+  const { app, courseId } = await setup(fixture);
+  try {
+    const started = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, title: 'Eigenvalues' });
+    const sid = started.body.session.id;
+    for (const who of ['ann', 'ben']) await app.call(who, 'POST', '/api/live/join', { code: started.body.session.joinCode });
+    assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}`)).body.shareName, false, 'off unless they choose it');
+    assert.equal((await app.call('ann', 'POST', `/api/live/sessions/${sid}/share`, { share: true })).body.share, true);
+    assert.equal((await app.call('prof', 'POST', `/api/live/sessions/${sid}/share`, { share: true })).status, 403, 'students only');
+    await app.call('ann', 'POST', `/api/live/sessions/${sid}/signal`, { level: 3 });
+    await app.call('ben', 'POST', `/api/live/sessions/${sid}/signal`, { level: 3 });
+    await app.call('ann', 'POST', `/api/live/sessions/${sid}/flags`, { kind: 'confused', note: 'ann needs λ' });
+    await app.call('ben', 'POST', `/api/live/sessions/${sid}/flags`, { kind: 'confused', note: 'ben stays anonymous' });
+    const ann = app.db.get("SELECT id, name FROM users WHERE email LIKE 'ann%'");
+    const ben = app.db.get("SELECT id, name FROM users WHERE email LIKE 'ben%'");
+
+    const record = await (await app.call('prof', 'GET', `/api/live/sessions/${sid}/record.txt`, undefined, { raw: true })).text();
+    assert.match(record, new RegExp(`\\[STUDENT "${ann.name}"\\] understood=0% needs_help_with=P1 flags=1 #follow-up`));
+    assert.match(record, new RegExp(`\\[ANSWER t=\\d\\d:\\d\\d:\\d\\d P1\\] "${ann.name}" lost`));
+    assert.match(record, new RegExp(`\\[FLAG t=[^\\]]+\\] by="${ann.name}" kind=didnt-get-this note="ann needs λ"`));
+    assert.match(record, /\[FLAG t=[^\]]+\] kind=didnt-get-this note="ben stays anonymous"/);
+    assert.doesNotMatch(record, new RegExp(ben.name), 'a student who did not choose it stays anonymous');
+    const report = await app.call('prof', 'GET', `/api/live/sessions/${sid}/report`);
+    assert.deepEqual(report.body.record.students.map((s) => s.name), [ann.name]);
+    assert.ok(report.body.record.events.some((e) => e.kind === 'answer' && e.who === ann.name), 'the exact answers, for drilling down');
+    assert.equal(report.body.record.minutes[0].lost, 2, 'the counts per minute, for the chart');
+
+    // Personal help: a message (notification), and notes for her.
+    assert.equal((await app.call('prof', 'POST', `/api/live/sessions/${sid}/students/${ann.id}/message`, { text: 'Can we talk after class about λ?' })).status, 200);
+    assert.ok(app.db.get("SELECT 1 FROM notifications WHERE user_id = ? AND body LIKE '%talk after class%'", ann.id));
+    assert.equal((await app.call('prof', 'POST', `/api/live/sessions/${sid}/students/${ben.id}/message`, { text: 'Hello there' })).status, 403);
+    assert.equal((await app.call('ann', 'POST', `/api/live/sessions/${sid}/students/${ann.id}/message`, { text: 'Hello there' })).status, 403);
+    const notes = await app.call('prof', 'POST', `/api/live/sessions/${sid}/ai-notes`, { student_id: ann.id });
+    assert.equal(notes.status, 200);
+    assert.match(notes.body.name, /notes-for-/);
+    assert.match(notes.body.txt, /MY LECTURE RECORD[\s\S]*ann needs λ/);
+    assert.doesNotMatch(notes.body.txt, /ben stays anonymous/);
+    assert.equal((await app.call('prof', 'POST', `/api/live/sessions/${sid}/ai-notes`, { student_id: ben.id })).status, 403);
+
+    // The quick take: the points to discuss.
+    const take = await app.call('prof', 'POST', `/api/live/sessions/${sid}/quick-take`);
+    assert.equal(take.status, 200);
+    assert.match(fixture.state.calls.at(-1).messages[0].content, /3 to 5 points/);
+    assert.equal((await app.call('ann', 'POST', `/api/live/sessions/${sid}/quick-take`)).status, 403);
+
+    // Turning it off hides her name again.
+    await app.call('ann', 'POST', `/api/live/sessions/${sid}/share`, { share: false });
+    assert.doesNotMatch(await (await app.call('prof', 'GET', `/api/live/sessions/${sid}/record.txt`, undefined, { raw: true })).text(), new RegExp(ann.name));
   } finally {
     await app.close();
   }

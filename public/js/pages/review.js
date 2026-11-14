@@ -10,7 +10,8 @@
  *
  * Every download also comes as a tagged .txt with instructions any AI can follow (src/modules/live/record.js).
  */
-import { html, render, $, on } from '../core/dom.js';
+import { html, render, raw, $, on } from '../core/dom.js';
+import { lectureChart, eventsBetween, eventText, mmss, COLORS } from '../features/lecture-chart.js';
 import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { session, assistantName } from '../core/store.js';
@@ -32,36 +33,139 @@ const STATUS = {
 const YOU = { 1: ['success', 'You followed'], 2: ['warning', 'You were unsure'], 3: ['danger', 'You were lost'] };
 const pct = (n) => (n === null || n === undefined ? '–' : `${n}%`);
 
-/** One part of the lecture: its time, what it was about, how the class (and the student) followed. */
-function sectionRow(s, student) {
+/** Exact moments, in time order: what was said, every answer, flags, struggles, key points. */
+function momentList(events) {
+  if (!events.length) return html`<p class="small muted">Nothing was recorded here.</p>`;
+  return html`<ol class="moment-list">${events.map((e) => {
+    const x = eventText(e);
+    return html`<li class="moment is-${e.kind}${x.tone ? ` tone-${x.tone}` : ''}"><span class="moment-time mono">${mmss(e.t)}</span><span class="moment-icon">${icon(x.icon, 14)}</span><span class="moment-text">${x.text}</span></li>`;
+  })}</ol>`;
+}
+
+/** One part of the lecture: its time, what it was about, how the class (and the student) followed; opens to the exact moments. */
+function sectionRow(s, record, student) {
   const [tone, word] = STATUS[s.status] || STATUS.quiet;
   const you = student && s.youWorst ? YOU[s.youWorst] : null;
-  return html`<div class="review-section ${s.followUp ? 'is-follow' : ''} ${student && s.target ? 'is-target' : ''}">
-    <div class="spread"><strong>${s.id} · ${s.clock}</strong>
-      <span class="cluster" style="--gap:6px">${student && s.target ? html`<span class="chip danger">${icon('target', 13)} Work on this</span>` : ''}${!student && s.followUp ? html`<span class="chip danger">Follow up</span>` : ''}<span class="chip ${tone}">${word}</span></span></div>
-    <p class="mt-4">${s.title}</p>
-    <div class="review-meter" role="img" aria-label="${s.understood === null ? 'Too few answers' : `${s.understood}% understood`}"><i class="is-${s.status}" style="width:${s.understood ?? 0}%"></i></div>
-    <p class="small muted mt-4">${s.understood === null ? 'Too few answers to tell' : `Class: ${s.understood}% understood${s.lowest !== null && s.lowest < s.understood ? `, lowest ${s.lowest}%` : ''}`}${s.flags ? ` · ${s.flags} ${s.flags === 1 ? 'flag' : 'flags'}` : ''}${you ? ` · ${you[1]}` : ''}</p>
-    ${s.points.length > 1 ? html`<ul class="small review-points-mini">${s.points.slice(1).map((p) => html`<li>${p}</li>`)}</ul>` : ''}
-    ${s.struggles.map((x) => html`<p class="small mt-4">${icon('alert', 13)} ${x.note || `${x.lost} of ${x.answered} lost`}</p>`)}
-    ${student
-      ? (s.target ? html`<button class="btn btn-sm mt-8" data-explain-part="${s.id}">${icon('sparkle', 14)} Explain this part to me</button>` : '')
-      : html`<button class="btn btn-sm btn-ghost mt-8" data-coach-ask="${`How could I explain ${s.id} (${s.clock}, “${s.title}”) better? Use what students flagged and what I said there.`}">${icon('campus', 14)} Ask ${assistantName()} about this part</button>`}
-  </div>`;
+  const moments = eventsBetween(record, s.from, s.to);
+  return html`<details class="review-section ${s.followUp ? 'is-follow' : ''} ${student && s.target ? 'is-target' : ''}" data-part="${s.id}">
+    <summary>
+      <div class="spread"><strong>${s.id} · ${s.clock}</strong>
+        <span class="cluster" style="--gap:6px">${student && s.target ? html`<span class="chip danger">${icon('target', 13)} Work on this</span>` : ''}${!student && s.followUp ? html`<span class="chip danger">Follow up</span>` : ''}<span class="chip ${tone}">${word}</span>${icon('chevron-down', 16)}</span></div>
+      <p class="mt-4">${s.title}</p>
+      <div class="review-meter" role="img" aria-label="${s.understood === null ? 'Too few answers' : `${s.understood}% understood`}"><i class="is-${s.status}" style="width:${s.understood ?? 0}%"></i></div>
+      <p class="small muted mt-4">${s.understood === null ? 'Too few answers to tell' : `Class: ${s.understood}% understood${s.lowest !== null && s.lowest < s.understood ? `, lowest ${s.lowest}%` : ''}`}${s.flags ? ` · ${s.flags} ${s.flags === 1 ? 'flag' : 'flags'}` : ''}${you ? ` · ${you[1]}` : ''}</p>
+    </summary>
+    <div class="review-part-body">
+      ${s.points.length > 1 ? html`<ul class="small review-points-mini">${s.points.slice(1).map((p) => html`<li>${p}</li>`)}</ul>` : ''}
+      ${s.struggles.map((x) => html`<p class="small mt-4">${icon('alert', 13)} ${x.note || `${x.lost} of ${x.answered} lost`}</p>`)}
+      <div class="cluster mt-8">${student
+        ? (s.target ? html`<button class="btn btn-sm" data-explain-part="${s.id}">${icon('sparkle', 14)} Explain this part to me</button>` : '')
+        : html`<button class="btn btn-sm" data-coach-ask="${`How could I explain ${s.id} (${s.clock}, “${s.title}”) better? Use what students flagged and what I said there.`}">${icon('campus', 14)} Ask ${assistantName()} about this part</button>`}</div>
+      <p class="small mt-12"><strong>Exact moments</strong> <span class="muted">(${moments.length})</span></p>
+      ${momentList(moments)}
+    </div>
+  </details>`;
 }
 
 function sectionsCard(record, student) {
   if (!record?.sections?.length) return '';
   const a = record.averages;
-  return html`<section class="card flush"><div class="card-head"><h2>${student ? 'Your results, part by part' : 'Part by part'}</h2></div>
-    <div class="review-averages">
-      ${student ? html`<div><span class="review-big">${pct(a.you?.understood)}</span><span class="small muted">You understood</span></div>` : ''}
-      <div><span class="review-big">${pct(a.lecture.understood)}</span><span class="small muted">${student ? 'Class average' : 'Class understood, on average'}</span></div>
-      ${student
-        ? html`<div><span class="review-big">${record.targets.length}</span><span class="small muted">${record.targets.length === 1 ? 'Part to work on' : 'Parts to work on'}</span></div>`
-        : html`<div><span class="review-big">${record.followUps.length}</span><span class="small muted">${record.followUps.length === 1 ? 'Part to follow up' : 'Parts to follow up'}</span></div>`}
+  return html`<section class="card flush"><div class="card-head"><h2>${student ? 'Your results, part by part' : 'Part by part'}</h2><span class="small muted">Open a part for the exact moments</span></div>
+    ${student ? html`<div class="review-averages">
+      <div><span class="review-big">${pct(a.you?.understood)}</span><span class="small muted">You understood</span></div>
+      <div><span class="review-big">${pct(a.lecture.understood)}</span><span class="small muted">Class average</span></div>
+      <div><span class="review-big">${record.targets.length}</span><span class="small muted">${record.targets.length === 1 ? 'Part to work on' : 'Parts to work on'}</span></div>
+    </div>` : ''}
+    <div class="list">${(student ? [...record.sections].sort((x, y) => (y.target ? 1 : 0) - (x.target ? 1 : 0) || x.from - y.from) : record.sections).map((s) => sectionRow(s, record, student))}</div></section>`;
+}
+
+/** The numbers first: how well the class understood, how many answered, flags, parts to follow up. */
+function statsRow(d) {
+  const r = d.record;
+  const a = r.averages.lecture;
+  const tile = (value, label, tone = '') => html`<div class="review-stat ${tone}"><span class="review-big">${value}</span><span class="small muted">${label}</span></div>`;
+  return html`<section class="review-stats">
+    ${tile(pct(a.understood), 'Understood, on average', a.status === 'quiet' ? '' : `is-${a.status}`)}
+    ${tile(`${r.meta.answeredBy}${r.meta.enrolled ? `/${r.meta.enrolled}` : ''}`, 'Students answered')}
+    ${tile(r.meta.flags, r.meta.flags === 1 ? 'Flag' : 'Flags', r.meta.flags ? 'is-flag' : '')}
+    ${tile(r.followUps.length, r.followUps.length === 1 ? 'Part to follow up' : 'Parts to follow up', r.followUps.length ? 'is-trouble' : 'is-good')}
+  </section>`;
+}
+
+/** The coloured chart: tap a minute or a part for the exact moments. */
+function chartCard(record, student) {
+  if (!record?.minutes?.length) return '';
+  const legend = [['following', student ? 'Following' : 'Following'], ['unsure', 'Unsure'], ['lost', 'Lost'], ['flag', 'Flag']];
+  return html`<section class="card review-chart-card">
+    <div class="spread"><h2>${student ? 'You and the class, minute by minute' : 'How the class followed'}</h2><span class="small muted">Tap a minute or a part</span></div>
+    <div class="lecture-chart-wrap">${raw(lectureChart(record, { student }))}</div>
+    <div class="chart-legend">${legend.map(([k, label]) => html`<span><i style="background:${COLORS[k]}"></i>${label}</span>`)}<span><i class="is-band"></i>Parts, coloured by how the class followed</span></div>
+    <div data-moment></div>
+  </section>`;
+}
+
+/** Campus's quick take: the basics, one click; then more detail or a conversation. */
+function quickTakeCard(d) {
+  const name = assistantName();
+  return html`<section class="card stack quick-take">
+    <div class="spread"><div><h2>${name}’s quick take</h2><p class="small muted">Only the points worth discussing, each with its time and part.</p></div>
+      <button class="btn btn-primary" data-quick-take>${icon('sparkle', 16)} What should I discuss?</button></div>
+    <div data-quick-out></div>
+    <div class="cluster" data-quick-next hidden>
+      <button class="btn btn-sm" data-go-notes>${icon('file', 15)} More detail: notes and review (PDF)</button>
+      <button class="btn btn-sm" data-go-coach>${icon('message', 15)} Talk it through</button>
+      <a class="btn btn-sm btn-ghost" href="${askCampusHref(d)}">${icon('campus', 15)} Continue in Ask ${name}</a>
     </div>
-    <div class="list">${(student ? [...record.sections].sort((x, y) => (y.target ? 1 : 0) - (x.target ? 1 : 0) || x.from - y.from) : record.sections).map((s) => sectionRow(s, student))}</div></section>`;
+  </section>`;
+}
+
+const askCampusHref = (d) => `/assistant?new=1&lecture=${d.session.id}&q=${encodeURIComponent(`About my lecture “${d.session.title}” (${d.course.code}, ${dateTime(d.session.started)}): what went well, what did not, and what should I improve?`)}`;
+
+/** Students who chose to show their name: what each struggled with, and ways to help them personally. */
+function studentsCard(record) {
+  const list = record.students || [];
+  const title = (id) => record.sections.find((s) => s.id === id);
+  return html`<section class="card flush"><div class="card-head"><h2>Students who shared their name</h2><span class="chip">${list.length}</span></div>
+    ${list.length ? html`<div class="list">${list.map((st) => {
+      const first = st.name.split(' ')[0];
+      const parts = st.targets.map(title).filter(Boolean);
+      const mail = `mailto:${encodeURIComponent(st.email || '')}?subject=${encodeURIComponent(`${record.meta.title}: shall we go through it?`)}&body=${encodeURIComponent(`Hi ${first},\n\nthank you for sharing how you followed "${record.meta.title}". ${parts.length ? `I saw that ${parts.map((p) => `${p.id} (${p.clock}, ${p.title})`).join(' and ')} ${parts.length === 1 ? 'was' : 'were'} hard to follow.` : ''} If you like, we can go through it together after the next lecture.\n\nBest regards`)}`;
+      return html`<div class="review-student">
+        <div class="spread"><strong>${st.name}</strong><span class="chip ${st.understood === null ? 'outline' : st.understood <= 60 ? 'danger' : st.understood <= 80 ? 'warning' : 'success'}">${st.understood === null ? 'No answers' : `${st.understood}% understood`}</span></div>
+        ${parts.length ? html`<div class="cluster mt-8" style="--gap:6px"><span class="small muted">Needs help with</span>${parts.map((p) => html`<span class="chip danger">${p.id} · ${p.clock}</span>`)}</div>` : html`<p class="small muted mt-4">Followed without trouble.</p>`}
+        ${st.flags.length ? html`<ul class="small review-points-mini">${st.flags.map((f) => html`<li><span class="mono">${mmss(f.t)}</span> ${f.section} · ${FLAG_NAMES[f.flag] || f.flag}${f.note ? `: “${f.note}”` : ''}</li>`)}</ul>` : ''}
+        <div class="cluster mt-8">
+          <button class="btn btn-sm" data-student-notes="${st.id}" data-name="${first}">${icon('sparkle', 14)} Notes for ${first} (PDF)</button>
+          <button class="btn btn-sm" data-student-talk="${st.id}" data-name="${first}">${icon('message', 14)} Ask to talk after class</button>
+          ${st.email ? html`<a class="btn btn-sm btn-ghost" href="${mail}">${icon('send', 14)} Email</a>` : ''}
+          <button class="btn btn-sm btn-ghost" data-coach-ask="${`${st.name} chose to show their name. What did ${first} struggle with, and how could I help ${first} personally?`}">${icon('campus', 14)} Ask about ${first}</button>
+        </div>
+      </div>`;
+    })}</div>` : html`<p class="small muted" style="padding:0 20px 18px">No one chose to show their name in this lecture. Students can turn it on during the lecture or on their recap; everyone else stays anonymous.</p>`}
+  </section>`;
+}
+
+const FLAG_NAMES = { confused: 'didn’t get this', fast: 'too fast', example: 'needs an example', question: 'a question' };
+
+/** Every download in one place. Every .txt explains itself to any AI. */
+function downloadsCard(d) {
+  const s = d.session;
+  const row = (glyph, title, sub, action) => html`<div class="list-row"><span class="tile">${icon(glyph, 18)}</span><span class="body"><span class="title">${title}</span><span class="sub">${sub}</span></span><span class="trail">${action}</span></div>`;
+  return html`<section class="card flush"><div class="card-head"><h2>Downloads</h2></div>
+    <p class="small muted" style="padding:0 20px 8px">Every .txt starts with instructions, so ChatGPT, Claude, Gemini or any other AI can use it as it is.</p>
+    <div class="list">
+      ${s.keepTranscript && d.stored ? row('file', 'Transcript (.txt)', `What you said, by time and part · ${d.stored} lines`, html`<span class="cluster" style="--gap:4px"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/transcript.txt" download>${icon('download', 15)} Download</a><button class="btn btn-sm btn-ghost btn-icon" data-forget aria-label="Delete the transcript" title="Delete the transcript">${icon('trash', 15)}</button></span>`)
+        : row('file', 'Transcript', s.keepTranscript ? 'Nothing was heard during this lecture.' : 'The transcript of this lecture was not kept.', '')}
+      ${row('cpu', 'Lecture record for AI (.txt)', 'Everything that happened, every result and average tagged with its time and part', html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/record.txt" download>${icon('download', 15)} Download</a>`)}
+      ${row('sparkle', 'Notes and teaching review (PDF)', `Written by ${assistantName()}, saved to this device`, html`<button class="btn btn-sm" data-go-notes>${icon('sparkle', 15)} Make</button>`)}
+    </div></section>`;
+}
+
+/** A student chooses whether the lecturer sees their name with their answers. */
+function shareCard(d) {
+  return html`<section class="card"><label class="spread live-keep"><span><strong>Show my name to the lecturer</strong><br>
+    <span class="small muted">Your lecturer then sees your answers and flags with your name, so they can help you personally: notes for you, or a word after class. Off: they only see totals.</span></span>
+    <span class="switch"><input type="checkbox" data-share ${d.shareName ? 'checked' : ''}><span></span></span></label></section>`;
 }
 
 /** Notes Campus writes from the record, and the record itself, saved to this device. */
@@ -89,40 +193,29 @@ function coachCard() {
       <div class="composer-actions"><button class="btn btn-primary btn-icon composer-send" aria-label="Send">${icon('arrow-up', 19)}</button></div></form></section>`;
 }
 
-const TONE = { 1: 'good', 2: 'watch', 3: 'trouble' };
 const isLecturer = () => session.user.role !== 'student';
-
-const blocks = (cells) => html`<div class="live-line" role="img" aria-label="Minute-by-minute understanding">${cells.map((c) => html`<i class="${c.tone ? `is-${c.tone}` : ''}" title="${c.title}"></i>`)}</div>`;
 
 const keyPoints = (points) => (points.length
   ? html`<section class="card"><h3>Key points</h3><ul class="review-points">${points.map((p) => html`<li><span class="chip outline">${p.minute} min</span> ${p.text}</li>`)}</ul></section>`
   : '');
 
+/**
+ * The lecturer's review, in the order they need it: the numbers, the chart (tap for the exact moments), Campus's
+ * quick take, the lecture part by part, students who shared their name, the conversation with Campus, notes and
+ * downloads. "Ask Campus" in the header continues in the general assistant with this lecture.
+ */
 function lecturerView(d) {
-  const { session: s, course, timeline, struggles, points, pulse, answeredBy } = d;
-  const hasSpeech = struggles.some((m) => m.excerpt);
-  return html`${pageHead({ back: { href: '/lectures', label: 'Lectures' }, title: s.title, subtitle: `${course.code} · ${dateTime(s.started)}` })}
-    <div class="stack stagger" style="max-width:760px">
-      <section class="card">
-        <p><strong>${struggles.length ? `The class got lost ${struggles.length === 1 ? 'once' : `${struggles.length} times`}.` : 'The class followed without major trouble.'}</strong>
-          <span class="muted"> ${answeredBy} ${answeredBy === 1 ? 'student' : 'students'} answered${pulse.enrolled ? ` out of ${pulse.enrolled}` : ''}.</span></p>
-        <h3 class="mt-24">Through the lecture</h3>
-        ${blocks(timeline.map((m) => ({ tone: m.status === 'quiet' ? '' : m.status, title: `Minute ${m.minute}` })))}
-        <p class="small muted mt-8">Green: following. Amber: some unsure. Red: many lost. Grey: too few answers to tell.</p>
-      </section>
+  const { session: s, course } = d;
+  return html`${pageHead({ back: { href: '/lectures', label: 'Lectures' }, title: s.title, subtitle: `${course.code} · ${dateTime(s.started)}${d.record ? ` · ${d.record.meta.duration.replace(/^00:/, '')}` : ''}`, actions: html`<a class="btn" href="${askCampusHref(d)}">${icon('campus', 16)} Ask ${assistantName()}</a>` })}
+    <div class="stack stagger review-page">
+      ${statsRow(d)}
+      ${chartCard(d.record, false)}
+      ${quickTakeCard(d)}
       ${sectionsCard(d.record, false)}
+      ${studentsCard(d.record)}
       ${coachCard()}
       ${notesCard(d, false)}
-      ${struggles.length ? html`<section class="card flush"><div class="card-head"><h2>Where it got hard</h2></div>
-        <div class="list">${struggles.map((m) => html`<div class="review-moment">
-          <div class="spread"><strong>Minute ${m.minute}</strong><span class="chip danger">${m.lost} of ${m.answered} lost</span></div>
-          ${m.note ? html`<p class="mt-8">${m.note}</p>` : ''}
-          ${m.excerpt ? html`<blockquote class="review-quote">${m.excerpt.replace(/^\[\d\d:\d\d\]\s*/, '').replace(/\s*\[\d\d:\d\d\]\s*/g, ' ')}</blockquote>` : ''}
-        </div>`)}</div>
-        ${hasSpeech ? '' : html`<p class="small muted" style="padding:0 20px 18px">Campus didn’t hear the lecture at these moments. Turn on listening next time to see what was being said.</p>`}</section>` : ''}
-      ${lecturerFlags(d.flags)}
-      ${keyPoints(points)}
-      ${transcriptCard(d)}
+      ${downloadsCard(d)}
     </div>`;
 }
 
@@ -130,25 +223,6 @@ const flagLabel = (kind) => (FLAGS[kind] || FLAGS.confused)[0];
 
 const liveAgain = (courseId) => html`<a class="notice accent live-again" href="/live/${courseId}" style="text-decoration:none;margin-bottom:16px" data-live-again>${icon('presentation', 18)}<span><strong>This lecture is live again.</strong> Tap to rejoin.</span><span class="btn btn-sm btn-primary" style="margin-left:auto">Rejoin</span></a>`;
 
-/** The moments students flagged, grouped by minute, with what was being said when the transcript was kept. */
-function lecturerFlags(flags = []) {
-  if (!flags.length) return '';
-  const byMinute = new Map();
-  for (const f of flags) byMinute.set(f.minute, [...(byMinute.get(f.minute) || []), f]);
-  return html`<section class="card flush"><div class="card-head"><h2>What students flagged</h2><span class="chip">${flags.length}</span></div>
-    <div class="list">${[...byMinute.entries()].map(([minute, group]) => html`<div class="review-moment">
-      <div class="spread"><strong>Minute ${minute}</strong><span class="cluster" style="--gap:6px">${[...new Set(group.map((f) => f.kind))].map((k) => html`<span class="chip outline">${flagLabel(k)} ${group.filter((f) => f.kind === k).length}</span>`)}</span></div>
-      ${group.filter((f) => f.note).map((f) => html`<p class="small mt-8">“${f.note}”</p>`)}
-      ${group[0].excerpt ? html`<blockquote class="review-quote">${group[0].excerpt.replace(/\[minute \d+\]\s*/g, '')}</blockquote>` : ''}
-    </div>`)}</div></section>`;
-}
-
-function transcriptCard(d) {
-  const s = d.session;
-  if (!s.keepTranscript) return html`<p class="small muted">The transcript of this lecture was not kept.</p>`;
-  return html`<section class="card"><div class="spread"><div><h3>Transcript</h3><p class="small muted">${d.stored ? `${d.stored} lines heard. Students can ask ${assistantName()} about this lecture; only you can download it.` : 'Nothing was heard during this lecture.'}</p></div>
-    ${d.stored ? html`<div class="cluster"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/transcript.txt">${icon('download', 15)} Download .txt</a><button class="btn btn-sm btn-ghost" data-forget>${icon('trash', 15)} Delete</button></div>` : ''}</div></section>`;
-}
 
 function myFlags(flags = []) {
   if (!flags.length) return '';
@@ -175,12 +249,10 @@ function studentView(d) {
   const topic = [s.title, ...points.slice(0, 2).map((p) => p.text)].join('. ').slice(0, 160);
   return html`${pageHead({ back: { href: '/lectures', label: 'Lectures' }, title: s.title, subtitle: `${course.code} · ${dateTime(s.started)}` })}
     <div class="stack stagger" style="max-width:760px">
-      <section class="card">
-        <h3>How you followed</h3>
-        ${signals ? blocks(mine.map((m) => ({ tone: m.level ? TONE[m.level] : '', title: `Minute ${m.minute}` }))) : ''}
-        <p class="small muted mt-8">${signals ? 'Only you can see this. Green: following. Amber: unsure. Red: lost. Grey: no answer.' : 'You didn’t answer during this lecture. Next time, tap how you’re following and this recap will show where you got stuck.'}</p>
-      </section>
+      ${signals ? chartCard(d.record, true) : html`<section class="card"><h3>How you followed</h3><p class="small muted mt-8">You didn’t answer during this lecture. Next time, tap how you’re following and this recap will show where you got stuck.</p></section>`}
+      ${signals ? html`<p class="small muted" style="margin-top:-8px">Only you can see your own row. The bars are the whole class, without names.</p>` : ''}
       ${signals || d.flags?.length ? sectionsCard(d.record, true) : ''}
+      ${shareCard(d)}
       ${notesCard(d, true)}
       ${myFlags(d.flags)}
       ${askLecture(d)}
@@ -287,7 +359,101 @@ export default {
       }
     };
 
+    // ---- the chart: a minute or a part opens the exact moments
+    const record = d.record;
+    const clearMinute = () => root.querySelectorAll('.lc-min.is-selected').forEach((g) => g.classList.remove('is-selected'));
+    const showMinute = (minute) => {
+      const box = $('[data-moment]', root);
+      const m = record?.minutes?.[minute - 1];
+      if (!box || !m) return;
+      clearMinute();
+      root.querySelector(`.lc-min[data-minute="${minute}"]`)?.classList.add('is-selected');
+      render(box, html`<div class="moment-panel">
+        <div class="spread"><strong>Minute ${minute} · ${m.section}</strong><button class="btn btn-ghost btn-icon btn-sm" data-close-moment aria-label="Close">${icon('x', 16)}</button></div>
+        <p class="small mt-4">${m.answered ? `${m.following} following · ${m.unsure} unsure · ${m.lost} lost · ${m.understood}% understood` : 'Nobody answered in this minute.'}${student && m.you ? ` · you: ${['', 'following', 'unsure', 'lost'][m.you]}` : ''}</p>
+        ${momentList(eventsBetween(record, (minute - 1) * 60, minute * 60))}
+        ${student ? '' : html`<button class="btn btn-sm mt-8" data-coach-ask="${`What happened at minute ${minute} (${m.section})? Why did the class react like that, and how should I explain it next time?`}">${icon('campus', 14)} Ask ${assistantName()} about this minute</button>`}
+      </div>`);
+    };
+    const openPart = (id) => {
+      const part = $(`details[data-part="${id}"]`, root);
+      if (!part) return;
+      part.open = true;
+      part.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    };
+
+    // ---- Campus's quick take (lecturer): the basics first
+    const quickKey = `campus-quick-${sid}`;
+    const showQuick = (markdownText) => {
+      const out = $('[data-quick-out]', root);
+      if (!out || !markdownText) return;
+      render(out, html`<div class="prose">${markdown(markdownText)}</div>`);
+      $('[data-quick-next]', root)?.removeAttribute('hidden');
+      const button = $('[data-quick-take]', root);
+      if (button) render(button, html`${icon('refresh', 16)} Again`);
+    };
+    showQuick(store.get(quickKey, ''));
+
     const offs = [
+      on(root, 'click', '[data-minute]', (e, g) => showMinute(Number(g.dataset.minute))),
+      on(root, 'click', '[data-section]', (e, g) => openPart(g.dataset.section)),
+      on(root, 'keydown', '[data-section]', (e, g) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        openPart(g.dataset.section);
+      }),
+      on(root, 'click', '[data-close-moment]', () => {
+        render($('[data-moment]', root), '');
+        clearMinute();
+      }),
+      on(root, 'click', '[data-quick-take]', (e, button) => busy(button, async () => {
+        render($('[data-quick-out]', root), html`<p class="small muted"><span class="typing"><i></i><i></i><i></i></span> ${assistantName()} is looking at the lecture…</p>`);
+        try {
+          const r = await api.post(`/live/sessions/${sid}/quick-take`);
+          store.set(quickKey, r.markdown);
+          showQuick(r.markdown);
+        } catch (error) {
+          render($('[data-quick-out]', root), html`<div class="notice danger">${icon('alert', 18)}<span>${error.message}</span></div>`);
+        }
+      })),
+      on(root, 'click', '[data-go-notes]', () => {
+        const button = $('[data-make-notes]', root);
+        button?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        if (button && !notes) button.click();
+      }),
+      on(root, 'click', '[data-go-coach]', () => {
+        const form = $('[data-coach-form]', root);
+        form?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        form?.q.focus({ preventScroll: true });
+      }),
+      // Personal help for a student who showed their name.
+      on(root, 'click', '[data-student-notes]', (e, button) => busy(button, async () => {
+        try {
+          const r = await api.post(`/live/sessions/${sid}/ai-notes`, { student_id: Number(button.dataset.studentNotes) });
+          await savePdf({ markdown: r.markdown, name: r.name, subtitle, kicker: `Campus OS · Notes for ${button.dataset.name}` });
+          toast(`Notes for ${button.dataset.name} saved. Send them by email or hand them over.`, 'success', { duration: 3600 });
+        } catch (error) {
+          toastError(error);
+        }
+      })),
+      on(root, 'click', '[data-student-talk]', (e, button) => busy(button, async () => {
+        try {
+          await api.post(`/live/sessions/${sid}/students/${button.dataset.studentTalk}/message`, { text: `Could we talk briefly after the next lecture about “${d.session.title}”? I’d like to go through the part that was hard with you.` });
+          toast(`${button.dataset.name} gets a notification.`, 'success');
+        } catch (error) {
+          toastError(error);
+        }
+      })),
+      // A student shows or hides their name.
+      on(root, 'change', '[data-share]', async (e, input) => {
+        try {
+          const r = await api.post(`/live/sessions/${sid}/share`, { share: input.checked });
+          toast(r.share ? 'Your lecturer can now see your name with your answers and flags.' : 'Your name is hidden again.', 'success');
+        } catch (error) {
+          input.checked = !input.checked;
+          toastError(error);
+        }
+      }),
       on(root, 'click', '[data-make-notes]', (e, button) => busy(button, async () => {
         const out = $('[data-notes-out]', root);
         render(out, html`<p class="small muted"><span class="typing"><i></i><i></i><i></i></span> ${assistantName()} is writing the notes. This takes about half a minute.</p>`);

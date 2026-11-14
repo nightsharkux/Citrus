@@ -79,7 +79,7 @@ export function mountApp() {
           <button class="icon-btn focus-btn" data-focus aria-label="Campus Focus" title="Campus Focus: pause notifications">${icon('moon', 18)}</button>
           <button class="icon-btn wake-indicator" data-wake-indicator hidden aria-label="Campus is listening for “Hey Campus”. Click to stop." title="Listening for “Hey Campus” — click to stop">${icon('mic', 18)}</button>
           <button class="search-pill" data-palette aria-label="Search">${icon('search', 18)}<span>Search or jump to…</span><kbd>${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'} K</kbd></button>
-          <a class="icon-btn" href="/inbox" aria-label="Inbox">${icon('bell', 19)}<span data-unread-slot>${session.unread ? html`<span class="count">${session.unread > 99 ? '99+' : session.unread}</span>` : ''}</span></a>
+          <a class="icon-btn" href="/inbox" aria-label="Inbox" data-bell>${icon('bell', 19)}<span data-unread-slot>${session.unread ? html`<span class="count">${session.unread > 99 ? '99+' : session.unread}</span>` : ''}</span></a>
           <button class="icon-btn" data-user-menu aria-label="Account menu" style="padding:0;overflow:hidden">${avatar(u.name, 'sm')}</button>
         </div>
       </header>
@@ -238,6 +238,7 @@ function wireShell() {
     const el = $('#topbar-title');
     if (el) el.textContent = title || '';
   });
+  lastUnread = session.unread || 0;
   onStore('session', (patch) => {
     if ('unread' in patch) updateBadges();
   });
@@ -302,6 +303,8 @@ function updateActive() {
   });
 }
 
+let lastUnread = 0;
+
 function updateBadges() {
   const n = session.unread;
   const text = n > 99 ? '99+' : String(n);
@@ -311,6 +314,19 @@ function updateBadges() {
   if (n && !$$('.nav-link [data-unread]').length) {
     $$('.nav-link[href="/inbox"], .tab[href="/inbox"]').forEach((a) => a.insertAdjacentHTML('beforeend', `<span class="count" data-unread>${text}</span>`));
   }
+  if (n > lastUnread) ringBell(); // something new arrived while the app is open
+  lastUnread = n;
+}
+
+/** The bell swings once (reduced motion: just the new count). */
+function ringBell() {
+  const bell = $('[data-bell]');
+  if (!bell) return;
+  bell.classList.remove('is-ringing');
+  void bell.offsetWidth; // restart the animation if it is still running
+  bell.classList.add('is-ringing');
+  clearTimeout(ringBell.timer);
+  ringBell.timer = setTimeout(() => bell.classList.remove('is-ringing'), 1400);
 }
 
 // ---------------------------------------------------------------- Menus & sheets

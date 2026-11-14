@@ -23,4 +23,6 @@ module.exports = [
   require('./020-knowledge-documents'),
   require('./021-minutes-versions'),
   require('./022-custom-tools'),
+  require('./023-share-names'),
+  require('./024-course-sections'),
 ];

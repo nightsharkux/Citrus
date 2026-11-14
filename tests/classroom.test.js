@@ -135,7 +135,7 @@ test('a kept transcript lets students ask Campus about the lecture during and af
     assert.match(file.headers.get('content-type'), /text\/plain/);
     const body = await file.text();
     assert.match(body, /INSTRUCTIONS FOR ANY AI/);
-    assert.match(body, /\[SAY t=00:00:\d\d P1\] The gradient points uphill/, 'each line is tied to its second and section');
+    assert.match(body, /\[00:00:\d\d · P1\] The gradient points uphill/, 'each line is tied to its second and part');
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/transcript.txt`)).status, 403);
 
     // After the end the memory is gone but the kept transcript still answers.

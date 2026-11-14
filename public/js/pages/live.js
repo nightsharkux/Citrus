@@ -125,6 +125,8 @@ function studentScreen(a) {
           <span class="live-signal-icon">${icon(glyph, 28)}</span><strong>${label}</strong><span class="small">${hint}</span>
         </button>`)}</div>
       <p class="small muted center" data-signal-note>${mine ? `You said “${SIGNALS[mine.level - 1][1].toLowerCase()}” at ${time(mine.created)}.` : 'You haven’t answered yet.'}</p>
+      <label class="spread live-keep live-share"><span><strong>Show my name to the lecturer</strong><br><span class="small muted">Then your lecturer sees your answers and flags with your name and can help you personally. Off: only totals.</span></span>
+        <span class="switch"><input type="checkbox" data-share ${a.shareName ? 'checked' : ''}><span></span></span></label>
     </section>
 
     <section class="card stack" data-flag-card>
@@ -176,6 +178,15 @@ function mountStudent(root, d, ctx) {
   const ask = createAsk(root, (question) => api.post(`/live/sessions/${sid}/student-ask`, { question }));
 
   const offs = [
+    on(root, 'change', '[data-share]', async (e, input) => {
+      try {
+        const r = await api.post(`/live/sessions/${sid}/share`, { share: input.checked });
+        toast(r.share ? 'Your lecturer now sees your name with your answers and flags.' : 'Your name is hidden again.', 'success', { duration: 2400 });
+      } catch (error) {
+        input.checked = !input.checked;
+        toastError(error);
+      }
+    }),
     on(root, 'click', '[data-signal]', async (e, button) => {
       const level = Number(button.dataset.signal);
       try {
