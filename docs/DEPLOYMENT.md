@@ -39,13 +39,15 @@ Vercel Functions have no persistent disk, so the SQLite file cannot live there. 
 3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Campus OS creates its tables and the administrator. Deploying again never repeats this.
 4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Campus OS generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
 
+5. Optional, for files over 4 MB and recordings: in the project's **Storage** tab, create a **Blob** store (choose the Dublin region, next to the functions) and connect it to the project. Vercel adds `BLOB_READ_WRITE_TOKEN`; redeploy and Campus OS uses it by itself. Course files then go straight from the browser to the store (up to 100 MB each), meeting recordings are kept on the server whatever their length, and the Android app's lecture audio is kept when the lecturer keeps the transcript. Files are private: they are never readable by their address, only through Campus OS after it has checked who is asking (`src/services/blob.js`). Without a store, files up to 4 MB live in the database and recordings stay on the phone.
+
 Check the connection from your machine with `TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run check`.
 
 **How it works.** Queries are sent to Turso over HTTPS by a worker thread while the main thread waits, so the existing synchronous code runs unchanged (`src/db/remote.js`). While a query is in flight that instance handles nothing else, which is fine for a pilot with the database in the same region. Scaling to many users calls for making the data layer asynchronous.
 
 **What does not work on Vercel yet**
 
-- **Meeting recordings.** Audio is stored as files. Uploads return a clear error until object storage is added.
+- **Meeting recordings without a Blob store.** Audio needs file storage (step 5 above). Without it, recordings are saved on the phone instead.
 - **Live updates and device long-polling** are held in memory per instance, so a visitor can miss an update that happened on another instance.
 - **Rate limits** are per instance.
 - **Background clean-up** (expired sessions, recording retention) runs hourly only while an instance is warm.
@@ -82,6 +84,7 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Hosted database. Required on Vercel; when the URL is set, `DB_PATH` is ignored |
 | `CAMPUS_MASTER_KEY`, `CAMPUS_NFC_KEY` | Optional 32-byte keys (64 hex characters or base64). Default: files in `storage/`, or the `app_keys` table on a hosted database |
 | `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
+| `BLOB_READ_WRITE_TOKEN` | Optional. Set by Vercel when a Blob store is connected: course files up to 100 MB and recordings kept on the server. Store as Secret |
 
 When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/campusos` and `/var/lib/campusos/campusos.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
 

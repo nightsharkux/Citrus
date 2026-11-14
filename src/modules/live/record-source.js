@@ -16,8 +16,11 @@ function createRecordSource({ db, access }) {
 
   const notesOf = (sessionId) => db.all('SELECT a.name, a.text FROM live_notes n JOIN assistant_attachments a ON a.id = n.attachment_id WHERE n.session_id = ?', sessionId);
 
-  /** The record of a session for the lecturer, or for one student (`studentId`). */
-  function load(session, { audience = 'lecturer', studentId = null } = {}) {
+  /**
+   * The record of a session for the lecturer, or for one student (`studentId`). `light` leaves out what was said
+   * and the prepared notes, for overviews of many lectures that only need the results.
+   */
+  function load(session, { audience = 'lecturer', studentId = null, light = false } = {}) {
     const student = audience === 'student';
     return buildRecord({
       session,
@@ -27,12 +30,12 @@ function createRecordSource({ db, access }) {
       names: student ? new Map() : namedStudents(session.id),
       lecturer: db.get('SELECT name FROM users WHERE id = ?', session.lecturer_id)?.name || '',
       enrolled: db.get('SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', session.course_id).n,
-      transcript: student || !session.keep_transcript ? [] : db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', session.id),
+      transcript: student || light || !session.keep_transcript ? [] : db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', session.id),
       signals: db.all('SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', session.id),
       flags: db.all('SELECT user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? ORDER BY id', session.id),
       struggles: db.all("SELECT lost, unsure, answered, note, created FROM live_moments WHERE session_id = ? AND kind = 'struggle' ORDER BY id", session.id),
       points: db.all("SELECT note AS text, created FROM live_moments WHERE session_id = ? AND kind = 'point' ORDER BY id", session.id),
-      notes: student ? [] : notesOf(session.id),
+      notes: student || light ? [] : notesOf(session.id),
     });
   }
 

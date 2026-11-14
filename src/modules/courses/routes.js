@@ -10,6 +10,7 @@ const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
 const { registerSections } = require('./sections');
+const { registerProgress } = require('./progress');
 
 /**
  * The optional time and room of a lecture: starts (an ISO time), duration_minutes (default 60, up to 8 hours), room.
@@ -26,10 +27,11 @@ function readSchedule(b) {
   return { starts: new Date(at).toISOString(), ends: new Date(at + minutes * 60_000).toISOString(), room };
 }
 
-function register(router, { db, access, bus, notifier, audit, rooms }) {
+function register(router, { db, access, bus, notifier, audit, rooms, blobs }) {
   const now = () => new Date().toISOString();
   const touchCourse = (courseId) => bus.publish(`course:${courseId}`, 'course.updated', { courseId });
-  registerSections(router, { db, access, bus }); // topics, files and links: the course page as an outline
+  registerSections(router, { db, access, bus, blobs }); // topics, files and links: the course page as an outline
+  registerProgress(router, { db, access }); // the term so far: the lecturer's overview, a student's own progress
 
   /** Full course view for one user; polls hide the correct answer from students until they answer. */
   function snapshot(user, course) {

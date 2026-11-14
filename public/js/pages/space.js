@@ -261,6 +261,7 @@ function mountRecorder(root, d, ctx) {
     workspaceId: d.room.id,
     title: d.room.title,
     canvas: $('#rec-canvas', root),
+    direct: !!d.storage?.direct,
     onTick: (s) => ($('#rec-time', root).textContent = fmt(s)),
     onSaved: (r) => {
       toast(r.warning || 'Recording saved. Find it under Recordings after the meeting.', r.warning ? 'info' : 'success');

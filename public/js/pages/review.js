@@ -156,6 +156,7 @@ function downloadsCard(d) {
     <div class="list">
       ${s.keepTranscript && d.stored ? row('file', 'Transcript (.txt)', `What you said, by time and part · ${d.stored} lines`, html`<span class="cluster" style="--gap:4px"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/transcript.txt" download>${icon('download', 15)} Download</a><button class="btn btn-sm btn-ghost btn-icon" data-forget aria-label="Delete the transcript" title="Delete the transcript">${icon('trash', 15)}</button></span>`)
         : row('file', 'Transcript', s.keepTranscript ? 'Nothing was heard during this lecture.' : 'The transcript of this lecture was not kept.', '')}
+      ${d.recording ? row('mic', 'Recording (audio)', `Recorded by the Campus OS app · ${Math.round(d.recording.seconds / 60)} min`, html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/recording.aac" download>${icon('download', 15)} Download</a>`) : ''}
       ${row('cpu', 'Lecture record for AI (.txt)', 'Everything that happened, every result and average tagged with its time and part', html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/record.txt" download>${icon('download', 15)} Download</a>`)}
       ${row('sparkle', 'Notes and teaching review (PDF)', `Written by ${assistantName()}, saved to this device`, html`<button class="btn btn-sm" data-go-notes>${icon('sparkle', 15)} Make</button>`)}
     </div></section>`;
@@ -282,6 +283,13 @@ export default {
   mount(root, data, ctx) {
     const sid = data.data.session.id;
     const courseId = data.data.session.course_id;
+    // Opened at one part (?part=P3, from the term overview or My progress): open it and bring it into view.
+    const linked = /^P\d{1,3}$/.test(ctx.query.get('part') || '') ? root.querySelector(`details[data-part="${ctx.query.get('part')}"]`) : null;
+    if (linked) {
+      linked.open = true;
+      linked.classList.add('is-linked');
+      requestAnimationFrame(() => linked.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+    }
     // The lecturer's page keeps filling in while the AI writes its notes.
     if (data.lecturer && !data.data.session.ended) {
       ctx.live.on('live.moment', () => ctx.refresh());
@@ -538,7 +546,7 @@ export default {
         }
       }),
       on(root, 'click', '[data-forget]', async () => {
-        if (!(await confirm({ title: 'Delete the transcript?', message: `${assistantName()} can no longer answer questions about this lecture. The flags and key points stay.`, confirmLabel: 'Delete', danger: true }))) return;
+        if (!(await confirm({ title: 'Delete the transcript?', message: `${assistantName()} can no longer answer questions about this lecture${data.data.recording ? ', and the recording is deleted too' : ''}. The flags and key points stay.`, confirmLabel: 'Delete', danger: true }))) return;
         try {
           await api.del(`/live/sessions/${sid}/transcript`);
           toast('Transcript deleted', 'success');

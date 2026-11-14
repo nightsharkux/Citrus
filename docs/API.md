@@ -155,7 +155,11 @@ State-changing browser requests must be same-origin (CSRF protection).
 | GET | `/api/courses/:id/outline` | user | any |
 | POST | `/api/courses/:id/sections` | user | any |
 | POST | `/api/courses/:id/files` | user | any |
+| POST | `/api/courses/:id/files/start` | user | any |
+| POST | `/api/courses/:id/files/finish` | user | any |
 | POST | `/api/courses/:id/links` | user | any |
+| GET | `/api/courses/:id/progress` | user | any |
+| GET | `/api/courses/:id/progress.txt` | user | any |
 | GET | `/api/courses` | user | any |
 | POST | `/api/courses` | user | lecturer, admin |
 | PATCH | `/api/courses/:id` | user | lecturer, admin |
@@ -279,6 +283,7 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/live/sessions/:id/ai-notes` | user | any |
 | POST | `/api/live/sessions/:id/review-chat` | user | any |
 | POST | `/api/live/sessions/:id/audio` | user | any |
+| GET | `/api/live/sessions/:id/recording.aac` | user | any |
 | DELETE | `/api/live/sessions/:id/transcript` | user | any |
 | GET | `/api/live/sessions/:id/notes/:noteId` | user | any |
 | GET | `/api/live/sessions/:id/notes/:noteId/file` | user | any |
@@ -490,6 +495,8 @@ State-changing browser requests must be same-origin (CSRF protection).
 | POST | `/api/workspaces/:id/meeting` | user | any |
 | POST | `/api/workspaces/:id/recording-signal` | user | any |
 | POST | `/api/workspaces/:id/recordings` | user | any |
+| POST | `/api/workspaces/:id/recordings/start` | user | any |
+| POST | `/api/workspaces/:id/recordings/finish` | user | any |
 | GET | `/api/workspaces/recordings/:id/audio` | user | any |
 | PATCH | `/api/workspaces/recordings/:id` | user | any |
 | DELETE | `/api/workspaces/recordings/:id` | user | any |

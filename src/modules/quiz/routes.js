@@ -20,6 +20,7 @@ const { text, id, oneOf, integer } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, unavailable } = require('../../http/errors');
 const { quizSystemPrompt, quizPrompt, quizGradePrompt, quizTutorPrompt, referenceBlock } = require('../../ai/prompts');
 const { KINDS, LABELS, parseQuiz, publicView, solution, answerKey, mark, markShortByKeywords } = require('./questions');
+const { findCourseFiles } = require('../courses/sections');
 
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'mixed'];
 const parse = (json, fallback) => {
@@ -100,6 +101,12 @@ function register(router, { db, ai, access, review }) {
 
     // Ground the questions in the university's own material when it has something on the topic.
     const references = topic && !notes ? ai.retrieveContext(user, topic, 3).references.map((r) => ({ title: r.title, excerpt: String(r.excerpt || '').slice(0, 1500) })) : [];
+    // A course quiz also draws on the course's own files (the lecturer's slides and notes) that match the topic.
+    if (course) {
+      for (const f of findCourseFiles(db, [course.id], `${topic} ${notes.slice(0, 2000)}`, { all: !topic && !notes, limit: 2, maxChars: 12_000 })) {
+        references.push({ title: `${f.title} (course file, topic: ${f.topic})`, excerpt: f.text.slice(0, 6000) });
+      }
+    }
     const raw = await ai.complete({
       user,
       system: quizSystemPrompt(),

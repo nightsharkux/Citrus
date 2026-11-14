@@ -9,6 +9,7 @@ export function registerRoutes() {
   route('/home', () => import('./pages/home.js'));
   route('/assistant/:id?', () => import('./pages/assistant.js'));
   route('/courses', () => import('./pages/courses.js'));
+  route('/courses/:id/progress', () => import('./pages/progress.js'));
   route('/courses/:id', () => import('./pages/course.js'));
   route('/learning/packs/:id', () => import('./pages/pack.js'));
   route('/learning/:tab?', () => import('./pages/learning.js'));

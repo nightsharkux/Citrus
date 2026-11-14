@@ -19,7 +19,9 @@
  *   POST /api/live/sessions/:id/student-ask     { question } → { answer }  privately            (enrolled student)
  *   POST /api/live/sessions/:id/transcript      { text }  what the lecturer just said           (lecturer)
  *   POST /api/live/sessions/:id/audio           audio from the Android app's background recording → transcript
- *                                               lines (the audio is not kept)                    (lecturer)
+ *                                               lines; the audio is kept only with file storage and when the
+ *                                               lecturer keeps the transcript                    (lecturer)
+ *   GET  /api/live/sessions/:id/recording.aac   that audio as one file, streamed                 (lecturer)
  *   GET  /api/live/sessions/:id/transcript.txt  the lecture record with the kept transcript       (lecturer)
  *   GET  /api/live/sessions/:id/record.txt      the tagged lecture record, with instructions for any AI
  *                                               (lecturer: everything; student: their own results)
@@ -43,6 +45,7 @@ const { recordText, recordSummary, transcriptText } = require('./record');
 const { createRecordSource } = require('./record-source');
 const { topicFilesText } = require('../courses/sections');
 const { readAudio, transcribe, spread } = require('../speech/transcribe');
+const { pipeTo } = require('../../services/blob');
 const { createRateLimiter } = require('../../http/rate-limit');
 const { assistantNameFor } = require('../account/preferences');
 const { createAttachments } = require('../assistant/attachments');
@@ -73,7 +76,7 @@ function byMinute(rows, maxChars = TRANSCRIPT_FOR_AI) {
   return out.trim().slice(-maxChars);
 }
 
-function register(router, { db, ai, access, bus, site, notifier, deviceCommands }) {
+function register(router, { db, ai, access, bus, site, notifier, deviceCommands, blobs = { enabled: false } }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
   const moments = createMoments({ db, ai, bus, transcripts });
@@ -329,8 +332,15 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     const s = teaching(ctx.user, ctx.params.id);
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
     const flags = flagsOf(s.id).map((f) => ({ ...f, excerpt: s.keep_transcript ? heardText(s, { from: f.minute - 1, to: f.minute, maxChars: 500 }) : '' }));
-    return { ...lecturerView(s), flags, course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer'), { detail: true }) };
+    return { ...lecturerView(s), flags, course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer'), { detail: true }), recording: keptAudio(s) };
   });
+
+  /** How much of the lecture's audio was kept (Android background recording with file storage), or null. */
+  function keptAudio(s) {
+    if (!blobs.enabled) return null;
+    const pieces = recordingOf(s.id);
+    return pieces.length ? { pieces: pieces.length, seconds: Math.round(pieces.reduce((n, x) => n + x.duration_ms, 0) / 1000) } : null;
+  }
 
   /**
    * After the lecture, for a student: their own path through it (private), where the class got stuck, the key
@@ -607,6 +617,16 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     const s = teaching(user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
     const piece = await readAudio(ctx);
+    // The audio itself is kept like the transcript: only when the lecturer keeps it, and only with file storage.
+    if (blobs.enabled && s.keep_transcript) {
+      try {
+        const kept = await blobs.put(`live/${s.id}/${piece.startedAt}-${crypto.randomUUID().slice(0, 8)}.${piece.mime === 'audio/mpeg' ? 'mp3' : piece.mime === 'audio/aac' ? 'aac' : 'm4a'}`, piece.buffer, { contentType: piece.mime });
+        db.run('INSERT INTO live_recordings(session_id, user_id, blob_url, mime, bytes, recorded_at, duration_ms, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+          s.id, user.id, kept.url, piece.mime, piece.buffer.length, piece.startedAt, piece.durationMs, new Date().toISOString());
+      } catch (error) {
+        console.warn(`Lecture audio not kept: ${error.message}`); // the transcript still works without it
+      }
+    }
     const lines = spread(await transcribe({ ai, user, buffer: piece.buffer, mime: piece.mime, language: language(user) }), piece.startedAt, piece.durationMs);
     for (const line of lines) {
       transcripts.add(s.id, line.text);
@@ -616,8 +636,34 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands 
     return { lines: lines.length, text: lines.map((l) => l.text) };
   });
 
+  /** Pieces of a recording that play as one file when joined end to end (ADTS AAC and MP3 do). */
+  const recordingOf = (sessionId) => db.all("SELECT * FROM live_recordings WHERE session_id = ? AND mime IN ('audio/aac', 'audio/mpeg') ORDER BY recorded_at, id", sessionId);
+
+  router.get('/api/live/sessions/:id/recording.aac', async (ctx) => {
+    const s = teaching(ctx.user, ctx.params.id);
+    const pieces = recordingOf(s.id);
+    if (!pieces.length || !blobs.enabled) throw notFound('No recording was kept for this lecture.');
+    const mime = pieces[0].mime;
+    const all = pieces.filter((p) => p.mime === mime);
+    ctx.res.writeHead(200, {
+      'Content-Type': mime,
+      'Content-Length': all.reduce((n, p) => n + p.bytes, 0),
+      'Content-Disposition': `attachment; filename="${fileBase(s)}-recording.${mime === 'audio/mpeg' ? 'mp3' : 'aac'}"`,
+      'Cache-Control': 'private, no-store',
+    });
+    for (const p of all) {
+      const upstream = await blobs.get(p.blob_url).catch(() => null);
+      if (!upstream) continue; // a missing piece is skipped; the rest still plays
+      if (!(await pipeTo(ctx.res, upstream, { end: false }))) return; // the visitor left
+    }
+    ctx.res.end();
+  });
+
   router.delete('/api/live/sessions/:id/transcript', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
+    const audio = db.all('SELECT blob_url FROM live_recordings WHERE session_id = ?', s.id).map((r) => r.blob_url);
+    if (audio.length && blobs.enabled) blobs.del(audio).catch(() => {});
+    db.run('DELETE FROM live_recordings WHERE session_id = ?', s.id);
     db.run('DELETE FROM live_transcript WHERE session_id = ?', s.id);
     db.run('UPDATE live_sessions SET keep_transcript = 0 WHERE id = ?', s.id);
     transcripts.clear(s.id);

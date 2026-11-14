@@ -4,7 +4,8 @@
  *
  * Lecturers add and arrange everything from the + and ⋯ buttons on each topic, and can go live, schedule a lecture
  * or start a meeting right inside a topic; Campus then also reads that topic's files in the lecture. Students see
- * the same outline, open files and links, and join or review lectures.
+ * the same outline, open files and links, and join or review lectures. Anyone can ask Campus about a topic: it
+ * answers from the course's files. Files go straight to file storage when the server has it (up to 100 MB).
  */
 import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -58,6 +59,11 @@ function lectureRow(l, teacher, courseId) {
     ${teacher ? html`<button class="btn btn-ghost btn-icon btn-sm" data-lecture-move="${l.id}" aria-label="Move ${l.topic} to a topic" title="Move to a topic">${icon('layers', 16)}</button>` : ''}</div>`;
 }
 
+/** Ask Campus about one topic: it reads the course's files for the answer (and the term so far). */
+const askAbout = (outline, s, teacher) => `/assistant?new=1&course=${outline.course.id}&q=${encodeURIComponent(teacher
+  ? `About the topic “${s.title}” in ${outline.course.code}: what do its files cover, how did it go in my lectures, and what do students find hard there?`
+  : `Explain the topic “${s.title}” in ${outline.course.code} to me from the course files, simply, with an example and a question to check myself.`)}`;
+
 function topicNode(s, outline, children, depth) {
   const teacher = outline.isTeacher;
   const items = outline.items.filter((i) => i.section_id === s.id);
@@ -69,6 +75,7 @@ function topicNode(s, outline, children, depth) {
       <span class="topic-chevron">${icon('chevron-right', 16)}</span>
       <span class="topic-name"><strong>${s.title}</strong>${s.summary ? html`<span class="small muted">${s.summary}</span>` : ''}</span>
       <span class="small muted topic-count">${count ? `${count}` : ''}</span>
+      <a class="btn btn-ghost btn-icon btn-sm" href="${askAbout(outline, s, teacher)}" aria-label="Ask Campus about ${s.title}" title="Ask Campus about this topic">${icon('campus', 16)}</a>
       ${teacher ? html`<span class="cluster" style="--gap:2px"><button class="btn btn-ghost btn-icon btn-sm" data-topic-add="${s.id}" aria-label="Add to ${s.title}" title="Add">${icon('plus', 16)}</button><button class="btn btn-ghost btn-icon btn-sm" data-topic-menu="${s.id}" aria-label="Options for ${s.title}">${icon('more', 16)}</button></span>` : ''}
     </summary>
     <div class="topic-body">
@@ -114,14 +121,18 @@ export function mountOutline(root, outline, ctx) {
     const files = [...picker.files];
     picker.value = '';
     let done = 0;
+    // With file storage the browser sends files straight to it (up to 100 MB); without, up to 4 MB through Campus.
+    const direct = !!outline.storage?.direct;
+    const max = outline.storage?.maxBytes || MAX_FILE;
     for (const file of files) {
-      if (file.size > MAX_FILE) {
-        toast(`${file.name} is larger than 4 MB. Add it as a link (for example to Moodle or a cloud folder) instead.`, 'error', { duration: 6000 });
+      if (file.size > max) {
+        toast(`${file.name} is larger than ${Math.round(max / 1024 / 1024)} MB. Add it as a link (for example to Moodle or a cloud folder) instead.`, 'error', { duration: 6000 });
         continue;
       }
       try {
-        toast(`Uploading ${file.name}…`, 'info', { duration: 1600 });
-        await api.upload(`/courses/${courseId}/files`, file, { 'X-File-Name': encodeURIComponent(file.name), ...(pickFor ? { 'X-Section-Id': String(pickFor) } : {}) });
+        toast(`Uploading ${file.name}…`, 'info', { duration: file.size > 8e6 ? 6000 : 1600 });
+        if (direct) await api.uploadDirect(`/courses/${courseId}/files/start`, `/courses/${courseId}/files/finish`, file, { name: file.name, ...(pickFor ? { section_id: Number(pickFor) } : {}) });
+        else await api.upload(`/courses/${courseId}/files`, file, { 'X-File-Name': encodeURIComponent(file.name), ...(pickFor ? { 'X-Section-Id': String(pickFor) } : {}) });
         done += 1;
       } catch (error) {
         toastError(error);

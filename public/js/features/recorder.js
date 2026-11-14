@@ -3,15 +3,16 @@
  *
  * Every second of audio is also kept on this phone (features/recording-store.js), so closing the app or losing the
  * connection never loses the recording, and the screen is kept awake while it records. When it stops, the recording
- * goes to /api/workspaces/:id/recordings; when the server cannot keep audio (or the upload fails), it is saved to
- * the phone instead and stays listed under "On this phone".
+ * goes to the server: straight to its file storage when it has one (`direct`, any length), otherwise to
+ * /api/workspaces/:id/recordings. When the server cannot keep audio (or the upload fails), it is saved to the phone
+ * instead and stays listed under "On this phone".
  */
 import { api } from '../core/api.js';
 import { keepAwake } from './keep-awake.js';
 import { beginTake, addChunk, takeBlob, dropTake, takeName } from './recording-store.js';
 import { saveFile } from './notes-export.js';
 
-export function createRecorder({ workspaceId, title = 'Meeting', canvas, onTick, onSaved, onKept, onError }) {
+export function createRecorder({ workspaceId, title = 'Meeting', canvas, direct = false, onTick, onSaved, onKept, onError }) {
   let media = null;
   let stream = null;
   let audioCtx = null;
@@ -64,7 +65,9 @@ export function createRecorder({ workspaceId, title = 'Meeting', canvas, onTick,
       const type = (media.mimeType || 'audio/webm').split(';')[0];
       const blob = take ? (await takeBlob(take)) || new Blob(chunks, { type }) : new Blob(chunks, { type });
       try {
-        const result = await api.upload(`/workspaces/${workspaceId}/recordings`, blob);
+        const result = direct
+          ? await api.uploadDirect(`/workspaces/${workspaceId}/recordings/start`, `/workspaces/${workspaceId}/recordings/finish`, blob, { duration_ms: Date.now() - started })
+          : await api.upload(`/workspaces/${workspaceId}/recordings`, blob);
         await api.post(`/workspaces/${workspaceId}/recording-signal`, { active: false }).catch(() => {});
         if (take) await dropTake(take);
         onSaved?.(result);

@@ -45,6 +45,24 @@ export const api = {
     if (!res.ok) throw new ApiError(data.error || 'Upload failed', res.status, data);
     return data;
   },
+
+  /**
+   * Upload straight to file storage (when the server has it): ask Campus for a pass, send the file to the store,
+   * then hand back the receipt. Big files never pass through Campus this way. `fields` go with the first step.
+   */
+  async uploadDirect(startPath, finishPath, blob, fields = {}) {
+    const type = blob.type.split(';')[0] || 'application/octet-stream';
+    const start = await request('POST', startPath, { size: blob.size, type, ...fields });
+    let res;
+    try {
+      res = await fetch(start.pass.url, { method: 'PUT', headers: { ...start.pass.headers, authorization: `Bearer ${start.pass.token}`, 'x-content-type': start.contentType || type }, body: blob });
+    } catch {
+      throw new ApiError('The upload was interrupted. Check your connection and try again.', 0);
+    }
+    const stored = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ApiError(stored?.error?.message || `Upload failed (${res.status})`, res.status, stored);
+    return request('POST', finishPath, { ticket: start.ticket, url: stored.url || '' });
+  },
 };
 
 /**

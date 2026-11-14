@@ -18,6 +18,7 @@ const { badRequest, forbidden, notFound, unavailable } = require('../../http/err
 const prompts = require('../../ai/prompts');
 const { minutesText } = require('./minutes-text');
 const { readAudio, transcribe, spread } = require('../speech/transcribe');
+const { pipeTo } = require('../../services/blob');
 
 const KINDS = ['meeting', 'lecture', 'discussion', 'assignment', 'study'];
 const GUIDANCE = ['coach', 'socratic', 'direct', 'assessment'];
@@ -55,7 +56,9 @@ function readVersions(raw) {
   }
 }
 
-function register(router, { db, config, access, ai, bus, audit }) {
+const MAX_STORED_RECORDING = 300 * 1024 * 1024; // about five hours of meeting audio
+
+function register(router, { db, config, access, ai, bus, audit, blobs = { enabled: false } }) {
   const isoNow = () => new Date().toISOString();
   // Recordings are files. A host without a writable disk (Vercel) cannot keep them.
   let audioReady = true;
@@ -228,6 +231,7 @@ function register(router, { db, config, access, ai, bus, audit }) {
     return {
       room: { ...w, live: !!w.live, isOwner: w.creator_id === u.id, canGuide: access.teachesWorkspace(u, w), canSpeak: canSpeak(u, w), course, meeting: meetingOf(w) },
       notes, recordings, reports, messages, members, activeRecorders,
+      storage: { direct: !!blobs.enabled },
       ...ai.status(u),
     };
   });
@@ -472,9 +476,66 @@ function register(router, { db, config, access, ai, bus, audit }) {
     return { id: recId, transcript: '', warning: '', ...ai.status(ctx.user) };
   });
 
-  router.get('/api/workspaces/recordings/:id/audio', (ctx) => {
+  /**
+   * With file storage, recordings go straight from the browser to the store (any length, no request limit): a pass
+   * for one exact path, then the receipt. Private like every recording: only its owner, or the space once shared.
+   */
+  router.post('/api/workspaces/:id/recordings/start', async (ctx) => {
+    const w = member(ctx.user, ctx.params.id);
+    if (!blobs.enabled) throw badRequest('This server has no file storage for recordings');
+    const b = await ctx.json();
+    const mime = String(b.type || '').split(';')[0].trim();
+    if (!AUDIO_TYPES[mime]) throw badRequest('Unsupported recording format');
+    const size = Number(b.size);
+    if (!Number.isInteger(size) || size < 1) throw badRequest('The recording is empty');
+    if (size > MAX_STORED_RECORDING) throw badRequest('This recording is too long to keep in one piece');
+    const durationMs = Math.max(0, Math.min(24 * 3_600_000, Number(b.duration_ms) || 0));
+    const pathname = `meetings/${w.id}/${crypto.randomUUID()}${AUDIO_TYPES[mime]}`;
+    return {
+      pass: blobs.uploadPass({ pathname, maximumSizeInBytes: size, allowedContentTypes: [mime], minutes: 30 }),
+      contentType: mime,
+      ticket: blobs.ticket({ kind: 'meeting', workspaceId: w.id, userId: ctx.user.id, pathname, mime, size, durationMs }, 120),
+    };
+  });
+
+  router.post('/api/workspaces/:id/recordings/finish', async (ctx) => {
+    const w = member(ctx.user, ctx.params.id);
+    if (!blobs.enabled) throw badRequest('This server has no file storage for recordings');
+    const b = await ctx.json();
+    const t = blobs.readTicket(b.ticket);
+    if (!t || t.kind !== 'meeting' || t.workspaceId !== w.id || t.userId !== ctx.user.id) throw badRequest('This upload has expired. The recording is still on your phone.');
+    const url = typeof b.url === 'string' && b.url ? b.url : blobs.urlOf(t.pathname);
+    if (!blobs.owns(url) || new URL(url).pathname !== `/${t.pathname}`) throw badRequest('That is not the recording that was uploaded');
+    if (db.get('SELECT 1 AS dup FROM meeting_recordings WHERE blob_url = ?', url)) throw badRequest('This recording is already saved');
+    const stored = await blobs.get(url);
+    if (!stored) throw badRequest('The recording did not arrive. It is still on your phone.');
+    await stored.body?.cancel?.();
+    const recId = db.insert('INSERT INTO meeting_recordings(workspace_id, owner_id, filename, mime, bytes, blob_url, duration_ms, created) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
+      w.id, ctx.user.id, t.pathname, t.mime, Number(stored.headers.get('content-length')) || t.size, url, t.durationMs || 0, isoNow());
+    touch(w, 'recording');
+    ctx.status = 201;
+    return { id: recId, transcript: '', warning: '', ...ai.status(ctx.user) };
+  });
+
+  router.get('/api/workspaces/recordings/:id/audio', async (ctx) => {
     const rec = recordingFor(ctx.user, ctx.params.id);
     if (!rec || !access.workspaceMember(ctx.user, rec.workspace_id) || (rec.owner_id !== ctx.user.id && !rec.shared)) throw forbidden('This recording is private');
+    if (rec.blob_url) {
+      if (!blobs.enabled) throw notFound('This recording is in file storage, which is not connected right now');
+      const upstream = await blobs.get(rec.blob_url, { range: ctx.req.headers.range });
+      if (!upstream) throw notFound('Audio file missing');
+      const extension = path.extname(rec.filename) || AUDIO_TYPES[rec.mime] || '';
+      ctx.res.writeHead(upstream.status === 206 ? 206 : 200, {
+        'Content-Type': rec.mime,
+        ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length') } : {}),
+        ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range') } : {}),
+        'Accept-Ranges': 'bytes',
+        'Content-Disposition': `${ctx.query.get('download') ? 'attachment' : 'inline'}; filename="campusos-meeting-${rec.id}${extension}"`,
+        'Cache-Control': 'no-store',
+      });
+      await pipeTo(ctx.res, upstream);
+      return;
+    }
     const file = path.join(config.audioDir, rec.filename);
     let stat;
     try {
@@ -505,6 +566,7 @@ function register(router, { db, config, access, ai, bus, audit }) {
     if (!rec || rec.owner_id !== ctx.user.id) throw forbidden('Only the person who recorded this can delete it');
     db.run('DELETE FROM meeting_reports WHERE recording_id = ?', rec.id);
     db.run('DELETE FROM meeting_recordings WHERE id = ?', rec.id);
+    if (rec.blob_url && blobs.enabled) blobs.del([rec.blob_url]).catch(() => {});
     try {
       fs.unlinkSync(path.join(config.audioDir, rec.filename));
     } catch {

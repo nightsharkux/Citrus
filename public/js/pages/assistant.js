@@ -202,6 +202,7 @@ export default {
     const ready = data.status.aiEnabled;
     let threadId = data.thread?.thread.id || null;
     let lectureId = null; // set from ?lecture= below; the server also finds a lecture named in the conversation
+    let courseId = null; // set from ?course= ("Ask Campus" on a course page): the term so far and the course's files
     let controller = null;
     let hideTimer = 0;
     let dictation = null;
@@ -404,7 +405,7 @@ export default {
         if (log.scrollHeight - log.scrollTop - log.clientHeight < 160) scrollDown(false);
       };
       try {
-        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), ...(lectureId ? { lecture_id: lectureId } : {}), device: deviceSettings(), web: webForced() ? 'on' : 'auto', ...(spoken ? { heard: detectLanguage(question), recogniser: recognitionLanguage(), spoken: true } : {}) }, {
+        await stream('/assistant/messages', { prompt: question, thread_id: threadId, attachments: files.map((a) => a.id), ...(lectureId ? { lecture_id: lectureId } : {}), ...(courseId ? { course_id: courseId } : {}), device: deviceSettings(), web: webForced() ? 'on' : 'auto', ...(spoken ? { heard: detectLanguage(question), recogniser: recognitionLanguage(), spoken: true } : {}) }, {
           signal: controller.signal,
           onEvent(type, payload) {
             if (type === 'thread') attach.sent();
@@ -688,6 +689,7 @@ export default {
     const initial = ctx.query.get('q');
     // "Continue in Ask Campus" from a lecture review: this conversation is about that lecture.
     lectureId = Number(ctx.query.get('lecture')) || null;
+    courseId = Number(ctx.query.get('course')) || null;
     if (initial && ready) {
       history.replaceState({}, '', location.pathname);
       send(initial, { spoken: ctx.query.get('spoken') === '1' });

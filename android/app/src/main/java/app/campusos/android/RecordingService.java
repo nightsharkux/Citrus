@@ -150,10 +150,11 @@ public class RecordingService extends Service {
 
     private void nextPiece() {
         try {
-            piece = new File(getCacheDir(), "piece-" + System.currentTimeMillis() + ".m4a");
+            piece = new File(getCacheDir(), "piece-" + System.currentTimeMillis() + ".aac");
             recorder = Build.VERSION.SDK_INT >= 31 ? new MediaRecorder(this) : new MediaRecorder();
             recorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            // ADTS: pieces joined end to end are still one valid AAC file, so the server can offer the whole recording.
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS);
             recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
             recorder.setAudioChannels(1);
             recorder.setAudioSamplingRate(16_000);
@@ -227,14 +228,14 @@ public class RecordingService extends Service {
     /** Send this piece, then any older ones that could not be sent before. */
     private void sendAll(File newest, long started, long duration, String url) {
         if (!send(newest, started, duration, url)) return;
-        File[] waiting = getCacheDir().listFiles((dir, name) -> name.startsWith("piece-") && name.endsWith(".m4a"));
+        File[] waiting = getCacheDir().listFiles((dir, name) -> name.startsWith("piece-") && name.endsWith(".aac"));
         if (waiting == null) return;
         Arrays.sort(waiting);
         for (File f : waiting) {
             if (f.equals(newest) || (piece != null && f.equals(piece))) continue;
             long at;
             try {
-                at = Long.parseLong(f.getName().substring("piece-".length(), f.getName().length() - ".m4a".length()));
+                at = Long.parseLong(f.getName().substring("piece-".length(), f.getName().length() - ".aac".length()));
             } catch (NumberFormatException e) {
                 f.delete();
                 continue;
@@ -252,7 +253,7 @@ public class RecordingService extends Service {
             c.setDoOutput(true);
             c.setConnectTimeout(15_000);
             c.setReadTimeout(90_000);
-            c.setRequestProperty("Content-Type", "audio/mp4");
+            c.setRequestProperty("Content-Type", "audio/aac");
             c.setRequestProperty("X-Recorded-At", iso(started));
             c.setRequestProperty("X-Duration-Ms", String.valueOf(duration));
             c.setRequestProperty("Origin", base);

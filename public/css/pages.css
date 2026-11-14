@@ -738,3 +738,12 @@ details.report.is-version { margin-left: 18px; border-left: 3px solid var(--acce
 .look-preview iframe { position: absolute; top: 0; left: 0; width: 400%; height: 400%; border: 0; transform: scale(.25); transform-origin: 0 0; }
 .tool-desc { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .tools-core .tool { border-color: color-mix(in srgb, var(--accent) 35%, var(--glass-border)); }
+
+/* ---- term overview and my progress (pages/progress.js) */
+.term-row { padding: 14px 20px; border-top: 1px solid var(--hairline); }
+.term-row:first-child { border-top: 0; }
+.term-parts { margin: 6px 0 0; padding-left: 18px; color: var(--text-2); display: grid; gap: 2px; }
+.term-parts a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.term-chart .term-bar { cursor: pointer; outline: none; }
+.term-chart .term-bar:hover rect, .term-chart .term-bar:focus-visible rect { filter: brightness(1.12); }
+.review-section.is-linked { box-shadow: inset 3px 0 0 var(--accent); }

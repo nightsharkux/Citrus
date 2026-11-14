@@ -87,8 +87,8 @@ export default {
         subtitle: html`<span class="chip accent">${course.code}</span> &nbsp;${course.lecturer || 'Lecturer to be announced'} · ${plural(course.enrolled, 'student')}`,
         actions: html`
           <a class="btn" href="/schedule?course=${course.id}">${icon('calendar', 17)} Schedule</a>
-          ${isTeacher ? html`<a class="btn btn-primary" href="/live/${course.id}">${icon('presentation', 17)} Live lecture</a><button class="btn" data-new-lecture>${icon('plus', 17)} New lecture</button>` : ''}
-          ${student ? html`<button class="btn btn-primary" data-practice>${icon('graduation', 17)} Practice</button><button class="btn btn-ghost btn-icon" data-course-menu aria-label="More">${icon('more', 19)}</button>` : ''}`,
+          ${isTeacher ? html`<a class="btn btn-primary" href="/live/${course.id}">${icon('presentation', 17)} Live lecture</a><button class="btn" data-new-lecture>${icon('plus', 17)} New lecture</button><a class="btn" href="/courses/${course.id}/progress">${icon('trending', 17)} Term overview</a>` : ''}
+          ${student ? html`<a class="btn" href="/courses/${course.id}/progress">${icon('trending', 17)} My progress</a><button class="btn btn-primary" data-practice>${icon('graduation', 17)} Practice</button><button class="btn btn-ghost btn-icon" data-course-menu aria-label="More">${icon('more', 19)}</button>` : ''}`,
       })}
       ${student ? html`<div class="notice" style="margin-bottom:20px">${icon('lock', 18)}<span>Your ratings are private. Your lecturer only sees totals for the whole class.</span></div>` : ''}
       <div class="stack stagger">

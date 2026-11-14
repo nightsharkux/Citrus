@@ -25,6 +25,7 @@ const { createAudit } = require('./services/audit');
 const { createSettings } = require('./services/settings');
 const { createRooms } = require('./services/rooms');
 const { createMaintenance } = require('./services/maintenance');
+const { createBlobStore } = require('./services/blob');
 const { createSessions } = require('./modules/auth/sessions');
 const { createOidc } = require('./modules/auth/oidc');
 const { createPushSender } = require('./modules/notifications/webpush');
@@ -94,10 +95,11 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
   const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, studyGroups });
   const maintenance = createMaintenance({ db, config, settings });
+  const blobs = createBlobStore({ env });
 
   const deps = {
     db, config, site, env, access, bus, audit, settings, secretBox, nfcKey, ai, push, notifier,
-    timetable, studyGroups, campusPosts, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes,
+    timetable, studyGroups, campusPosts, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes, blobs,
   };
 
   const router = new Router();

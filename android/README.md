@@ -10,9 +10,11 @@ or meeting when the screen turns off, when you switch apps, and after you close 
 - When you start listening in a live lecture or a meeting, it shows a notification ("Campus OS keeps listening in
   the background") with a **Stop** button.
 - While the app is on screen, the page listens as usual. When the screen turns off, you switch apps or you close
-  the app, the app records instead: 30-second pieces of audio that it sends to the server
+  the app, the app records instead: 30-second pieces of AAC audio that it sends to the server
   (`POST /api/live/sessions/:id/audio`, `POST /api/workspaces/:id/audio`). The server turns them into transcript
-  lines at the times they were said and keeps no audio. Back on screen, the page takes over again.
+  lines at the times they were said. It keeps the lecture audio only when it has file storage (a Vercel Blob store)
+  and the lecturer keeps the transcript; the pieces then download as one recording from the review. Back on screen,
+  the page takes over again.
 - A piece that cannot be sent (no connection) stays on the phone and goes with the next one. When the lecture
   ends, the recording stops by itself.
 - Android's web view has no built-in speech recognition. Without cloud recognition set up on the server, the app

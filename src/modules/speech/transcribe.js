@@ -1,8 +1,8 @@
 'use strict';
 /**
  * Speech in a short audio file → lines of text with their times. Used when the Campus OS Android app records in the
- * background (screen off, app closed): it sends the lecture or meeting audio in pieces of about a minute, and only
- * the text is kept. The audio is never stored.
+ * background (screen off, app closed): it sends the lecture or meeting audio in pieces of about half a minute. The
+ * text is kept; the audio only for a lecture, with file storage, when the lecturer keeps the transcript.
  */
 const { badRequest, unavailable } = require('../../http/errors');
 const { transcribePrompt } = require('../../ai/prompts');
