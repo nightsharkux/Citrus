@@ -492,7 +492,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
     const durationMs = Math.max(0, Math.min(24 * 3_600_000, Number(b.duration_ms) || 0));
     const pathname = `meetings/${w.id}/${crypto.randomUUID()}${AUDIO_TYPES[mime]}`;
     return {
-      pass: blobs.uploadPass({ pathname, maximumSizeInBytes: size, allowedContentTypes: [mime], minutes: 30 }),
+      pass: await blobs.uploadPass({ pathname, maximumSizeInBytes: size, allowedContentTypes: [mime], minutes: 30 }),
       contentType: mime,
       ticket: blobs.ticket({ kind: 'meeting', workspaceId: w.id, userId: ctx.user.id, pathname, mime, size, durationMs }, 120),
     };

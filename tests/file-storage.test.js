@@ -13,8 +13,14 @@ const { startApp } = require('./helpers');
 const { createBlobStore } = require('../src/services/blob');
 
 const TOKEN = 'vercel_blob_rw_teststore123_s3cretpart';
+const OIDC = 'oidc.jwt.from-vercel';
+const SIGNING_SECRET = 'fake-store-signing-secret';
+const b64url = (s) => Buffer.from(s).toString('base64url');
 
-/** A stand-in Blob store: PUT /api/blob/?pathname=…, GET /<pathname> (with the token), POST /api/blob/delete. */
+/**
+ * A stand-in Blob store: PUT /api/blob/?pathname=…, GET /<pathname> (with the token), POST /api/blob/delete, and for
+ * OIDC stores POST /api/blob/signed-token and presigned PUTs (checked the way the SDK signs them).
+ */
 async function startFakeBlob() {
   const files = new Map();
   const log = [];
@@ -28,11 +34,33 @@ async function startFakeBlob() {
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: { code: 'forbidden', message } }));
     };
-    log.push({ method: req.method, path: url.pathname, auth: auth.startsWith('vercel_blob_client_') ? 'client' : auth === TOKEN ? 'server' : 'none' });
+    const server = auth === TOKEN || (auth === OIDC && req.headers['x-vercel-blob-store-id'] === 'teststore123');
+    const presigned = url.searchParams.has('vercel-blob-signature');
+    log.push({ method: req.method, path: url.pathname, auth: presigned ? 'presigned' : auth.startsWith('vercel_blob_client_') ? 'client' : server ? (auth === OIDC ? 'oidc' : 'server') : 'none' });
+    if (req.method === 'POST' && url.pathname === '/api/blob/signed-token') {
+      if (!server) return fail(403, 'no token');
+      const b = JSON.parse(body);
+      const delegationToken = `${b64url(JSON.stringify({ storeId: 'store_teststore123', ...b }))}.sig`;
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ delegationToken, clientSigningToken: crypto.createHmac('sha256', SIGNING_SECRET).update(delegationToken).digest('hex'), validUntil: b.validUntil }));
+    }
     if (req.method === 'PUT' && url.pathname === '/api/blob/') {
       const pathname = url.searchParams.get('pathname');
       if (req.headers['x-vercel-blob-access'] !== 'private') return fail(400, 'access must be private here');
-      if (auth.startsWith('vercel_blob_client_')) {
+      if (presigned) {
+        const delegation = url.searchParams.get('vercel-blob-delegation');
+        const scope = JSON.parse(Buffer.from(delegation.split('.')[0], 'base64url').toString());
+        const lines = ['operation=put', `pathname=${pathname}`];
+        for (const [k, v] of url.searchParams) if (k.startsWith('vercel-blob-') && !['vercel-blob-delegation', 'vercel-blob-signature'].includes(k) && v) lines.push(`${k}=${v}`);
+        lines.sort((a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+        const key = crypto.createHmac('sha256', SIGNING_SECRET).update(delegation).digest('hex');
+        if (crypto.createHmac('sha256', key).update(lines.join('\n')).digest('base64url') !== url.searchParams.get('vercel-blob-signature')) return fail(403, 'bad signature');
+        if (auth) return fail(400, 'a presigned upload sends no token');
+        if (scope.pathname !== pathname || !scope.operations.includes('put')) return fail(400, 'pathname does not match the token payload');
+        if (scope.validUntil < Date.now()) return fail(400, 'Token expired');
+        if (body.length > Math.min(scope.maximumSizeInBytes, Number(url.searchParams.get('vercel-blob-maximum-size-in-bytes')))) return fail(400, 'the file length cannot be greater than allowed');
+        if (!scope.allowedContentTypes.includes(req.headers['x-content-type'])) return fail(400, 'contentType is not allowed');
+      } else if (auth.startsWith('vercel_blob_client_')) {
         const [signature, payload] = Buffer.from(auth.split('_').pop(), 'base64').toString().split('.');
         const want = crypto.createHmac('sha256', TOKEN).update(payload).digest('hex');
         if (signature !== want) return fail(403, 'bad client token');
@@ -41,20 +69,20 @@ async function startFakeBlob() {
         if (p.validUntil < Date.now()) return fail(400, 'Token expired');
         if (body.length > p.maximumSizeInBytes) return fail(400, 'the file length cannot be greater than allowed');
         if (!p.allowedContentTypes.includes(req.headers['x-content-type'])) return fail(400, 'contentType is not allowed');
-      } else if (auth !== TOKEN) return fail(403, 'no token');
+      } else if (!server) return fail(403, 'no token');
       if (files.has(pathname)) return fail(400, 'already exists');
       files.set(pathname, { body, type: req.headers['x-content-type'] });
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end(JSON.stringify({ url: `${origin}/${pathname}`, pathname, contentType: req.headers['x-content-type'] }));
     }
     if (req.method === 'POST' && url.pathname === '/api/blob/delete') {
-      if (auth !== TOKEN) return fail(403, 'no token');
+      if (!server) return fail(403, 'no token');
       for (const u of JSON.parse(body).urls) files.delete(new URL(u).pathname.slice(1));
       res.writeHead(200, { 'content-type': 'application/json' });
       return res.end('{}');
     }
     if (req.method === 'GET') {
-      if (auth !== TOKEN) return fail(403, 'private');
+      if (auth !== TOKEN && auth !== OIDC) return fail(403, 'private');
       const f = files.get(url.pathname.slice(1));
       if (!f) return fail(404, 'not found');
       const range = /^bytes=(\d+)-(\d*)$/.exec(String(req.headers.range || ''));
@@ -78,20 +106,26 @@ async function startFakeBlob() {
 async function uploadDirect(app, who, start, finish, bytes, fields) {
   const s = await app.call(who, 'POST', start, { size: bytes.length, ...fields });
   if (s.status !== 200) return s;
-  const put = await fetch(s.body.pass.url, { method: 'PUT', headers: { ...s.body.pass.headers, authorization: `Bearer ${s.body.pass.token}`, 'x-content-type': s.body.contentType }, body: bytes });
+  const put = await fetch(s.body.pass.url, { method: 'PUT', headers: { ...s.body.pass.headers, ...(s.body.pass.token ? { authorization: `Bearer ${s.body.pass.token}` } : {}), 'x-content-type': s.body.contentType }, body: bytes });
   const stored = await put.json();
   if (!put.ok) return { status: put.status, body: stored };
   return app.call(who, 'POST', finish, { ticket: s.body.ticket, url: stored.url });
 }
 
-async function setup(env = {}) {
+async function setup(env = {}, { oidc = false } = {}) {
   const blob = await startFakeBlob();
   const fixture = { calls: [] };
   const fetchImpl = async (url, options) => {
     fixture.calls.push(JSON.parse(options.body));
     return Response.json({ choices: [{ message: { content: 'We agreed to meet on Friday.' } }] });
   };
-  const app = await startApp({ env: { BLOB_READ_WRITE_TOKEN: TOKEN, VERCEL_BLOB_API_URL: blob.api, AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_AI_PROVIDER: 'gateway', ...env }, fetchImpl });
+  const app = await startApp({ env: { ...(oidc ? { BLOB_STORE_ID: 'store_teststore123' } : { BLOB_READ_WRITE_TOKEN: TOKEN }), VERCEL_BLOB_API_URL: blob.api, AI_GATEWAY_API_KEY: 'fixture-key', CAMPUS_AI_PROVIDER: 'gateway', ...env }, fetchImpl });
+  // On Vercel every request carries the project's OIDC token; the stand-in app gets it the same way.
+  if (oidc) {
+    const call = app.call;
+    app.call = (who, method, path, body, options = {}) => call(who, method, path, body, { ...options, headers: { 'x-vercel-oidc-token': OIDC, ...(options.headers || {}) } });
+    app.callWithoutOidc = call;
+  }
   await app.login('admin');
   const lecturerId = await app.lecturer('prof');
   const course = await app.call('admin', 'POST', '/api/courses', { title: 'Linear Algebra', code: 'MA2' });
@@ -221,6 +255,45 @@ test('without a store nothing changes, and the store never fetches an address th
     const outline = await app.call('prof', 'GET', `/api/courses/${courseId}/outline`);
     assert.deepEqual(outline.body.storage, { direct: false, maxBytes: 4 * 1024 * 1024 });
     assert.equal((await app.call('prof', 'POST', `/api/courses/${courseId}/files/start`, { name: 'a.pdf', size: 10, type: 'application/pdf' })).status, 400);
+  } finally {
+    await close();
+  }
+});
+
+test('stores made since 2026 sign in with the OIDC token of each request; the browser uploads to a presigned address', async () => {
+  const { app, blob, courseId, close } = await setup({}, { oidc: true });
+  try {
+    const outline = await app.call('prof', 'GET', `/api/courses/${courseId}/outline`);
+    assert.equal(outline.body.storage.direct, true);
+    const big = Buffer.concat([Buffer.from('Eigenvalues: Av = λv. '), Buffer.alloc(5 * 1024 * 1024, 'y')]);
+    const start = await app.call('prof', 'POST', `/api/courses/${courseId}/files/start`, { name: 'notes.txt', size: big.length, type: 'text/plain' });
+    assert.equal(start.status, 200, JSON.stringify(start.body));
+    assert.equal(start.body.pass.token, undefined, 'no token for the browser: the address is signed');
+    assert.doesNotMatch(JSON.stringify(start.body), /fake-store-signing-secret|clientSigningToken/, 'the signing key stays on the server');
+    const signed = new URL(start.body.pass.url);
+    assert.equal(signed.searchParams.get('vercel-blob-maximum-size-in-bytes'), String(big.length));
+    assert.equal(signed.searchParams.get('vercel-blob-allowed-content-types'), 'text/plain');
+    // Changing the signed address breaks it.
+    const bigger = new URL(signed);
+    bigger.searchParams.set('vercel-blob-maximum-size-in-bytes', String(big.length * 2));
+    assert.equal((await fetch(bigger, { method: 'PUT', headers: { ...start.body.pass.headers, 'x-content-type': 'text/plain' }, body: big })).status, 403);
+
+    const added = await uploadDirect(app, 'prof', `/api/courses/${courseId}/files/start`, `/api/courses/${courseId}/files/finish`, big, { name: 'notes.txt', type: 'text/plain' });
+    assert.equal(added.status, 201, JSON.stringify(added.body));
+    assert.equal(added.body.readable, true);
+    assert.ok(blob.log.some((l) => l.method === 'PUT' && l.auth === 'presigned'));
+    assert.ok(blob.log.some((l) => l.path === '/api/blob/signed-token' && l.auth === 'oidc'));
+    const got = await app.call('ann', 'GET', `/api/course-items/${added.body.id}/file`, undefined, { raw: true });
+    assert.equal(Buffer.from(await got.arrayBuffer()).equals(big), true);
+
+    // Without Vercel's token (OIDC not turned on) it says what to do instead of failing silently.
+    const none = await app.callWithoutOidc('prof', 'POST', `/api/courses/${courseId}/files/start`, { name: 'a.txt', size: 3, type: 'text/plain' });
+    assert.equal(none.status, 503);
+    assert.match(none.body.error, /OIDC/);
+
+    await app.call('prof', 'DELETE', `/api/course-items/${added.body.id}`);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(blob.files.size, 0);
   } finally {
     await close();
   }

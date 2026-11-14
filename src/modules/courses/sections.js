@@ -210,7 +210,7 @@ function registerSections(router, { db, access, bus, blobs = { enabled: false } 
     const sectionId = sectionIn(course.id, b.section_id);
     const pathname = `courses/${course.id}/${crypto.randomUUID()}/${safeName(name)}`;
     return {
-      pass: blobs.uploadPass({ pathname, maximumSizeInBytes: size, allowedContentTypes: [mime] }),
+      pass: await blobs.uploadPass({ pathname, maximumSizeInBytes: size, allowedContentTypes: [mime] }),
       contentType: mime,
       ticket: blobs.ticket({ kind: 'course-file', courseId: course.id, userId: ctx.user.id, sectionId, pathname, name, mime, size }),
     };

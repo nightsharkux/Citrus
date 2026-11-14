@@ -55,7 +55,8 @@ export const api = {
     const start = await request('POST', startPath, { size: blob.size, type, ...fields });
     let res;
     try {
-      res = await fetch(start.pass.url, { method: 'PUT', headers: { ...start.pass.headers, authorization: `Bearer ${start.pass.token}`, 'x-content-type': start.contentType || type }, body: blob });
+      // A presigned address carries its own signature; an older store's pass is a token to send along.
+      res = await fetch(start.pass.url, { method: 'PUT', headers: { ...start.pass.headers, ...(start.pass.token ? { authorization: `Bearer ${start.pass.token}` } : {}), 'x-content-type': start.contentType || type }, body: blob });
     } catch {
       throw new ApiError('The upload was interrupted. Check your connection and try again.', 0);
     }

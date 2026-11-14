@@ -25,7 +25,7 @@ const { createAudit } = require('./services/audit');
 const { createSettings } = require('./services/settings');
 const { createRooms } = require('./services/rooms');
 const { createMaintenance } = require('./services/maintenance');
-const { createBlobStore } = require('./services/blob');
+const { createBlobStore, withRequest } = require('./services/blob');
 const { createSessions } = require('./modules/auth/sessions');
 const { createOidc } = require('./modules/auth/oidc');
 const { createPushSender } = require('./modules/notifications/webpush');
@@ -95,7 +95,7 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
   const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, studyGroups });
   const maintenance = createMaintenance({ db, config, settings });
-  const blobs = createBlobStore({ env });
+  const blobs = createBlobStore({ env, secret: keys.master() });
 
   const deps = {
     db, config, site, env, access, bus, audit, settings, secretBox, nfcKey, ai, push, notifier,
@@ -116,7 +116,10 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
     return `${proto}://${host}`;
   }
 
-  async function handler(req, res) {
+  /** Every request runs in its own scope, so file storage can sign in with the OIDC token Vercel sent with it. */
+  const handler = (req, res) => withRequest(req, () => handle(req, res));
+
+  async function handle(req, res) {
     const startedAt = Date.now();
     applySecurityHeaders(res, { secure: config.cookieSecure });
     if (config.logRequests) res.on('finish', () => console.log(`${req.method} ${req.url.split('?')[0]} ${res.statusCode} ${Date.now() - startedAt}ms`));
