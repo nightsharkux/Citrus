@@ -34,7 +34,7 @@ Needs JDK 17 or newer and the Android SDK (Android Studio installs both).
 
 ```sh
 cd android
-./gradlew assembleDebug                                              # opens the live site, https://campusos-mdu.vercel.app
+./gradlew assembleDebug                                              # opens the live site, https://citrus-mdu.vercel.app
 ./gradlew assembleDebug -PcampusUrl=https://campus.example.edu      # or another server
 ./gradlew assembleDebug -PcampusUrl=                                 # or ask for the address on first start
 ```
