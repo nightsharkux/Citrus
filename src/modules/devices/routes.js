@@ -119,7 +119,7 @@ function register(router, deps) {
     const d = deviceFor(ctx.user, ctx.params.id);
     const b = await ctx.json();
     const type = oneOf(b.type, ADMIN_COMMANDS, 'Command');
-    const payload = { text: clamp(b.text, 200) || 'Hello from Campus OS' };
+    const payload = { text: clamp(b.text, 200) || 'Hello from Citrus' };
     const commandId = deviceCommands.queue(d.id, type, type === 'room.status' ? { room: d.room, status: 'open', note: '' } : payload);
     return { id: commandId };
   }, { roles: ['admin'] });
@@ -279,7 +279,7 @@ function register(router, deps) {
       );
       logEvent(device.id, 'activation.requested', `user ${binding.id}`);
       bus.publish(`user:${binding.id}`, 'activation', { id: activationId, room: device.room, device: device.name });
-      notifier.notify(binding.id, { kind: 'device', title: `Confirm sign-in at ${device.room || device.name}`, body: 'You tapped your card. Open Campus OS to start the session.', link: `/classroom?activation=${activationId}`, urgent: true });
+      notifier.notify(binding.id, { kind: 'device', title: `Confirm sign-in at ${device.room || device.name}`, body: 'You tapped your card. Open Citrus to start the session.', link: `/classroom?activation=${activationId}`, urgent: true });
       return { result: 'activation_pending', name: binding.name.split(' ')[0] };
     }
 

@@ -704,7 +704,7 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 @keyframes rise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
 @media (max-width: 720px) { .viewer-stage { padding: 48px 12px 24px; } .viewer-text { padding: 24px; } .viewer-panel { bottom: 16px; right: 12px; width: calc(100vw - 96px); } }
 
-/* "What is Campus OS?": the presentation card */
+/* "What is Citrus?": the presentation card */
 .pitch { position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center; padding: 24px; overflow: auto;
   background: color-mix(in srgb, var(--bg-solid) 72%, transparent); -webkit-backdrop-filter: blur(30px) saturate(170%); backdrop-filter: blur(30px) saturate(170%);
   opacity: 0; transition: opacity .35s cubic-bezier(.32, .72, 0, 1); }
@@ -728,7 +728,7 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 .note-open:hover { background: var(--fill); }
 .note-open svg:last-child { opacity: .5; }
 
-/* Home: what Campus OS does, meetings */
+/* Home: what Citrus does, meetings */
 .intro-card { margin-bottom: 16px; }
 .intro-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
 .intro-grid > div { display: grid; gap: 6px; align-content: start; }

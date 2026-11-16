@@ -1,5 +1,5 @@
 'use strict';
-/** CampusOS 1.0 platform tables: accounts, assistant threads, notifications, schedule, review, devices. */
+/** Citrus 1.0 platform tables: accounts, assistant threads, notifications, schedule, review, devices. */
 const { addColumn } = require('../helpers');
 
 module.exports = {

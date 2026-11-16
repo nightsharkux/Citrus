@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Make a tool / More tools: anyone (student, lecturer, administrator) describes a small tool, the AI writes it in
- * the Campus OS look, and they keep it for themselves. Shared tools wait for an administrator, then appear under
+ * the Citrus look, and they keep it for themselves. Shared tools wait for an administrator, then appear under
  * More tools for everyone at the university to add.
  *
  *   GET    /api/apps                       my tools and the shared tools I added
@@ -194,7 +194,7 @@ function register(router, { db, ai, site, audit }) {
     return { tool: view(ctx.user, t), looks: LOOKS };
   });
 
-  /** The tool itself. Framed only by Campus OS, and locked down by its own CSP sandbox (frame.js). */
+  /** The tool itself. Framed only by Citrus, and locked down by its own CSP sandbox (frame.js). */
   router.get('/api/apps/:id/frame', (ctx) => {
     const t = toolFor(ctx.user, ctx.params.id);
     if (!visible(ctx.user, t)) throw forbidden('This tool is private');

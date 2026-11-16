@@ -1,8 +1,13 @@
 /* ==========================================================================
-   Brand (wordmark + ring) and Campus's face (animated eye + illustrations).
+   Brand (wordmark + C) and Campus's face (animated eye + illustrations).
    ========================================================================== */
 
-/* ---------- Wordmark: "Campus" + gradient ring "O" + "S" ---------- */
+/* ---------- The C: the ring of earlier editions, opened on the right, with round ends ---------- */
+:root {
+  --c-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M78.34 26.22A37 37 0 1 0 78.34 73.78' fill='none' stroke='%23000' stroke-width='17' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* ---------- Wordmark: gradient "C" + "itrus" ---------- */
 .wordmark {
   display: inline-flex;
   align-items: baseline;
@@ -14,30 +19,28 @@
   color: var(--text);
   white-space: nowrap;
 }
-.wordmark-o {
+.wordmark-c {
   display: inline-block;
-  width: 0.98em;
-  height: 0.98em;
-  margin: 0 0.035em 0 0.07em;
-  border-radius: 50%;
+  width: 0.9em;
+  height: 0.9em;
+  margin: 0 -0.1em 0 0;
   background: conic-gradient(from 210deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-1));
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.19em), #000 calc(100% - 0.19em + 0.6px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 0.19em), #000 calc(100% - 0.19em + 0.6px));
-  transform: translateY(0.1em);
+  -webkit-mask: var(--c-mask) center / contain no-repeat;
+  mask: var(--c-mask) center / contain no-repeat;
+  transform: translateY(0.09em);
 }
 .wordmark.lg { font-size: clamp(30px, 4.6vw, 44px); }
 .wordmark.on-dark { color: #fff; }
 
-/* Standalone ring mark (icons, compact headers) */
+/* Standalone C mark (icons, compact headers) */
 .ring-mark {
   display: inline-block;
   flex: none;
   width: var(--ring, 32px);
   height: var(--ring, 32px);
-  border-radius: 50%;
   background: conic-gradient(from 210deg, var(--aurora-1), var(--aurora-2), var(--aurora-3), var(--aurora-1));
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring, 32px) * 0.19), #000 calc(100% - var(--ring, 32px) * 0.19 + 0.6px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - var(--ring, 32px) * 0.19), #000 calc(100% - var(--ring, 32px) * 0.19 + 0.6px));
+  -webkit-mask: var(--c-mask) center / contain no-repeat;
+  mask: var(--c-mask) center / contain no-repeat;
 }
 
 /* ---------- Static ring (message avatars) ---------- */

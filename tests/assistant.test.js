@@ -158,7 +158,7 @@ test('brand mark and manifest follow the edition', async () => {
     assert.match(mark.headers.get('content-type'), /image\/svg\+xml/);
     assert.match(mark.body, /#7C6CFF/i);
     const manifest = await app.call('anon', 'GET', '/manifest.webmanifest');
-    assert.equal(manifest.body.short_name, 'Campus OS');
+    assert.equal(manifest.body.short_name, 'Citrus');
     assert.equal(manifest.body.icons[0].src, '/icons/general-192.png');
     assert.equal((await app.call('anon', 'GET', '/api/bootstrap')).body.site.assistant, 'Campus');
   } finally {

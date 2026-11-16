@@ -23,7 +23,7 @@ export default {
           ${error ? html`<div class="notice danger" style="margin-bottom:16px">${icon('alert', 18)}<span>${error}</span></div>` : ''}
           ${session.sso.enabled ? html`
             <a class="btn btn-primary btn-lg btn-block" href="/auth/sso/start?return=${encodeURIComponent(ret)}" data-native>${icon('shield', 18)} Continue with ${session.sso.label}</a>
-            <div class="divider">or use your Campus OS password</div>` : ''}
+            <div class="divider">or use your Citrus password</div>` : ''}
           <form class="form" id="login-form">
             ${many ? html`<label class="field"><span>University</span><select class="select" name="institution_id">${session.institutions.map((i) => html`<option value="${i.id}">${i.name}</option>`)}</select></label>` : ''}
             <label class="field"><span>Email</span><input class="input" type="email" name="email" autocomplete="email" required autofocus placeholder="you@university.edu"></label>

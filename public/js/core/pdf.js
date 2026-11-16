@@ -488,7 +488,7 @@ function drawChart(doc, block, images) {
   }
   let title = 'Graph';
   try { title = JSON.parse(block.code).title || title; } catch { /* not JSON */ }
-  doc.flow([{ text: pdfText(`[${title}: open the notes in Campus OS to see this graph]`), italic: true }], { color: MUTED, size: 9.5 });
+  doc.flow([{ text: pdfText(`[${title}: open the notes in Citrus to see this graph]`), italic: true }], { color: MUTED, size: 9.5 });
 }
 
 /** The class (and for a student, their own) understanding minute by minute, as coloured cells. */
@@ -564,7 +564,7 @@ function assemble(doc, { title, footer }) {
   });
   objects[pagesId - 1] = `<< /Type /Pages /Kids [${pageIds.map((p) => `${p} 0 R`).join(' ')}] /Count ${pageIds.length} >>`;
   objects[catalog - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
-  const info = add(`<< /Title ${literal(pdfText(title, { spell: true }))} /Producer (Campus OS) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}Z) >>`);
+  const info = add(`<< /Title ${literal(pdfText(title, { spell: true }))} /Producer (Citrus) /CreationDate (D:${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}Z) >>`);
 
   let out = '%PDF-1.4\n%\xe2\xe3\xcf\xd3\n';
   const offsets = [];
@@ -584,7 +584,7 @@ function assemble(doc, { title, footer }) {
  * Notes as a PDF. The first "# " heading of the Markdown becomes the title when no title is given.
  * @returns {Uint8Array}
  */
-export function notesPdf({ title = '', subtitle = '', kicker = 'Campus OS', markdown = '', accent = '#F07A2E', figure = null, images = null, footer = 'Campus OS · Student project' } = {}) {
+export function notesPdf({ title = '', subtitle = '', kicker = 'Citrus', markdown = '', accent = '#F07A2E', figure = null, images = null, footer = 'Citrus · Student project' } = {}) {
   const blocks = parseMarkdown(markdown);
   if (blocks[0]?.type === 'heading' && blocks[0].level === 1) {
     if (!title) title = blocks[0].text;

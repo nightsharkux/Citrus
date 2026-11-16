@@ -1,7 +1,7 @@
 # /etc/systemd/system/campusos.service
-# Starts Campus OS on boot and restarts it if it crashes.
+# Starts Citrus on boot and restarts it if it crashes.
 [Unit]
-Description=Campus OS
+Description=Citrus
 After=network-online.target
 Wants=network-online.target
 

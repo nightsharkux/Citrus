@@ -25,7 +25,7 @@ export default {
     const active = d.devices.filter((x) => x.status === 'active');
     const revoked = d.devices.filter((x) => x.status !== 'active');
     return html`
-      ${pageHead({ title: 'Devices', subtitle: 'Classroom hardware talks to Campus OS over a signed API. A card tap never signs anyone in on its own — the person confirms in the app.', actions: html`<button class="btn btn-primary" data-register>${icon('plus', 17)} Register device</button>` })}
+      ${pageHead({ title: 'Devices', subtitle: 'Classroom hardware talks to Citrus over a signed API. A card tap never signs anyone in on its own — the person confirms in the app.', actions: html`<button class="btn btn-primary" data-register>${icon('plus', 17)} Register device</button>` })}
       <div class="stack stagger">
         ${active.length ? html`<div class="grid-auto" style="--min:280px">${active.map((x) => {
           const [glyph, label] = KIND[x.kind] || KIND.display;

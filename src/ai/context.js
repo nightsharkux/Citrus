@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Builds the "CONTEXT" block for the personal assistant from the user's OWN
- * Campus OS data only, so questions like "what should I do tonight?" or "am I ready
+ * Citrus data only, so questions like "what should I do tonight?" or "am I ready
  * for the exam?" can be answered without the user explaining who they are.
  *
  * Add a section by adding a function to SECTIONS: each takes (user, shared) and
@@ -134,13 +134,13 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null, stud
       const rows = timetable.between(user, new Date(now).toISOString(), new Date(now + 60 * DAY).toISOString())
         .filter((e) => (e.kind === 'deadline' || e.kind === 'exam') && Date.parse(e.ends) > now)
         .slice(0, 12);
-      if (!rows.length) return 'Exams and deadlines (next 60 days): none in Campus OS. Assignments the university has not entered here are unknown to you.';
+      if (!rows.length) return 'Exams and deadlines (next 60 days): none in Citrus. Assignments the university has not entered here are unknown to you.';
       return `Exams and deadlines (next 60 days):\n${rows.map((e) => `- ${e.kind === 'exam' ? 'Exam' : 'Due'}: ${e.title}${courseTag(e)}, ${dayLabel(e.starts)} ${hhmm(e.starts)} (${when(e.starts)})${e.scope === 'personal' ? ` [id ${e.id}]` : ''}`).join('\n')}`;
     },
 
     function schedule(user, shared) {
       const events = shared.events.filter((e) => Date.parse(e.ends) > Date.now()).slice(0, 22);
-      if (!events.length) return 'Upcoming schedule (14 days): nothing in Campus OS';
+      if (!events.length) return 'Upcoming schedule (14 days): nothing in Citrus';
       // Only the user's own events carry an id: those are the ones the assistant may change.
       const line = (e) => `- ${e.scope === 'personal' ? `[id ${e.id}] ` : ''}${dayLabel(e.starts)} ${hhmm(e.starts)}–${hhmm(e.ends)} ${e.title}${courseTag(e)}${place(e)}${e.recurring ? ' (repeats weekly)' : ''}`;
       return `Upcoming schedule (14 days):\n${events.map(line).join('\n')}`;

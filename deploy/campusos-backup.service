@@ -1,6 +1,6 @@
 # /etc/systemd/system/campusos-backup.service — run by campusos-backup.timer
 [Unit]
-Description=Campus OS nightly backup
+Description=Citrus nightly backup
 
 [Service]
 Type=oneshot

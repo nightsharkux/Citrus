@@ -43,9 +43,9 @@ export default {
           <section class="card">
             <h2>Open on other devices</h2>
             ${d.network.urls.length
-              ? html`<p class="small muted mt-8">Phones, tablets and laptops on the same Wi-Fi can open Campus OS while this computer runs it:</p>
+              ? html`<p class="small muted mt-8">Phones, tablets and laptops on the same Wi-Fi can open Citrus while this computer runs it:</p>
                   ${d.network.urls.map((u) => html`<div class="code-box mt-8"><span>${u}</span><button class="btn btn-sm" data-copy="${u}">${icon('copy', 14)} Copy</button></div>`)}`
-              : html`<p class="small muted mt-8">Campus OS currently accepts connections from this computer only. Set <code>HOST=0.0.0.0</code> in <code>.env</code> and restart to open it from phones on the same Wi-Fi.</p>`}
+              : html`<p class="small muted mt-8">Citrus currently accepts connections from this computer only. Set <code>HOST=0.0.0.0</code> in <code>.env</code> and restart to open it from phones on the same Wi-Fi.</p>`}
             <p class="small muted mt-16">${d.network.secure
               ? 'Served over HTTPS: voice, push notifications and app install work on every device.'
               : 'Over a Wi-Fi address, other devices get everything except the microphone, push notifications and app install — browsers only allow those over HTTPS. For a secure link that also works outside your network, run share-online.bat.'}</p>

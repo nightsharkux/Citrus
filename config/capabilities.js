@@ -115,7 +115,7 @@ module.exports = Object.freeze([
   {
     group: 'Your own tools',
     items: [
-      item('make-a-tool', 'Make a tool', 'limited', '/apps', 'Describe a small tool, such as a big clock for the projector or a group picker, and Campus makes it in the Campus OS look, with a choice of looks. It stays yours unless you share it. Tools run on their own, with no access to your account or the internet. Made by the AI, so try it before relying on it.'),
+      item('make-a-tool', 'Make a tool', 'limited', '/apps', 'Describe a small tool, such as a big clock for the projector or a group picker, and Campus makes it in the Citrus look, with a choice of looks. It stays yours unless you share it. Tools run on their own, with no access to your account or the internet. Made by the AI, so try it before relying on it.'),
       item('more-tools', 'More tools', 'limited', '/apps/gallery', 'Tools people at your university made and shared, checked by an administrator first. Add the ones you like to My tools.'),
     ],
   },

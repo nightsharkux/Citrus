@@ -8,7 +8,7 @@
  * stays English. Text the user wrote (messages, titles, notes) is never touched.
  *
  * The same pass puts the person's name for the assistant where the interface says "Campus" (Ask Campus, Hey
- * Campus), except in "Campus OS", "Campus life", "Campus map" and similar names.
+ * Campus), except in "Citrus", "Campus life", "Campus map" and similar names.
  */
 
 /**

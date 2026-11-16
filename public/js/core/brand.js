@@ -1,10 +1,10 @@
-/** Brand marks: the "Campus OS" wordmark (ring as the O) and the standalone ring. */
+/** Brand marks: the "Citrus" wordmark (a gradient C is its first letter) and the standalone C. */
 import { raw } from './dom.js';
 
-/** Wordmark. size: '' | 'lg'. Screen readers hear "Campus OS". */
+/** Wordmark. size: '' | 'lg'. Screen readers hear "Citrus". */
 export const wordmark = (size = '', extra = '') => raw(
-  `<span class="wordmark ${size} ${extra}" role="img" aria-label="Campus OS"><span aria-hidden="true">Campus</span><span class="wordmark-o" aria-hidden="true"></span><span aria-hidden="true">S</span></span>`,
+  `<span class="wordmark ${size} ${extra}" role="img" aria-label="Citrus"><span class="wordmark-c" aria-hidden="true"></span><span aria-hidden="true">itrus</span></span>`,
 );
 
-/** The ring on its own (compact headers, sign-in card). */
+/** The C on its own (compact headers, sign-in card). */
 export const ringMark = (px = 32) => raw(`<span class="ring-mark" style="--ring:${Number(px)}px" aria-hidden="true"></span>`);

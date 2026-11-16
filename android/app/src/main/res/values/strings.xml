@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Campus OS</string>
-    <string name="address_title">Your Campus OS address</string>
+    <string name="app_name">Citrus</string>
+    <string name="address_title">Your Citrus address</string>
     <string name="address_hint">https://campus.example.edu</string>
-    <string name="address_help">The web address you open Campus OS at in the browser. If the page cannot be reached later, the app asks again.</string>
-    <string name="unreachable">Campus OS could not be reached.</string>
+    <string name="address_help">The web address you open Citrus at in the browser. If the page cannot be reached later, the app asks again.</string>
+    <string name="unreachable">Citrus could not be reached.</string>
     <string name="retry">Try again</string>
     <string name="change_address">Change address</string>
     <string name="open">Open</string>
     <string name="channel_recording">Recording</string>
-    <string name="recording_title">Campus OS is recording</string>
-    <string name="standby_title">Campus OS keeps listening in the background</string>
+    <string name="recording_title">Citrus is recording</string>
+    <string name="standby_title">Citrus keeps listening in the background</string>
     <string name="stop">Stop</string>
     <string name="saved_to_downloads">Saved to Downloads: %1$s</string>
     <string name="download_started">Downloading %1$s</string>
-    <string name="mic_needed">Campus OS needs the microphone to listen to the lecture.</string>
+    <string name="mic_needed">Citrus needs the microphone to listen to the lecture.</string>
 </resources>

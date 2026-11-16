@@ -10,7 +10,7 @@
  *   finish(doc)       a short description of the whole document (AI), then library entries: one overview and one
  *                     per page, each citing the file and page. external_id 'doc<id>:…' ties them to the document.
  *   corpusText(docs)  the documents as one plain-text file in the library format, with reading rules at the top,
- *                     that any AI can read and that imports back into Campus OS unchanged
+ *                     that any AI can read and that imports back into Citrus unchanged
  */
 const { extractText, IMAGE_TYPES, pdfTextPages, pdfImages, pdfPageCount, readable } = require('../../lib/extract-text');
 const { knowledgeReadPagePrompt, knowledgeCardPrompt } = require('../../ai/prompts');

@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Campus OS device protocol v1 — request signing.
+ * Citrus device protocol v1 — request signing.
  *
  * Every device request carries four headers:
  *   X-Device-Id         "dev_<number>" as shown when the device was registered

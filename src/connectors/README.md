@@ -6,7 +6,7 @@ Adapters to external university systems. Each one is a small factory:
 createXConnector({ baseUrl, fetchImpl }) -> { configured(), verify(credential), …read methods }
 ```
 
-- `moodle.js` covers Moodle Web Services (REST/JSON). Users link their own account with a personal token from Moodle → Preferences → Security keys. CampusOS never stores Moodle passwords, and tokens are encrypted at rest (`secretBox`).
+- `moodle.js` covers Moodle Web Services (REST/JSON). Users link their own account with a personal token from Moodle → Preferences → Security keys. Citrus never stores Moodle passwords, and tokens are encrypted at rest (`secretBox`).
 
 Adding a connector:
 

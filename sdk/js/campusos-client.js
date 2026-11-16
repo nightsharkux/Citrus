@@ -1,5 +1,5 @@
 /**
- * CampusOS API client for web apps, native shells (Capacitor/React Native web
+ * Citrus API client for web apps, native shells (Capacitor/React Native web
  * views) and scripts. Framework-free; uses fetch.
  *
  *   const campus = new CampusOSClient('https://campus.example.edu');

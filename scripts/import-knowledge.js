@@ -4,7 +4,7 @@
  *
  *   node --env-file=.env scripts/import-knowledge.js path/to/file.txt [institution-id]
  *
- * Accepts the CampusOS university document corpus (.txt, one entry per PDF page, with file and page in each entry),
+ * Accepts the Citrus university document corpus (.txt, one entry per PDF page, with file and page in each entry),
  * a .jsonl file, or plain text / Markdown. Importing the same corpus again updates the entries instead of duplicating them.
  */
 const fs = require('node:fs');

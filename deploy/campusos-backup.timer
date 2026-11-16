@@ -1,6 +1,6 @@
 # /etc/systemd/system/campusos-backup.timer — backs up every night at 03:15
 [Unit]
-Description=Nightly Campus OS backup
+Description=Nightly Citrus backup
 
 [Timer]
 OnCalendar=*-*-* 03:15:00

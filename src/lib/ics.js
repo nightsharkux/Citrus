@@ -112,9 +112,9 @@ function parseIcs(text, { timeZone = 'Europe/Berlin' } = {}) {
 const icsStamp = (iso) => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 
 /** Serialise expanded occurrences. Using UTC per-occurrence avoids DST surprises in clients. */
-function toIcs(occurrences, { name = 'Campus OS', host = 'campusos.local' } = {}) {
+function toIcs(occurrences, { name = 'Citrus', host = 'campusos.local' } = {}) {
   const lines = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Campus OS//Schedule//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Citrus//Schedule//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeText(name)}`,
   ];
   const stamp = icsStamp(new Date().toISOString());

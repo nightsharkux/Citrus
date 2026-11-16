@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * Campus OS device simulator — behaves like a classroom puck, card reader or
+ * Citrus device simulator — behaves like a classroom puck, card reader or
  * door light so you can test the whole hardware flow without hardware.
  *
  *   node hardware/simulator.js --url http://localhost:3100 --id dev_1 --secret <secret>

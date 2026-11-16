@@ -6,8 +6,8 @@
  */
 module.exports = {
   id: 'oth',
-  name: 'Campus OS · Student project',
-  shortName: 'Campus OS',
+  name: 'Citrus · Student project',
+  shortName: 'Citrus',
   institution: 'OTH Amberg-Weiden — Independent Concept',
   assistant: 'Campus',
   tagline: 'Student project',

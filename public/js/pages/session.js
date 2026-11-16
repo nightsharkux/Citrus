@@ -102,7 +102,7 @@ function teacher(d) {
       ${s.open && s.require_code ? html`<section class="card code-display">
         <p class="muted small">Check-in code</p>
         <div class="code-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="54" class="track"/><circle cx="60" cy="60" r="54" class="progress" id="code-progress"/></svg><span id="code" class="mono">······</span></div>
-        <p class="muted small">Students enter this in Campus OS → Check-in</p>
+        <p class="muted small">Students enter this in Citrus → Check-in</p>
         <button class="btn btn-sm mt-16" data-fullscreen>${icon('monitor', 15)} Show full screen</button>
       </section>` : ''}
       <section class="card">
@@ -173,7 +173,7 @@ function mountTeacher(root, d, ctx) {
     on(root, 'click', '[data-fullscreen]', () => {
       const overlay = document.createElement('div');
       overlay.className = 'fullscreen-code';
-      render(overlay, html`<div><p>${s.course_code} · ${s.title}</p><div id="fs-code" class="mono">${$('#code', root).textContent}</div><p>Open Campus OS → Check-in and enter this code</p><button class="btn btn-glass mt-24">Close</button></div>`);
+      render(overlay, html`<div><p>${s.course_code} · ${s.title}</p><div id="fs-code" class="mono">${$('#code', root).textContent}</div><p>Open Citrus → Check-in and enter this code</p><button class="btn btn-glass mt-24">Close</button></div>`);
       document.body.append(overlay);
       overlay.requestFullscreen?.().catch(() => {});
       overlay.querySelector('button').addEventListener('click', () => {
@@ -197,7 +197,7 @@ async function pairSheet(d, ctx) {
   sheet({
     title: 'Link a student card',
     content: html`<div class="stack">
-      <p class="muted small">After linking, the student can tap their card on a reader in this room to check in. Campus OS stores only a keyed fingerprint of the card number.</p>
+      <p class="muted small">After linking, the student can tap their card on a reader in this room to check in. Citrus stores only a keyed fingerprint of the card number.</p>
       <form class="form" id="pair-form">
         <label class="field"><span>Student</span><select class="select" name="user_id">${d.people.map((p) => html`<option value="${p.id}">${p.name}${p.has_card ? ' (already linked)' : ''}</option>`)}</select></label>
         ${readers.length ? html`<label class="field"><span>Reader</span><select class="select" name="device">${readers.map((r) => html`<option value="${r.id}" ${r.room === d.session.room ? 'selected' : ''}>${r.name}${r.room ? ` · ${r.room}` : ''}${r.online ? '' : ' (offline)'}</option>`)}</select><span class="hint">The next card tapped on this reader within 2 minutes is linked.</span></label>`

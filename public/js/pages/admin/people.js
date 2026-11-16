@@ -70,7 +70,7 @@ function requests(d) {
     <div class="cluster">${avatar(a.name, 'lg')}<div><h3>${a.name}</h3><p class="small muted">${a.email} · requested ${date(a.created)}</p></div></div>
     <div class="cluster"><button class="btn" data-decide="${a.id}" data-decision="reject">Decline</button><button class="btn btn-primary" data-decide="${a.id}" data-decision="approve">${icon('check', 16)} Approve</button></div>
   </section>`)}
-  <p class="small faint">Verify staff identity outside Campus OS (e.g. via HR or the faculty office) before approving.</p></div>`;
+  <p class="small faint">Verify staff identity outside Citrus (e.g. via HR or the faculty office) before approving.</p></div>`;
 }
 
 function manage(u, ctx) {

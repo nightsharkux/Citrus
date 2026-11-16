@@ -31,7 +31,7 @@ const storageWarning = (who) => (session.durable === false && who
   : '');
 
 function brand(href = '/home') {
-  return html`<a class="brand" href="${href}" aria-label="Campus OS home">
+  return html`<a class="brand" href="${href}" aria-label="Citrus home">
     <span class="brand-text">${wordmark()}<small>${session.site.tagline || ''}</small></span>
   </a>`;
 }
@@ -73,7 +73,7 @@ export function mountApp() {
     <div class="main">
       ${storageWarning(u.role === 'admin' ? 'admin' : null)}
       <header class="topbar" id="topbar">
-        <a class="topbar-mobile-brand" href="/home" aria-label="Campus OS home">${wordmark()}</a>
+        <a class="topbar-mobile-brand" href="/home" aria-label="Citrus home">${wordmark()}</a>
         <span class="topbar-title" id="topbar-title"></span>
         <div class="topbar-actions">
           <button class="icon-btn focus-btn" data-focus aria-label="Campus Focus" title="Campus Focus: pause notifications">${icon('moon', 18)}</button>
@@ -102,7 +102,7 @@ export function mountApp() {
 }
 
 /**
- * "What is Campus OS?" (features/pitch.js): heard by any microphone, or chosen in the command palette. The show
+ * "What is Citrus?" (features/pitch.js): heard by any microphone, or chosen in the command palette. The show
  * module loads the first time it is needed.
  */
 let pitchWired = false;
@@ -253,7 +253,7 @@ function wireShell() {
       e.preventDefault();
       openPalette();
     }
-    // Ctrl/⌘ + Shift + E: "What is Campus OS?" without the microphone, for presentations.
+    // Ctrl/⌘ + Shift + E: "What is Citrus?" without the microphone, for presentations.
     if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'e' && session.user) {
       e.preventDefault();
       startPitch();
@@ -419,7 +419,7 @@ async function openPalette() {
     { label: 'Ask Campus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
     { label: 'Ask Campus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
     { label: 'Talk to Campus', hint: 'Voice conversation', icon: 'waveform', run: () => talkToCampus({ threadId: currentThreadId() }), group: 'Actions' },
-    { label: 'Explain Campus OS', hint: 'The short presentation', icon: 'presentation', run: () => startPitch(), group: 'Actions' },
+    { label: 'Explain Citrus', hint: 'The short presentation', icon: 'presentation', run: () => startPitch(), group: 'Actions' },
     { label: 'Start a meeting', icon: 'message', href: '/meetings', group: 'Actions' },
     { label: 'New space', icon: 'plus', href: '/spaces?new=1', group: 'Actions' },
     { label: 'Add to schedule', icon: 'calendar', href: '/schedule?new=1', group: 'Actions' },

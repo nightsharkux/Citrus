@@ -82,7 +82,7 @@ function mountProfile(root) {
 function appearance() {
   const current = document.documentElement.dataset.theme || 'system';
   const opt = (value, label, glyph) => html`<label class="theme-option ${value}"><input type="radio" name="theme" value="${value}" ${current === value ? 'checked' : ''}><span class="theme-preview"><i></i><i></i><i></i></span><span class="cluster" style="--gap:6px">${icon(glyph, 15)} ${label}</span></label>`;
-  return html`<section class="card"><h2>Appearance</h2><p class="muted small mt-8">Choose how Campus OS looks on this device.</p>
+  return html`<section class="card"><h2>Appearance</h2><p class="muted small mt-8">Choose how Citrus looks on this device.</p>
     <form class="theme-options mt-24" id="theme-form">${opt('system', 'Match system', 'monitor')}${opt('light', 'Light', 'sun')}${opt('dark', 'Dark', 'moon')}</form>
   </section>`;
 }
@@ -100,7 +100,7 @@ function assistant() {
   const prefs = session.user.preferences || {};
   const problem = voiceProblem();
   return html`<section class="card assistant-settings">
-    <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Campus OS.</p></div></div>
+    <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Citrus.</p></div></div>
     <div class="stack mt-24" style="--gap:18px">
       <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'gateway' ? 'OpenAI processes microphone audio through AI Gateway while listening is on. Turn it off to stop streaming.' : session.ai.recognition.provider === 'wispr' ? 'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
         <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Campus"><span></span></span></label>
@@ -312,16 +312,16 @@ function mountAssistant(root) {
 function connections(d) {
   const m = d.integrations.moodle;
   return html`<section class="card">
-    <div class="cluster"><span class="tile info">${icon('book', 20)}</span><div class="grow"><h2>Moodle</h2><p class="small muted">${m.configured ? (m.connected ? `Connected as ${m.account.fullName} on ${m.account.siteName}` : 'Show your Moodle courses inside Campus OS.') : 'Your university hasn’t enabled the Moodle connection yet.'}</p></div>
+    <div class="cluster"><span class="tile info">${icon('book', 20)}</span><div class="grow"><h2>Moodle</h2><p class="small muted">${m.configured ? (m.connected ? `Connected as ${m.account.fullName} on ${m.account.siteName}` : 'Show your Moodle courses inside Citrus.') : 'Your university hasn’t enabled the Moodle connection yet.'}</p></div>
       ${m.connected ? html`<span class="chip success">${icon('check', 12)} Connected</span>` : ''}</div>
     ${m.configured && !m.connected ? html`<form class="form mt-16" id="moodle-form">
-      <label class="field"><span>Moodle security key</span><input class="input mono" name="token" required minlength="16" placeholder="Paste your web service token"><span class="hint">In Moodle: open your profile menu → Preferences → Security keys, and copy the “Moodle mobile web service” key. Campus OS never sees your Moodle password.</span></label>
+      <label class="field"><span>Moodle security key</span><input class="input mono" name="token" required minlength="16" placeholder="Paste your web service token"><span class="hint">In Moodle: open your profile menu → Preferences → Security keys, and copy the “Moodle mobile web service” key. Citrus never sees your Moodle password.</span></label>
       <div class="form-actions"><button class="btn btn-primary">Connect</button></div>
     </form>` : ''}
     ${m.connected ? html`<div class="form-actions mt-16"><a class="btn" href="/courses">View courses</a><button class="btn btn-ghost" data-disconnect>Disconnect</button></div>` : ''}
   </section>
   <section class="card">
-    <div class="cluster"><span class="tile">${icon('calendar', 20)}</span><div class="grow"><h2>Calendar subscription</h2><p class="small muted">${d.integrations.calendarFeed ? 'Your private calendar link is active.' : 'Add your Campus OS schedule to your phone’s calendar.'}</p></div></div>
+    <div class="cluster"><span class="tile">${icon('calendar', 20)}</span><div class="grow"><h2>Calendar subscription</h2><p class="small muted">${d.integrations.calendarFeed ? 'Your private calendar link is active.' : 'Add your Citrus schedule to your phone’s calendar.'}</p></div></div>
     <div class="form-actions mt-16"><a class="btn" href="/schedule">Manage in Schedule</a></div>
   </section>
   <section class="card">

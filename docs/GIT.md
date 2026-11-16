@@ -69,7 +69,7 @@ Keep separate changes in separate commits. If a push is rejected because GitHub 
 
 ## Deploy from GitHub
 
-GitHub stores the repository and can trigger deployment when you push. Campus OS needs a continuously running Node.js process and persistent storage for SQLite, keys, and recordings. GitHub Pages cannot run this server.
+GitHub stores the repository and can trigger deployment when you push. Citrus needs a continuously running Node.js process and persistent storage for SQLite, keys, and recordings. GitHub Pages cannot run this server.
 
 Connect the private repository to your Node hosting service or a VPS deployment workflow. Set secrets on the host and keep `storage/` persistent across releases. A fresh clone contains no local users or database; transferring an existing instance requires a separate, secure copy of its complete storage folder.
 

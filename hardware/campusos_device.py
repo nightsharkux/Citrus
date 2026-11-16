@@ -1,4 +1,4 @@
-"""CampusOS reference device client (protocol v1).
+"""Citrus reference device client (protocol v1).
 
 Runs on a Raspberry Pi or any Linux/Windows box. Standard library only;
 card reading uses the optional `pyscard` package with any PC/SC NFC reader.
@@ -10,7 +10,7 @@ What it does
   * Long-polls /api/v1/device/heartbeat and handles commands
     (room.status -> set a light colour, speak -> text-to-speech, ...).
   * With --nfc: reads card UIDs and sends `nfc.tap` events. A tap never signs
-    anyone in by itself; the lecturer confirms in the CampusOS app.
+    anyone in by itself; the lecturer confirms in the Citrus app.
 
 Replace the `on_*` functions with real GPIO / LED / speaker code.
 See docs/HARDWARE.md for the full protocol.
@@ -173,7 +173,7 @@ def nfc_loop(device):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="CampusOS device client")
+    parser = argparse.ArgumentParser(description="Citrus device client")
     parser.add_argument("--url", required=True)
     parser.add_argument("--id", required=True, help="Device ID, e.g. dev_3")
     parser.add_argument("--secret", required=True)

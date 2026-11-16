@@ -53,7 +53,7 @@ function parseText(content, fallbackTitle) {
   return sections.map((s, i) => ({ externalId: null, title: (sections.length > 1 && s.title === fallbackTitle ? `${fallbackTitle} (${i + 1})` : s.title).slice(0, 120), content: s.lines.join('\n').trim().slice(0, 7000), category: '', sourceUrl: '', tags: '', volatility: 'stable', observedOn: null }));
 }
 
-/** True for the CampusOS university document corpus (BEGIN_DOCUMENT / BEGIN PAGE markers). */
+/** True for the Citrus university document corpus (BEGIN_DOCUMENT / BEGIN PAGE markers). */
 const isCorpus = (content) => /BEGIN_DOCUMENT SOURCE_ID=/.test(String(content).slice(0, 400_000));
 
 /**
@@ -149,7 +149,7 @@ function register(router, { db, config, ai, audit }) {
   router.post('/api/ai/test', async (ctx) => {
     if (!ai.status(ctx.user).aiEnabled) throw unavailable('The selected AI provider is not configured');
     const started = Date.now();
-    const answer = await ai.complete({ user: ctx.user, system: connectionTestPrompt(), prompt: 'Connection test from Campus OS.', maxTokens: 20 });
+    const answer = await ai.complete({ user: ctx.user, system: connectionTestPrompt(), prompt: 'Connection test from Citrus.', maxTokens: 20 });
     return { ok: true, answer: answer.slice(0, 180), latencyMs: Date.now() - started, ...ai.status(ctx.user) };
   }, { roles: ['admin'] });
 

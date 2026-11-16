@@ -1,4 +1,4 @@
-# Working on Campus OS (for AI coding agents and new developers)
+# Working on Citrus (for AI coding agents and new developers)
 
 Read `docs/ARCHITECTURE.md` first. These are the rules that keep the codebase coherent.
 

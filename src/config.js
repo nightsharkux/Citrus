@@ -28,7 +28,7 @@ function int(value, fallback) {
 }
 
 /**
- * The address Campus OS is reached at. On Vercel it comes from the variables the
+ * The address Citrus is reached at. On Vercel it comes from the variables the
  * platform sets itself: the production domain in production, the deployment's own
  * address in previews. Anywhere else it is localhost, and links follow the address
  * each visitor used (see `baseUrl` in src/app.js).
@@ -79,7 +79,7 @@ function loadConfig(env = process.env) {
     storageDir,
     audioDir: path.join(storageDir, 'audio'),
     cookieSecure: bool(env.COOKIE_SECURE, publicUrl.startsWith('https://')),
-    // Set when Campus OS is only reachable through a reverse proxy (Caddy, nginx, a tunnel). Vercel always is one.
+    // Set when Citrus is only reachable through a reverse proxy (Caddy, nginx, a tunnel). Vercel always is one.
     trustProxy: bool(env.TRUST_PROXY, hosted),
     sessionDays: int(env.SESSION_DAYS, 30),
     logRequests: bool(env.LOG_REQUESTS, false),

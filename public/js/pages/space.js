@@ -334,7 +334,7 @@ function minutesHandlers(root, d, ctx) {
           markdown: r.report,
           title: `${d.room.title}${r.label ? ` · ${r.label}` : ''}`,
           subtitle: `${dateTime(r.meeting_started || r.created)} · ${r.source} · Review before distributing`,
-          kicker: 'Campus OS · Meeting minutes',
+          kicker: 'Citrus · Meeting minutes',
           name: `${d.room.title}-${(r.meeting_started || r.created).slice(0, 10)}-${r.label || 'minutes'}`.replace(/[^\w-]+/g, '-').replace(/-+/g, '-'),
         });
       } catch (error) {

@@ -1,5 +1,5 @@
 /**
- * Campus explains Campus OS (see pitch.js): a full-screen card with Campus's face, excited, the three core
+ * Campus explains Citrus (see pitch.js): a full-screen card with Campus's face, excited, the three core
  * features lighting up as each is explained, and subtitles. Spoken with the natural voice when there is one, the
  * browser's voice otherwise; with no voice at all the subtitles still move on by themselves. Esc, the close button
  * or "Campus, stop" ends it.
@@ -22,7 +22,7 @@ export function showPitch() {
   const el = document.createElement('div');
   el.className = 'pitch';
   el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', 'What Campus OS is');
+  el.setAttribute('aria-label', 'What Citrus is');
   render(el, html`<button class="pitch-close" data-close aria-label="Close">${icon('x', 22)}</button>
     <div class="pitch-inner">
       <div class="pitch-face" data-face></div>

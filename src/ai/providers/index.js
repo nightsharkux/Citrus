@@ -97,13 +97,13 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
     let response = await send(withWeb);
     let searched = !!withWeb;
     if (!response.ok && withWeb && response.status >= 400 && response.status < 500 && response.status !== 429) {
-      console.error('Campus OS web search refused, answering without it:', provider.id, response.status);
+      console.error('Citrus web search refused, answering without it:', provider.id, response.status);
       webRestsUntil = Date.now() + 15 * 60_000;
       response = await send(null);
       searched = false;
     }
     if (!response.ok) {
-      console.error('Campus OS AI provider status:', provider.id, response.status);
+      console.error('Citrus AI provider status:', provider.id, response.status);
       throw new AiError(provider.errors.status(response.status));
     }
     return { provider, response, searched };
@@ -177,7 +177,7 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
       throw new AiError(provider.errors.unreachable);
     }
     if (!response.ok) {
-      console.error('Campus OS speech status:', provider.id, model, response.status);
+      console.error('Citrus speech status:', provider.id, model, response.status);
       // Only a refusal of access (key, credits, model) rests voices for everyone. A 400 is about this one
       // piece of text, and must not switch every user to the device voice for ten minutes.
       if ([401, 402, 403, 404].includes(response.status)) speechRestsUntil = Date.now() + 10 * 60_000;

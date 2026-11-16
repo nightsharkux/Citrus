@@ -48,7 +48,7 @@ if (config.hosted) {
   const urls = networkUrls(config.host, config.port);
   ok(true, urls.length ? `Open on your network: ${urls.join(', ')} (links follow each visitor's address)` : 'Listening on all interfaces, but no network connection was found');
 } else {
-  ok(true, `This computer only (HOST=${config.host}). Set HOST=0.0.0.0 to open Campus OS on other devices.`, true);
+  ok(true, `This computer only (HOST=${config.host}). Set HOST=0.0.0.0 to open Citrus on other devices.`, true);
 }
 
 /** Read saved choices without opening a writable database or running migrations. */
@@ -79,7 +79,7 @@ async function checkAi() {
         continue;
       }
       try {
-        await ai.complete({ user, system: connectionTestPrompt(), prompt: 'Connection test from Campus OS.', maxTokens: 20 });
+        await ai.complete({ user, system: connectionTestPrompt(), prompt: 'Connection test from Citrus.', maxTokens: 20 });
         ok(true, `Institution ${institution.id}: ${status.label} (${status.model}) answered a live request`);
       } catch (error) {
         ok(false, `Institution ${institution.id}: ${error.message}`);

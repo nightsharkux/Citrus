@@ -396,7 +396,7 @@ function lecturerScreen(view) {
   const name = assistantName();
   const quiet = !view.present && !view.pulse.answered && !view.flags.length;
   return html`${liveBar(view)}
-    ${quiet ? html`<div class="notice accent live-first" data-first>${icon('presentation', 18)}<span><strong>Show the QR code and the code ${spacedCode(view.session.joinCode)} on the projector.</strong> Students scan it with their phone camera, no account needed, or tap <b>Join lecture</b> in Campus OS and type the code. Then turn on listening so ${name} can follow.</span><button class="btn btn-sm" data-show-code>Show full screen</button></div>` : ''}
+    ${quiet ? html`<div class="notice accent live-first" data-first>${icon('presentation', 18)}<span><strong>Show the QR code and the code ${spacedCode(view.session.joinCode)} on the projector.</strong> Students scan it with their phone camera, no account needed, or tap <b>Join lecture</b> in Citrus and type the code. Then turn on listening so ${name} can follow.</span><button class="btn btn-sm" data-show-code>Show full screen</button></div>` : ''}
     <div class="live-grid">
       <div class="stack">
         <section class="card">
@@ -537,7 +537,7 @@ function mountLecturer(root, d, ctx) {
     captioner = createCaptioner({
       onFinal: (text) => {
         if (!text) return;
-        // "…, hey Campus, could you elaborate?" after explaining Campus OS: the presentation, not a question.
+        // "…, hey Campus, could you elaborate?" after explaining Citrus: the presentation, not a question.
         if (notePitch(text, { requireWake: true })) return;
         const asked = wake.match(text);
         if (asked && asked.rest.length >= 4) {

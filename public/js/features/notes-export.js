@@ -72,7 +72,7 @@ export async function chartImages(markdown) {
 const accent = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#F07A2E';
 
 /** Make the PDF of some notes and save it. `figure`: the minute-by-minute timeline from the lecture record. */
-export async function savePdf({ markdown, name, title = '', subtitle = '', kicker = 'Campus OS', figure = null }) {
+export async function savePdf({ markdown, name, title = '', subtitle = '', kicker = 'Citrus', figure = null }) {
   const bytes = notesPdf({ markdown, title, subtitle, kicker, figure, accent: accent(), images: await chartImages(markdown) });
   await saveFile(new Blob([bytes], { type: 'application/pdf' }), name.endsWith('.pdf') ? name : `${name}.pdf`);
 }

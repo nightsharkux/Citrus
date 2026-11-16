@@ -1,5 +1,5 @@
 'use strict';
-/** "What is Campus OS?" for presentations: the lines that start it, and ordinary talk that never does. */
+/** "What is Citrus?" for presentations: the lines that start it, and ordinary talk that never does. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -17,7 +17,7 @@ test('the presentation lines start it', async () => {
     'In case that wasn’t clear, hey Campus, could you please elaborate further?',
     'in case that wasnt clear hey campus could you please elaborate further',
     'Just in case that wasn’t clear, could you explain it, Campus?',
-    'Hey Campus, explain what Campus OS is.',
+    'Hey Campus, explain what Citrus is.',
     'Hey Campus, could you tell everyone what you do?',
     'Hey Campus, introduce yourself.',
     'hit campus explain what campus os is',
@@ -44,7 +44,7 @@ test('ordinary talk never starts it', async () => {
     'Hey Campus, explain photosynthesis.',
     'Hey Campus, explain the last thing I said.',
     'Hey Campus, tell me about campus life.',
-    'Campus OS is a student project.',
+    'Citrus is a student project.',
     'the campus is closed, did you understand that',
     'You understood that, right?',
   ]) {

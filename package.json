@@ -2,7 +2,7 @@
   "name": "campusos-one",
   "private": true,
   "version": "1.1.0",
-  "description": "CampusOS — university platform with an AI assistant, schedule, learning, spaces, campus feed and a classroom device gateway.",
+  "description": "Citrus — university platform with an AI assistant, schedule, learning, spaces, campus feed and a classroom device gateway.",
   "engines": {
     "node": ">=22.13.0"
   },

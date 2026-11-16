@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Online backup — safe while Campus OS is running.
+ * Online backup — safe while Citrus is running.
  *
  *   node --env-file-if-exists=.env scripts/backup.js
  *
@@ -52,4 +52,4 @@ const old = fs.readdirSync(backupRoot).filter((name) => /^campusos-\d{4}-/.test(
 for (const name of old) fs.rmSync(path.join(backupRoot, name), { recursive: true, force: true });
 
 console.log(`Backup saved: ${target}${old.length ? ` (removed ${old.length} older)` : ''}`);
-console.log('To restore: stop Campus OS, copy these files into the storage folder, start Campus OS.');
+console.log('To restore: stop Citrus, copy these files into the storage folder, start Citrus.');

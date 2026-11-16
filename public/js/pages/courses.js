@@ -21,7 +21,7 @@ async function load() {
 function moodleCard(data) {
   if (!data.integrations?.moodle.configured) return '';
   if (!data.moodle) {
-    return html`<section class="card tight spread"><div class="cluster"><span class="tile info">${icon('link', 18)}</span><div><strong>Connect Moodle</strong><p class="small muted">See your Moodle course pages alongside Campus OS.</p></div></div><a class="btn btn-sm" href="/settings/connections">Connect</a></section>`;
+    return html`<section class="card tight spread"><div class="cluster"><span class="tile info">${icon('link', 18)}</span><div><strong>Connect Moodle</strong><p class="small muted">See your Moodle course pages alongside Citrus.</p></div></div><a class="btn btn-sm" href="/settings/connections">Connect</a></section>`;
   }
   return html`<section class="card flush"><div class="card-head"><h2>From Moodle</h2><span class="chip info">Linked</span></div>
     ${data.moodle.courses.length ? html`<div class="list" style="padding-bottom:8px">${data.moodle.courses.map((c) => html`<a class="list-row" href="${c.url}" target="_blank" rel="noopener">${courseTile(c.shortName)}<span class="body"><span class="title">${c.name}</span><span class="sub">${c.shortName}${c.progress !== null ? ` · ${c.progress}% complete` : ''}</span></span><span class="trail">${icon('external', 16)}</span></a>`)}</div>`

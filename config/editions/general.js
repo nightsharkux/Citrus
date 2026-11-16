@@ -2,13 +2,13 @@
 /** General-purpose edition for any institution. Copy this file to create a new edition. */
 module.exports = {
   id: 'general',
-  name: 'Campus OS',
-  shortName: 'Campus OS',
-  institution: 'Campus OS Demonstration University',
+  name: 'Citrus',
+  shortName: 'Citrus',
+  institution: 'Citrus Demonstration University',
   assistant: 'Campus',
   tagline: 'Student project',
   logo: null,
-  conceptNotice: 'Institution-managed Campus OS pilot.',
+  conceptNotice: 'Institution-managed Citrus pilot.',
   timezone: 'Europe/Berlin',
   palette: {
     accent: '#6B5CFF',

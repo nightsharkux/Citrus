@@ -3,7 +3,7 @@
  * Moodle Web Services connector (REST, JSON).
  *
  * Users link their own Moodle account with a personal web-service token
- * (Moodle → Preferences → Security keys). Campus OS never asks for or stores
+ * (Moodle → Preferences → Security keys). Citrus never asks for or stores
  * a Moodle password. Tokens are encrypted at rest.
  *
  * Connector contract (copy this shape for new connectors in this folder):

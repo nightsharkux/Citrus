@@ -1,6 +1,6 @@
 # Architecture
 
-Campus OS is a single Node.js process (Node 22.13+ built-ins only: `node:http`, `node:sqlite`, `node:crypto`), with a dependency-free ES-module front end. There is no build step. Every file you see is the file that runs.
+Citrus is a single Node.js process (Node 22.13+ built-ins only: `node:http`, `node:sqlite`, `node:crypto`), with a dependency-free ES-module front end. There is no build step. Every file you see is the file that runs.
 
 ## Request flow
 
@@ -101,7 +101,7 @@ export default {
 
 Tokens are in `css/tokens.css`: colours, radii, shadows, blur, motion. The editions override the accent and aurora colours, and the themes (light, dark, system) override the surfaces. Surfaces are frosted glass (`.card`, `.sheet`, `.tabbar`) over a slowly drifting aurora, with one gradient `.hero` per page at most. All motion respects `prefers-reduced-motion`.
 
-The brand is the wordmark "Campus OS", whose O is the gradient ring (`wordmark()` in `core/brand.js`), and the ring on its own (`ringMark()`, `/brand/mark.svg`). Both take the edition's aurora colours, so a new edition re-colours them automatically. The assistant's face is the same ring drawn as an eye. See [AI.md](AI.md#campuss-face-and-illustrations).
+The brand is the wordmark "Citrus", whose O is the gradient ring (`wordmark()` in `core/brand.js`), and the ring on its own (`ringMark()`, `/brand/mark.svg`). Both take the edition's aurora colours, so a new edition re-colours them automatically. The assistant's face is the same ring drawn as an eye. See [AI.md](AI.md#campuss-face-and-illustrations).
 
 ## Adding a feature (checklist)
 

@@ -156,7 +156,7 @@ function downloadsCard(d) {
     <div class="list">
       ${s.keepTranscript && d.stored ? row('file', 'Transcript (.txt)', `What you said, by time and part · ${d.stored} lines`, html`<span class="cluster" style="--gap:4px"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/transcript.txt" download>${icon('download', 15)} Download</a><button class="btn btn-sm btn-ghost btn-icon" data-forget aria-label="Delete the transcript" title="Delete the transcript">${icon('trash', 15)}</button></span>`)
         : row('file', 'Transcript', s.keepTranscript ? 'Nothing was heard during this lecture.' : 'The transcript of this lecture was not kept.', '')}
-      ${d.recording ? row('mic', 'Recording (audio)', `Recorded by the Campus OS app · ${Math.round(d.recording.seconds / 60)} min`, html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/recording.aac" download>${icon('download', 15)} Download</a>`) : ''}
+      ${d.recording ? row('mic', 'Recording (audio)', `Recorded by the Citrus app · ${Math.round(d.recording.seconds / 60)} min`, html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/recording.aac" download>${icon('download', 15)} Download</a>`) : ''}
       ${row('cpu', 'Lecture record for AI (.txt)', 'Everything that happened, every result and average tagged with its time and part', html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/record.txt" download>${icon('download', 15)} Download</a>`)}
       ${row('sparkle', 'Notes and teaching review (PDF)', `Written by ${assistantName()}, saved to this device`, html`<button class="btn btn-sm" data-go-notes>${icon('sparkle', 15)} Make</button>`)}
     </div></section>`;
@@ -334,7 +334,7 @@ export default {
         <details class="mt-8"><summary class="small">Read them here</summary><div class="prose mt-8">${markdown(notes.markdown)}</div></details></div>`);
     };
     showNotes();
-    const pdfOfNotes = () => savePdf({ markdown: notes.markdown, name: notes.name, subtitle, kicker: student ? 'Campus OS · My lecture notes' : 'Campus OS · Lecture notes and teaching review', figure });
+    const pdfOfNotes = () => savePdf({ markdown: notes.markdown, name: notes.name, subtitle, kicker: student ? 'Citrus · My lecture notes' : 'Citrus · Lecture notes and teaching review', figure });
 
     // ---- the conversation with Campus about the lecture (lecturer)
     const chatKey = `campus-review-chat-${sid}`;
@@ -438,7 +438,7 @@ export default {
       on(root, 'click', '[data-student-notes]', (e, button) => busy(button, async () => {
         try {
           const r = await api.post(`/live/sessions/${sid}/ai-notes`, { student_id: Number(button.dataset.studentNotes) });
-          await savePdf({ markdown: r.markdown, name: r.name, subtitle, kicker: `Campus OS · Notes for ${button.dataset.name}` });
+          await savePdf({ markdown: r.markdown, name: r.name, subtitle, kicker: `Citrus · Notes for ${button.dataset.name}` });
           toast(`Notes for ${button.dataset.name} saved. Send them by email or hand them over.`, 'success', { duration: 3600 });
         } catch (error) {
           toastError(error);
@@ -498,7 +498,7 @@ export default {
         const asked = chat[Number(button.dataset.coachPdf) - 1]?.content || 'Notes';
         if (!answer) return;
         try {
-          await savePdf({ markdown: answer.content, name: `${d.course.code}-${d.session.title}-improved`.replace(/[^\w-]+/g, '-'), title: /^#\s/m.test(answer.content) ? '' : asked.slice(0, 90), subtitle, kicker: `Campus OS · ${d.session.title}` });
+          await savePdf({ markdown: answer.content, name: `${d.course.code}-${d.session.title}-improved`.replace(/[^\w-]+/g, '-'), title: /^#\s/m.test(answer.content) ? '' : asked.slice(0, 90), subtitle, kicker: `Citrus · ${d.session.title}` });
         } catch (error) {
           toastError(error);
         }

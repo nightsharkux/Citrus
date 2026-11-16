@@ -2,7 +2,7 @@
 /**
  * Hosted database driver: SQLite over HTTP ("Hrana"), as served by Turso / libSQL.
  *
- * The rest of Campus OS talks to the database synchronously (`db.get(...)`), and
+ * The rest of Citrus talks to the database synchronously (`db.get(...)`), and
  * Node has no synchronous network client. So requests are made by a small worker
  * thread, and the calling thread sleeps on `Atomics.wait` until the worker has the
  * answer. The SQL, the migrations and every module stay exactly as they are.

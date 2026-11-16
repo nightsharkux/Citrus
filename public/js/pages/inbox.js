@@ -73,7 +73,7 @@ function preferences(d) {
   return html`<div class="grid-2 stagger" style="align-items:start">
     <div class="stack">
       <section class="card">
-        <div class="spread"><div><h2>Push notifications</h2><p class="small muted mt-8">${push.supported() ? 'Get alerts on this device even when Campus OS is closed.' : 'This browser can’t receive push notifications here (HTTPS is required outside localhost).'}</p></div>
+        <div class="spread"><div><h2>Push notifications</h2><p class="small muted mt-8">${push.supported() ? 'Get alerts on this device even when Citrus is closed.' : 'This browser can’t receive push notifications here (HTTPS is required outside localhost).'}</p></div>
           <label class="switch"><input type="checkbox" id="push-toggle" ${d.subscribed ? 'checked' : ''} ${push.supported() ? '' : 'disabled'} aria-label="Push notifications"><span></span></label></div>
         ${d.subscribed ? html`<button class="btn btn-sm mt-16" data-test-push>${icon('bell', 15)} Send a test</button>` : ''}
       </section>

@@ -112,7 +112,7 @@ export function noteSpoken(text) {
 /** Null when voice works here, otherwise a short reason to show the user. */
 export function voiceProblem() {
   if (!recognitionAvailable()) return 'Voice needs a supported browser or configured external recognition.';
-  if (!window.isSecureContext) return 'Voice needs a secure link. Open Campus OS on this computer, or use the https link from share-online.';
+  if (!window.isSecureContext) return 'Voice needs a secure link. Open Citrus on this computer, or use the https link from share-online.';
   return null;
 }
 
@@ -291,7 +291,7 @@ function onResult(e) {
   networkErrors = 0;
   quickEnds = 0;
 
-  // "You probably didn't understand that, did you?" after someone explains Campus OS: Campus explains itself
+  // "You probably didn't understand that, did you?" after someone explains Citrus: Campus explains itself
   // (pitch.js). Checked on every phrase, before the wake word, so the command never reaches the assistant.
   for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
     if (notePitch(e.results[i][0].transcript)) {
@@ -702,7 +702,7 @@ function appCaptioner({ label, target, onStop }) {
  * and the browser stops the microphone, it starts again by itself as soon as the page is visible (the lecture record
  * tags the gap). `label` and `target` go to the Android app's recording service (features/keep-awake.js).
  */
-export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => {}, label = 'Campus OS', target = '' }) {
+export function createCaptioner({ onFinal, onInterim = () => {}, onStop = () => {}, label = 'Citrus', target = '' }) {
   if (voiceProblem()) return target && native.available() ? appCaptioner({ label, target, onStop }) : null;
   let rec = null;
   let running = false;

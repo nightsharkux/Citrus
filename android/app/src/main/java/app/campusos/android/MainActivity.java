@@ -38,7 +38,7 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 
 /**
- * Campus OS in an app: the web app in a WebView, plus what a website cannot do on a phone.
+ * Citrus in an app: the web app in a WebView, plus what a website cannot do on a phone.
  *
  *   - Recording in the background. When the page starts listening to a lecture or meeting, it calls
  *     CampusNative.startRecording({label, target}). The app starts its recording service (a foreground service
@@ -48,7 +48,7 @@ import java.io.OutputStream;
  *   - Saving files (notes as PDF, records as .txt, recordings) to Downloads: CampusNative.saveFile.
  *
  * The page talks to the app over a private message channel (WebMessagePort) that the app hands only to the top
- * page of the Campus OS address it was set up with, never to frames inside it (such as tools other people made).
+ * page of the Citrus address it was set up with, never to frames inside it (such as tools other people made).
  */
 public class MainActivity extends Activity {
     static final String PREFS = "campus";
@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
     private volatile String trustedHost = "";
     /** How many parts of the page asked to record (listening and a recorder can run together). */
     private int recordings = 0;
-    private String label = "Campus OS";
+    private String label = "Citrus";
     private String target = "";
     /** The service records even while the app is on screen (the page cannot listen itself). */
     private boolean nativeOnly = false;
@@ -78,7 +78,7 @@ public class MainActivity extends Activity {
         else open(url);
     }
 
-    // ---- the address of the Campus OS server --------------------------------------------------------------
+    // ---- the address of the Citrus server --------------------------------------------------------------
 
     private SharedPreferences prefs() {
         return getSharedPreferences(PREFS, MODE_PRIVATE);
@@ -358,7 +358,7 @@ public class MainActivity extends Activity {
     private WebMessagePort appPort;
 
     /**
-     * After each full page load on the Campus OS address: a fresh private channel, posted to the top page only
+     * After each full page load on the Citrus address: a fresh private channel, posted to the top page only
      * (postWebMessage delivers it only when the top page has exactly this origin).
      */
     private void connect(String url) {

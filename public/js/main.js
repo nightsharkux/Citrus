@@ -10,7 +10,7 @@ import { watchDates } from './features/date-picker.js';
 
 async function boot() {
   registerRoutes();
-  watchDates(document.body); // dates are picked in the Campus OS look, not the browser's
+  watchDates(document.body); // dates are picked in the Citrus look, not the browser's
 
   let data = {};
   try {

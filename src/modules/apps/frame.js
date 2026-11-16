@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The page a made tool runs in. The tool's own markup sits inside a page that supplies the Campus OS look (four
+ * The page a made tool runs in. The tool's own markup sits inside a page that supplies the Citrus look (four
  * looks to choose from), and the response headers lock it down: it may run its own script and nothing else. No
  * network, no storage, no cookies, no forms, no access to the app around it (a sandbox with its own origin).
  */

@@ -66,7 +66,7 @@ test('hosted database rejects a wrong token with a readable message', async () =
   }
 });
 
-test('Campus OS runs on a hosted database, and its keys survive a restart', async () => {
+test('Citrus runs on a hosted database, and its keys survive a restart', async () => {
   const app = await startApp({ remote: true });
   try {
     assert.equal(app.db.remote, true);

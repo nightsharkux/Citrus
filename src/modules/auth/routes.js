@@ -184,7 +184,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       if (user) db.run("UPDATE users SET external_subject = ?, auth_provider = 'oidc' WHERE id = ?", subject, user.id);
     }
     if (!user) {
-      if (!config.oidc.autoCreate) throw forbidden('No Campus OS account exists for this university login yet.');
+      if (!config.oidc.autoCreate) throw forbidden('No Citrus account exists for this university login yet.');
       if (!mail) throw badRequest('Your university login did not share an email address.');
       const staff = oidc.claimsSayLecturer(claims);
       const role = staff && config.oidc.trustRoleClaim ? 'lecturer' : 'student';

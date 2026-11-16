@@ -1,5 +1,5 @@
 'use strict';
-/** Local network addresses, so phones and tablets on the same Wi-Fi can open Campus OS. */
+/** Local network addresses, so phones and tablets on the same Wi-Fi can open Citrus. */
 const os = require('node:os');
 
 const isPrivate = (ip) => /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip);

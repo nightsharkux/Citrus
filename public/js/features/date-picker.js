@@ -1,5 +1,5 @@
 /**
- * A date picker in the Campus OS look, in place of the browser's own calendar (which cannot be styled), for every
+ * A date picker in the Citrus look, in place of the browser's own calendar (which cannot be styled), for every
  * <input type="date"> and <input type="datetime-local">. The input stays in its form with the same value
  * (YYYY-MM-DD, YYYY-MM-DDTHH:MM), so pages read it exactly as before; a button shows the date in words and opens
  * a calendar: month by month, today ringed, quick picks (Today, Tomorrow, Next Monday), a time with common times

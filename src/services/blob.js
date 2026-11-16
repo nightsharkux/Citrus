@@ -4,14 +4,14 @@
  * fit in the database or in one request to the hosting (4.5 MB).
  *
  * It switches on by itself when the project has a Blob store connected. Vercel then sets either BLOB_STORE_ID
- * (stores made since 2026: Campus OS signs in with the short-lived OIDC token Vercel gives each request) or
+ * (stores made since 2026: Citrus signs in with the short-lived OIDC token Vercel gives each request) or
  * BLOB_READ_WRITE_TOKEN (older stores). Without either, everything keeps working as before (small files in the
  * database, recordings on the phone).
  *
  * Files are private: nobody can open them by their address. Uploads go straight from the browser to Blob with a
  * short-lived pass that only allows one exact path, one size and the given types (so big files never pass through
  * a function): a presigned address for OIDC stores, a client token for older ones, both made the way Vercel's SDK
- * makes them. Downloads are streamed through Campus OS after it has checked who is asking.
+ * makes them. Downloads are streamed through Citrus after it has checked who is asking.
  *
  * VERCEL_BLOB_API_URL points it at a stand-in store for tests, as in Vercel's own SDK.
  */

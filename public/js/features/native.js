@@ -1,5 +1,5 @@
 /**
- * The Campus OS Android app (android/), when the page runs inside it. The app hands the top page a private message
+ * The Citrus Android app (android/), when the page runs inside it. The app hands the top page a private message
  * port right after it loads; frames inside the page never get one, and a port posted by a frame is ignored (only
  * the app itself posts with no source window).
  *

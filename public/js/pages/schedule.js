@@ -188,7 +188,7 @@ function subscribeSheet(data, ctx) {
   sheet({
     title: 'Subscribe in your calendar app',
     content: html`<div class="stack">
-      <p class="muted">Get your Campus OS schedule in Apple Calendar, Google Calendar or Outlook. It updates automatically.</p>
+      <p class="muted">Get your Citrus schedule in Apple Calendar, Google Calendar or Outlook. It updates automatically.</p>
       <div id="feed-box">${data.feed ? html`<div class="notice">${icon('info', 18)}<span>You already have a private link. Creating a new one turns the old link off.</span></div>` : ''}</div>
       <button class="btn btn-primary" data-create>${icon('link', 17)} ${data.feed ? 'Create a new link' : 'Create my private link'}</button>
       ${data.feed ? html`<button class="btn btn-ghost" data-revoke>Turn off my calendar link</button>` : ''}

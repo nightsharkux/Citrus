@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Baseline: the complete schema of CampusOS 0.4–0.6. Every statement is
+ * Baseline: the complete schema of Citrus 0.4–0.6. Every statement is
  * idempotent, so existing databases pass through untouched.
  */
 const { addColumn } = require('../helpers');

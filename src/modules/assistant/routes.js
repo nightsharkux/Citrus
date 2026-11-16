@@ -379,7 +379,7 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     if (!troubleLimit.hit(ctx.user.id)) return { ok: true };
     const short = (v, max = 120) => String(v ?? '').replace(/[\r\n]+/g, ' ').slice(0, max);
     const events = b.events && typeof b.events === 'object' ? Object.fromEntries(Object.entries(b.events).slice(0, 20).map(([k, v]) => [short(k, 60), Number(v) || 0])) : {};
-    console.warn('Campus OS live voice ended:', JSON.stringify({
+    console.warn('Citrus live voice ended:', JSON.stringify({
       user: ctx.user.id, reason: short(b.reason, 30), opened: !!b.opened, ms: Number(b.ms) || 0, sent: Number(b.sent) || 0,
       closeCode: Number(b.closeCode) || null, closeReason: short(b.closeReason, 200), events,
       error: b.error ? { type: short(b.error.type, 80), code: short(b.error.code, 80), message: short(b.error.message, 300) } : null,

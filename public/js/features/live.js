@@ -3,7 +3,7 @@
  *
  * One WebSocket carries the microphone (24 kHz PCM, 50 ms packets) to the model and Campus's voice back. The
  * model hears the person while it talks and decides itself when they have finished, so there is no separate
- * recognise → answer → speak chain to wait for. When an answer needs Campus OS (the person's timetable, the
+ * recognise → answer → speak chain to wait for. When an answer needs Citrus (the person's timetable, the
  * university's pages, something to do in the app) it delegates: `onDelegation(id, words, said)` receives what
  * the person said in that turn and what Campus said just before it, and `answer(id, text)` gives the result back
  * to be said aloud.

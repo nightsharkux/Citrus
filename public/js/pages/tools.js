@@ -46,7 +46,7 @@ export default {
       }),
       on(root, 'click', '[data-planned]', (e, b) => {
         const item = d.groups.flatMap((g) => g.items).find((i) => i.id === b.dataset.planned);
-        sheet({ title: item.label, content: html`<div class="stack">${statusChip(item.status)}<p class="muted">${item.description}</p><p class="small faint">This feature isn’t available in Campus OS yet, and nothing in the app pretends otherwise.</p></div>` });
+        sheet({ title: item.label, content: html`<div class="stack">${statusChip(item.status)}<p class="muted">${item.description}</p><p class="small faint">This feature isn’t available in Citrus yet, and nothing in the app pretends otherwise.</p></div>` });
       }),
     ];
     return () => offs.forEach((off) => off());

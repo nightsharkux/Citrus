@@ -54,7 +54,7 @@ test('the system prompt carries the user\'s exams, deadlines, next class and fre
     await app.call('outsider', 'POST', '/api/assistant/messages', { prompt: 'what is due?' });
     const other = fixture.seen.at(-1).messages[0].content;
     assert.ok(!/Final exam|Report hand-in|Dentist/.test(other));
-    assert.match(other, /none in Campus OS/);
+    assert.match(other, /none in Citrus/);
   } finally {
     await app.close();
   }

@@ -9,7 +9,7 @@ const listeners = new Map();
 
 export const session = {
   user: null,
-  site: { id: document.documentElement.dataset.edition || 'general', assistant: 'Campus', name: 'Campus OS', shortName: 'Campus OS', timezone: 'Europe/Berlin' },
+  site: { id: document.documentElement.dataset.edition || 'general', assistant: 'Campus', name: 'Citrus', shortName: 'Citrus', timezone: 'Europe/Berlin' },
   ai: null,
   unread: 0,
   sso: { enabled: false, label: 'University login' },

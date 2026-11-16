@@ -16,7 +16,7 @@ function createWispr({ env, fetchImpl = (...args) => fetch(...args) }) {
     try { grant = await response.json(); } catch { /* validate below */ }
     if (typeof grant?.access_token !== 'string' || !grant.access_token || /\s/.test(grant.access_token)) throw unavailable('Wispr Flow returned an invalid recognition session.');
     return { provider: 'wispr', model: 'Wispr Flow', url: 'wss://platform-api.wisprflow.ai/api/v1/dash/client_ws', token: grant.access_token, expiresIn: 120,
-      language: language === 'multi' ? ['de', 'en'] : [language], context: { app: { name: 'Campus OS', type: 'ai' }, dictionary_context: dictionary } };
+      language: language === 'multi' ? ['de', 'en'] : [language], context: { app: { name: 'Citrus', type: 'ai' }, dictionary_context: dictionary } };
   }
   return { configured, session };
 }

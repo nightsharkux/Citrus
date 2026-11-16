@@ -3,7 +3,7 @@
  * File storage (Vercel Blob, src/services/blob.js) against a stand-in store that checks what the real one checks:
  * the server's token for its own requests, and for the browser an upload pass that allows one exact path, size and
  * type. Big course files and meeting recordings go straight from the browser to the store; downloads come back
- * through Campus OS after its access check; the store is never readable without the token.
+ * through Citrus after its access check; the store is never readable without the token.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');

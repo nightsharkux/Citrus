@@ -74,7 +74,7 @@ test('Moodle connector verifies personal tokens and lists courses', async () => 
   }
 });
 
-test('a CampusOS 0.6 database upgrades in place without losing data', () => {
+test('a Citrus 0.6 database upgrades in place without losing data', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-upgrade-'));
   const file = path.join(dir, 'old.db');
   const old = new DatabaseSync(file);

@@ -40,9 +40,9 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'Campus OS', body: event.data?.text() || '' };
+    data = { title: 'Citrus', body: event.data?.text() || '' };
   }
-  event.waitUntil(self.registration.showNotification(data.title || 'Campus OS', {
+  event.waitUntil(self.registration.showNotification(data.title || 'Citrus', {
     body: data.body || '',
     icon: '/brand/icon.png',
     badge: '/brand/icon.png',

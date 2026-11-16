@@ -1,5 +1,5 @@
 @echo off
-title Campus OS
+title Citrus
 cd /d "%~dp0"
 node --env-file-if-exists=.env server.js
 pause

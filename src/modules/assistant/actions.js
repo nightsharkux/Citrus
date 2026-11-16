@@ -245,7 +245,7 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       return { title: 'Notifications marked as read', detail: `${n} ${n === 1 ? 'entry' : 'entries'}`, link: '/inbox' };
     },
 
-    /** Feedback or a suggestion for the university's Campus OS administrators. */
+    /** Feedback or a suggestion for the university's Citrus administrators. */
     'feedback.send'(user, a) {
       const message = oneLine(a.message, 2000);
       if (message.length < 5) throw fail('What would you like to tell the team?');
@@ -600,7 +600,7 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       return { ...base, ok: true, ...result };
     } catch (error) {
       if (error instanceof HttpError && error.status < 500) return { ...base, ok: false, error: error.message };
-      console.error('Campus OS assistant action failed:', action.name, error);
+      console.error('Citrus assistant action failed:', action.name, error);
       return { ...base, ok: false, error: 'Something went wrong while doing that.' };
     }
   }

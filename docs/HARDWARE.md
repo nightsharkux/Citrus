@@ -1,6 +1,6 @@
 # Classroom hardware
 
-Campus OS has a signed **device API** for classroom hardware: voice pucks, NFC card readers, door lights and displays. The server side is complete and tested. You bring the hardware.
+Citrus has a signed **device API** for classroom hardware: voice pucks, NFC card readers, door lights and displays. The server side is complete and tested. You bring the hardware.
 
 **Safety principles**
 
@@ -109,7 +109,7 @@ Kinds: `puck`, `nfc_reader`, `door_light`, `display`.
 
 ## Production notes
 
-- Serve Campus OS over HTTPS. Devices should verify the server certificate.
+- Serve Citrus over HTTPS. Devices should verify the server certificate.
 - Keep device clocks synced (NTP), or requests fail the 120 s window.
 - Store the secret in the device's protected storage, never in a public repo. Rotate it from the admin screen if a device is lost.
 - Equipment control (projectors and the like) isn't built. Add new command types in `src/modules/devices/routes.js` with explicit permission checks.

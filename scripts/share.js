@@ -1,12 +1,12 @@
 'use strict';
 /**
- * Share Campus OS with any device, anywhere, over HTTPS — while this computer runs it.
+ * Share Citrus with any device, anywhere, over HTTPS — while this computer runs it.
  *
  *   share-online.bat            (Windows, double-click)
  *   npm run share               (any OS)
  *
  * Starts a free Cloudflare quick tunnel, reads its https://….trycloudflare.com
- * address and starts Campus OS behind it (COOKIE_SECURE + TRUST_PROXY).
+ * address and starts Citrus behind it (COOKIE_SECURE + TRUST_PROXY).
  * HTTPS means phones get the microphone, "Hey Campus", push and app install.
  * The address changes every time; it stops working when you close this window.
  */

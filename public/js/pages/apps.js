@@ -26,7 +26,7 @@ export default {
   },
   render(d) {
     const all = [...d.mine, ...d.added];
-    return html`${pageHead({ title: 'My tools', subtitle: 'Describe a small tool and Campus makes it in the Campus OS look. It stays yours unless you share it.', actions: html`<a class="btn" href="/apps/gallery">${icon('layers', 17)} More tools</a>` })}
+    return html`${pageHead({ title: 'My tools', subtitle: 'Describe a small tool and Campus makes it in the Citrus look. It stays yours unless you share it.', actions: html`<a class="btn" href="/apps/gallery">${icon('layers', 17)} More tools</a>` })}
       <div class="stack stagger" style="max-width:980px">
         <section class="card stack make-tool">
           <div><h2>Make a tool</h2><p class="small muted">Say what it should do. Campus writes it, then you choose how it looks. Tools run on their own: they can’t see your account or reach the internet.</p></div>

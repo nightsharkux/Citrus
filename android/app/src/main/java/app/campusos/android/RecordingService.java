@@ -30,7 +30,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Records the lecture or meeting while Campus OS is off screen: the screen is off, the user switched apps, or the
+ * Records the lecture or meeting while Citrus is off screen: the screen is off, the user switched apps, or the
  * app was closed. A foreground service (with a notification and a Stop button), so Android lets it use the
  * microphone in the background.
  *
@@ -56,7 +56,7 @@ public class RecordingService extends Service {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService uploads = Executors.newSingleThreadExecutor();
     private String base = "";
-    private String label = "Campus OS";
+    private String label = "Citrus";
     private String target = "";
     private MediaRecorder recorder;
     private File piece;

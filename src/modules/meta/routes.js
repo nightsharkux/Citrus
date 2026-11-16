@@ -6,7 +6,7 @@ function register(router, { db, config }) {
   const started = Date.now();
 
   router.get('/api/v1/meta', () => ({
-    product: 'Campus OS',
+    product: 'Citrus',
     version: config.site.version,
     edition: config.site.id,
     mode: config.site.mode,
@@ -50,7 +50,7 @@ function register(router, { db, config }) {
     const [a, b, c] = config.site.palette.aurora;
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><title>${config.site.shortName}</title>`
       + `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset=".55" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></linearGradient></defs>`
-      + '<circle cx="50" cy="50" r="37" fill="none" stroke="url(#g)" stroke-width="17"/></svg>';
+      + '<path d="M78.34 26.22A37 37 0 1 0 78.34 73.78" fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round"/></svg>';
     ctx.res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
     ctx.res.end(svg);
   }, { auth: 'public' });

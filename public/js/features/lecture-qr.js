@@ -48,7 +48,7 @@ export function showProjector({ title, url, code = '', present = null, parent = 
       <div class="qr-box live-projector-qr">${qrImage(url)}</div>
       <div class="live-projector-how">
         <p class="live-projector-lead"><b>Scan to join</b> with your phone camera.<br>No account needed.</p>
-        ${code ? html`<p class="live-projector-lead">Or tap <b>Join lecture</b> in Campus OS and type</p>
+        ${code ? html`<p class="live-projector-lead">Or tap <b>Join lecture</b> in Citrus and type</p>
           <p class="live-projector-code mono">${spaced(code)}</p>` : ''}
         <p class="live-projector-link mono">${short}</p>
       </div>

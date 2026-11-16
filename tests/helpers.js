@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Test harness: boots an isolated CampusOS instance (temp database, temp
+ * Test harness: boots an isolated Citrus instance (temp database, temp
  * storage) on a random port, with a cookie jar per named user.
  *
  *   const app = await startApp({ env: { ... }, fetchImpl });

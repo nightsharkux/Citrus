@@ -23,7 +23,7 @@ const voiceEffort = (env) => String(env.CAMPUS_AI_VOICE_REASONING || '').trim() 
 const reasoningEfforts = new Set(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 const reasoningRequired = new Set(['openai/gpt-6.1-sol', 'openai/gpt-6-astra']);
 
-/** Campus OS configuration: provider/model[/effort]. The gateway receives the base ID. */
+/** Citrus configuration: provider/model[/effort]. The gateway receives the base ID. */
 function parseModel(slug) {
   const parts = slug.split('/');
   if (parts.length < 2 || parts.length > 3 || parts.some((part) => !part || /\s/.test(part))) {

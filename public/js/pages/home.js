@@ -132,7 +132,7 @@ function lecturesCard(feed) {
 }
 
 /**
- * What Campus OS is for, once, for new people: the classroom loop in three lines. Dismissed for good on this device.
+ * What Citrus is for, once, for new people: the classroom loop in three lines. Dismissed for good on this device.
  */
 const INTRO_KEY = 'campus-intro-dismissed';
 function introCard(role) {
@@ -149,7 +149,7 @@ function introCard(role) {
       ['trending', 'Afterwards', 'Review where the class struggled and what was being said, to improve the explanation.'],
       ['nfc', 'Participation', 'Students tap their student ID; you confirm.']];
   return html`<section class="card intro-card" data-intro>
-    <div class="spread"><h2>What Campus OS does</h2><button class="btn btn-ghost btn-icon btn-sm" data-intro-close aria-label="Got it">${icon('x', 16)}</button></div>
+    <div class="spread"><h2>What Citrus does</h2><button class="btn btn-ghost btn-icon btn-sm" data-intro-close aria-label="Got it">${icon('x', 16)}</button></div>
     <div class="intro-grid">${lines.map(([glyph, title, body]) => html`<div><span class="tile accent">${icon(glyph, 18)}</span><strong>${title}</strong><span class="small muted">${body}</span></div>`)}</div>
     <p class="small muted mt-8">On the side, ask Campus anything about your courses and the university. Everything else is under <a href="/tools">All tools</a>.</p>
   </section>`;

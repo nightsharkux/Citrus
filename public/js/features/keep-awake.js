@@ -3,7 +3,7 @@
  * lecture or meeting (that stops the microphone in the browser). Uses the Screen Wake Lock API: Chrome and Edge on
  * Android and computers, Safari on iPhone (16.4+, and in the home-screen app from iOS 18.4).
  *
- * Inside the Campus OS Android app (android/), it also starts the app's recording service, which keeps recording
+ * Inside the Citrus Android app (android/), it also starts the app's recording service, which keeps recording
  * with the screen off, in the background and after the app is closed, and sends the audio to `target` to become
  * transcript lines (features/native.js, android/README.md).
  *
@@ -16,7 +16,7 @@ export const canKeepAwake = () => !!globalThis.navigator?.wakeLock || native.ava
 /** True inside the Android app, which records in the background on its own. */
 export const recordsInBackground = () => native.available();
 
-export function keepAwake({ label = 'Campus OS', target = '' } = {}) {
+export function keepAwake({ label = 'Citrus', target = '' } = {}) {
   let lock = null;
   let released = false;
   const request = async () => {

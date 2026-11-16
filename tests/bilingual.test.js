@@ -57,7 +57,7 @@ test('voice commands work in German and English, and a question still goes to th
   assert.equal(run('show me what is on my calendar tomorrow'), null);
 });
 
-test('the interface switches to German, keeps names and Campus OS, and uses the assistant\'s own name', async () => {
+test('the interface switches to German, keeps names and Citrus, and uses the assistant\'s own name', async () => {
   const { translateWith, loadGerman } = await load('core/i18n.js');
   await loadGerman();
   const de = (s, name = 'Campus') => translateWith('de', name, s);
@@ -75,7 +75,7 @@ test('the interface switches to German, keeps names and Campus OS, and uses the 
   // The assistant's name replaces "Campus" where it means the assistant, not the product, the place or the map.
   assert.equal(en('Ask Campus', 'Claudia'), 'Ask Claudia');
   assert.equal(en('Listen for “Hey Campus”', 'Claudia'), 'Listen for “Hey Claudia”');
-  assert.equal(en('Campus OS home', 'Claudia'), 'Campus OS home');
+  assert.equal(en('Citrus home', 'Claudia'), 'Citrus home');
   assert.equal(en('Campus life', 'Claudia'), 'Campus life');
   assert.equal(en('Campus map', 'Claudia'), 'Campus map');
   assert.equal(en('Campus', 'Claudia'), 'Campus', 'a bare "Campus" is a heading about the place');

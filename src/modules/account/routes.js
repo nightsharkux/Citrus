@@ -49,7 +49,7 @@ function register(router, { db, config, sessions, audit }) {
   router.post('/api/me/password', async (ctx) => {
     const b = await ctx.json();
     const row = db.get('SELECT pass, auth_provider FROM users WHERE id = ?', ctx.user.id);
-    if (row.auth_provider === 'oidc' && row.pass === '!') throw badRequest('Your account uses university login, so there is no Campus OS password to change.');
+    if (row.auth_provider === 'oidc' && row.pass === '!') throw badRequest('Your account uses university login, so there is no Citrus password to change.');
     if (!(await verifyPassword(String(b.current || ''), row.pass))) throw forbidden('Your current password is incorrect');
     const next = String(b.next || '');
     if (next.length < 12) throw badRequest('Use a new password with at least 12 characters');

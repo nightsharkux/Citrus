@@ -175,7 +175,7 @@ function teardown() {
 }
 
 function setTitle(title) {
-  document.title = title ? `${title} · ${session.site.shortName || 'Campus OS'}` : session.site.name || 'Campus OS';
+  document.title = title ? `${title} · ${session.site.shortName || 'Citrus'}` : session.site.name || 'Citrus';
   emit('title', title);
 }
 

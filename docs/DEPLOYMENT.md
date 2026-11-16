@@ -1,6 +1,6 @@
-# Putting Campus OS online
+# Putting Citrus online
 
-Campus OS runs on a machine that keeps its `storage/` folder (a SQLite database plus key files), or on Vercel with a hosted Turso database (see below). Static hosting and ordinary PHP web space cannot run it.
+Citrus runs on a machine that keeps its `storage/` folder (a SQLite database plus key files), or on Vercel with a hosted Turso database (see below). Static hosting and ordinary PHP web space cannot run it.
 
 | Option | Good for | Effort |
 |---|---|---|
@@ -14,7 +14,7 @@ Campus OS runs on a machine that keeps its `storage/` folder (a SQLite database 
 
 ## Running on a VPS: what makes it fast
 
-Campus OS is built for one machine with its own disk. On a VPS that is the fast setup:
+Citrus is built for one machine with its own disk. On a VPS that is the fast setup:
 
 - **Use the local SQLite file, not Turso.** Every Turso query is an HTTPS round trip that the server waits for, so a page that runs ten queries pays ten network trips. A VPS has a permanent disk, so leave `TURSO_DATABASE_URL` unset, keep `storage/` on the VPS (back it up with `npm run backup`, see `deploy/campusos-backup.timer`) and set `CAMPUS_PERSISTENT_DISK=1` so the storage warning stays off. SQLite runs with WAL, `synchronous=NORMAL`, a 32 MB page cache and memory-mapped reads.
 - **Run it as a service behind Caddy**: `deploy/campusos.service` and `deploy/Caddyfile` give automatic HTTPS, HTTP/2 and compression. Set `TRUST_PROXY=1` and `COOKIE_SECURE=1`.
@@ -24,22 +24,22 @@ Campus OS is built for one machine with its own disk. On a VPS that is the fast 
 
 ## Accounts disappear and people must register again
 
-This means the database is not being kept. Campus OS stores everything in a database; on a hosting platform that runs the app as short-lived instances (Vercel, Netlify, Cloud Run, Render's free tier and similar) a local file starts empty after every restart or deploy. The server now says so: the log shows `WARNING: running on <platform> without a hosted database`, the sign-in page shows a notice, and administrators see a banner.
+This means the database is not being kept. Citrus stores everything in a database; on a hosting platform that runs the app as short-lived instances (Vercel, Netlify, Cloud Run, Render's free tier and similar) a local file starts empty after every restart or deploy. The server now says so: the log shows `WARNING: running on <platform> without a hosted database`, the sign-in page shows a notice, and administrators see a banner.
 
 Fix: set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see the Turso section above) and redeploy. Existing accounts made before that are gone and must be registered once more. Set the encryption keys as secrets too (`CAMPUS_MASTER_KEY`, `CAMPUS_NFC_KEY`), or stored connector tokens become unreadable after a restart. If the app runs on your own machine or a server whose `storage/` folder is on a permanent volume, set `CAMPUS_PERSISTENT_DISK=1` to silence the warning.
 
 ## Vercel hosting and environment variables
 
-Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Campus OS at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/campusos.db` as before.
+Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Citrus at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/campusos.db` as before.
 
 **Set up the database**
 
 1. In the Vercel Marketplace, search for **Turso Cloud**, create a database and connect it to the project. Vercel then adds `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` for you. **Connect it plainly, without a database branch per deployment**: with branches, every deployment (also every push to `main`) starts on a new, empty copy, and the live site loses all its data on each deploy (this happened on 16 Nov 2026; `vercel integration resource connect <database> <project> -e production -e preview --yes` connects it plainly). After a deploy, `databaseSince` in `/api/v1/health` must not change: a new date means the deployment got an empty database. Without the integration, create a database at turso.tech and add both variables by hand (`TURSO_DATABASE_URL` looks like `libsql://name-org.turso.io`; store the token as a Secret).
 2. Keep the database and the functions in the same region. Every query is a network round trip, and a chat message makes about twenty. `vercel.json` pins the functions to Dublin (`dub1`), next to the Turso database in Ireland: measured on 2026-11-10, a query costs about 1 ms there, 25 ms from Frankfurt and 90 ms from Washington (Vercel's default). If the database moves, set `regions` to its region. The response header `X-Vercel-Id: fra1::dub1::…` shows the edge that took the request and the region that ran it.
-3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Campus OS creates its tables and the administrator. Deploying again never repeats this.
-4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Campus OS generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
+3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Citrus creates its tables and the administrator. Deploying again never repeats this.
+4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Citrus generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
 
-5. Optional, for files over 4 MB and recordings: in the project's **Storage** tab, create a **Blob** store with **Private** access (it cannot be changed later; a public store lets anyone with a file's link open it) in the Dublin region, next to the functions, and connect it to Production and Preview. Vercel adds `BLOB_READ_WRITE_TOKEN` (the live store, made in November 2026, got this) or `BLOB_STORE_ID`; redeploy and Campus OS uses either by itself. With only `BLOB_STORE_ID` it signs in with the OIDC token Vercel sends with every request, so OIDC must be on (Settings → Security, on by default). From the command line: `vercel blob create-store campusos-files --access private --region dub1 --yes -e production -e preview`. Note that this command also downloads the Development variables into `.env.local` in the folder it runs in (git ignores that file). Course files then go straight from the browser to the store (up to 100 MB each), meeting recordings are kept on the server whatever their length, and the Android app's lecture audio is kept when the lecturer keeps the transcript. Files are private: they are never readable by their address, only through Campus OS after it has checked who is asking (`src/services/blob.js`). Without a store, files up to 4 MB live in the database and recordings stay on the phone.
+5. Optional, for files over 4 MB and recordings: in the project's **Storage** tab, create a **Blob** store with **Private** access (it cannot be changed later; a public store lets anyone with a file's link open it) in the Dublin region, next to the functions, and connect it to Production and Preview. Vercel adds `BLOB_READ_WRITE_TOKEN` (the live store, made in November 2026, got this) or `BLOB_STORE_ID`; redeploy and Citrus uses either by itself. With only `BLOB_STORE_ID` it signs in with the OIDC token Vercel sends with every request, so OIDC must be on (Settings → Security, on by default). From the command line: `vercel blob create-store campusos-files --access private --region dub1 --yes -e production -e preview`. Note that this command also downloads the Development variables into `.env.local` in the folder it runs in (git ignores that file). Course files then go straight from the browser to the store (up to 100 MB each), meeting recordings are kept on the server whatever their length, and the Android app's lecture audio is kept when the lecturer keeps the transcript. Files are private: they are never readable by their address, only through Citrus after it has checked who is asking (`src/services/blob.js`). Without a store, files up to 4 MB live in the database and recordings stay on the phone.
 
 Check the connection from your machine with `TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run check`.
 
@@ -66,7 +66,7 @@ Run the tests against the hosted-database code path with `CAMPUS_TEST_DB=turso n
 | `CAMPUS_AI_PROVIDER` | `gateway` | Optional; `gateway` or `off`; saved Admin choice wins |
 | `CAMPUS_AI_RATE_PER_MINUTE` | `12` | Optional; per-user request quota, not a spending cap |
 
-Model values use `provider/model/reasoning`. Campus OS sends the model ID and reasoning effort separately to the gateway. Omit the reasoning segment to use the model default; use only a level supported by that model.
+Model values use `provider/model/reasoning`. Citrus sends the model ID and reasoning effort separately to the gateway. Omit the reasoning segment to use the model default; use only a level supported by that model.
 
 These are the only AI environment variables. Do not add direct-provider keys or local model URLs. Complete Vercel AI Gateway billing setup before testing requests; configure any spending budget in the gateway dashboard.
 
@@ -76,7 +76,7 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 |---|---|
 | `CAMPUS_ADMIN_EMAIL` | First administrator's email for a fresh database |
 | `CAMPUS_ADMIN_PASSWORD` | New password of 12+ characters; store as Secret. Existing accounts are unchanged. |
-| `VERCEL_ENV`, `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` | Set by Vercel itself. Campus OS builds its address from them (production domain in production, the deployment address in previews). Do not add them by hand; enable **Automatically expose System Environment Variables** in the project settings. |
+| `VERCEL_ENV`, `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` | Set by Vercel itself. Citrus builds its address from them (production domain in production, the deployment address in previews). Do not add them by hand; enable **Automatically expose System Environment Variables** in the project settings. |
 | `CAMPUS_EDITION` | `general` or `oth` |
 | `COOKIE_SECURE` | `1` for HTTPS. On by default on Vercel; set it yourself behind your own HTTPS proxy. |
 | `TRUST_PROXY` | `1` only when the app is behind your trusted reverse proxy. On by default on Vercel. |
@@ -101,7 +101,7 @@ Keep the key server-side under `AI_GATEWAY_API_KEY`. Never add a public/browser 
 
 ## On your own network
 
-With `HOST=0.0.0.0` in `.env` (the default), every device on the same Wi-Fi can open Campus OS while it runs. The server window prints the addresses:
+With `HOST=0.0.0.0` in `.env` (the default), every device on the same Wi-Fi can open Citrus while it runs. The server window prints the addresses:
 
 ```text
   On this computer:   http://localhost:3100
@@ -130,7 +130,7 @@ Log in with `ssh root@YOUR_SERVER_IP`, then:
 
 ```bash
 apt update && apt upgrade -y
-# Node.js 26 (the version Campus OS is tested on)
+# Node.js 26 (the version Citrus is tested on)
 curl -fsSL https://deb.nodesource.com/setup_26.x -o nodesource_setup.sh && bash nodesource_setup.sh && apt install -y nodejs
 node --version          # must be 22.13 or newer
 
@@ -184,7 +184,7 @@ CAMPUS_AI_DEFAULT_MODEL=openai/gpt-6.1-terra/medium
 CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
 ```
 
-`HOST=127.0.0.1` keeps Campus OS reachable only through Caddy. `TRUST_PROXY=1` lets rate limits see real visitor addresses.
+`HOST=127.0.0.1` keeps Citrus reachable only through Caddy. `TRUST_PROXY=1` lets rate limits see real visitor addresses.
 
 **Option 1 — start fresh:**
 
@@ -194,7 +194,7 @@ sudo -u campusos node --env-file=/opt/campusos/.env /opt/campusos/setup-admin.js
 ```
 
 **Option 2 — bring your local data along:**
-1. Stop Campus OS on your PC.
+1. Stop Citrus on your PC.
 2. Upload the whole `storage` folder, including `master.key` and `nfc-hmac.key`: `scp -r storage root@YOUR_SERVER_IP:/opt/campusos/`
 3. On the server, run `chown -R campusos:campusos /opt/campusos && chmod 600 /opt/campusos/.env`.
 
@@ -253,14 +253,14 @@ To restore: stop the service (`systemctl stop campusos`), copy a backup's files 
 
 ## B. Quick demo from your Windows PC (`share-online.bat`)
 
-This gives you a temporary public `https://…trycloudflare.com` address that forwards to Campus OS on your PC. You don't need a server, a domain or any open ports. The address changes every time, and it only works while the window stays open.
+This gives you a temporary public `https://…trycloudflare.com` address that forwards to Citrus on your PC. You don't need a server, a domain or any open ports. The address changes every time, and it only works while the window stays open.
 
 1. Install the tunnel once: `winget install --id Cloudflare.cloudflared`
-2. Close Campus OS if it is running, then double-click **`share-online.bat`** (or run `npm run share`).
+2. Close Citrus if it is running, then double-click **`share-online.bat`** (or run `npm run share`).
 
-The script starts the tunnel, waits for the address, then starts Campus OS with `COOKIE_SECURE=1` and `TRUST_PROXY=1`. Your `.env` is not changed. Share the link it prints. Ctrl+C stops both. Because the link is HTTPS, voice, push notifications and app install work on phones too.
+The script starts the tunnel, waits for the address, then starts Citrus with `COOKIE_SECURE=1` and `TRUST_PROXY=1`. Your `.env` is not changed. Share the link it prints. Ctrl+C stops both. Because the link is HTTPS, voice, push notifications and app install work on phones too.
 
-To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, then start Campus OS with `COOKIE_SECURE=1` and `TRUST_PROXY=1`.
+To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, then start Citrus with `COOKIE_SECURE=1` and `TRUST_PROXY=1`.
 
 ---
 
@@ -269,13 +269,13 @@ To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, th
 | Symptom | Fix |
 |---|---|
 | Caddy shows a certificate error | DNS doesn't point at the server yet, or ports 80/443 are blocked. |
-| `502 Bad Gateway` | Campus OS isn't running. Check `systemctl status campusos` and `journalctl -u campusos -n 50`. |
+| `502 Bad Gateway` | Citrus isn't running. Check `systemctl status campusos` and `journalctl -u campusos -n 50`. |
 | Everything's locked after a few logins | `TRUST_PROXY=1` is missing, so all visitors share one IP. |
 | Buttons fail with "Cross-site request rejected" | The proxy changes the `Host` header. Pass it through unchanged (`proxy_set_header Host $host` in nginx; Caddy does this by default). |
 | Live updates or AI answers arrive all at once | Your proxy buffers responses. Keep `flush_interval -1` in Caddy; in nginx use `proxy_buffering off`. |
 | `node:sqlite` errors on start | Node is older than 22.13. Check `node --version`. |
 | A phone on the same Wi-Fi can't connect | `HOST` isn't `0.0.0.0`, Windows Firewall blocked Node.js (allow it on private networks), or the Wi-Fi isolates devices (guest networks). |
-| "Port 3100 is already in use" | Campus OS is already running in another window. Close it or set a different `PORT`. |
+| "Port 3100 is already in use" | Citrus is already running in another window. Close it or set a different `PORT`. |
 
 ## Staying signed in, and keeping the database small
 
