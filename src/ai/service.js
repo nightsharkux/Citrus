@@ -45,7 +45,19 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   const defaultProvider = () => env.CAMPUS_AI_PROVIDER || 'gateway';
 
   /** The institution's choices: provider, and whether web search and natural voices are allowed (both on by default). */
-  function settingsFor(institutionId) {
+  // Only the status shown at the start of every visit may be a few seconds old (a change made through this
+  // instance drops it at once); choosing the model or tools for a request always reads the current settings.
+  const settingsCache = new Map();
+  const SETTINGS_TTL_MS = Number(env.CAMPUS_SETTINGS_CACHE_MS ?? 10_000);
+  function settingsFor(institutionId, { cached = false } = {}) {
+    const hit = cached ? settingsCache.get(institutionId) : null;
+    if (hit && Date.now() - hit.at < SETTINGS_TTL_MS) return hit.value;
+    const value = readSettings(institutionId);
+    settingsCache.set(institutionId, { at: Date.now(), value });
+    return value;
+  }
+
+  function readSettings(institutionId) {
     const row = db.get('SELECT * FROM institution_ai_settings WHERE institution_id = ?', institutionId);
     return {
       mode: providers.providerName(row?.provider || defaultProvider()),
@@ -57,7 +69,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
   const selected = (institutionId) => settingsFor(institutionId).mode;
 
   function status(user) {
-    const s = settingsFor(user.institution_id);
+    const s = settingsFor(user.institution_id, { cached: true });
     const base = providers.status(s.mode, { model: s.model });
     const speechModel = base.aiEnabled && s.speech ? providers.speechModel(s.mode) : null;
     return {
@@ -84,6 +96,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
        ON CONFLICT(institution_id) DO UPDATE SET web_search = excluded.web_search, speech = excluded.speech, updated = excluded.updated`,
       user.institution_id, s.mode, next.webSearch ? 1 : 0, next.speech ? 1 : 0, new Date().toISOString(),
     );
+    settingsCache.delete(user.institution_id);
     return status(user);
   }
 
@@ -94,6 +107,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
        ON CONFLICT(institution_id) DO UPDATE SET provider = excluded.provider, updated = excluded.updated`,
       user.institution_id, mode, new Date().toISOString(),
     );
+    settingsCache.delete(user.institution_id);
     return status(user);
   }
 
@@ -102,6 +116,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     db.run(`INSERT INTO institution_ai_settings(institution_id, provider, chat_model, updated) VALUES(?, ?, ?, ?)
       ON CONFLICT(institution_id) DO UPDATE SET chat_model = excluded.chat_model, updated = excluded.updated`,
     user.institution_id, selected(user.institution_id), model, new Date().toISOString());
+    settingsCache.delete(user.institution_id);
     return status(user);
   }
 

@@ -74,7 +74,8 @@ test('the lecturer sees where it went wrong and what was said; a student sees on
     assert.equal(report.struggles.length, 1, 'one moment per stretch of trouble, not one per tap');
     assert.match(report.struggles[0].excerpt, /gradient points uphill/, 'what was being said');
     assert.match(report.struggles[0].note, /against the gradient/);
-    assert.deepEqual({ lost: report.struggles[0].lost, answered: report.struggles[0].answered }, { lost: 3, answered: 3 });
+    // The class is recounted once for the burst of answers (not once per tap), so the moment holds all four.
+    assert.deepEqual({ lost: report.struggles[0].lost, answered: report.struggles[0].answered }, { lost: 3, answered: 4 });
     assert.deepEqual(report.points.map((p) => p.text), ['The gradient points uphill, so weights move against it.', 'Too large a learning rate overshoots the minimum.']);
     assert.equal(report.course.code, 'ML101');
     assert.ok(report.timeline.length >= 1);

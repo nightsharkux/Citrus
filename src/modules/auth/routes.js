@@ -96,13 +96,16 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
   const guestsOn = () => !['off', '0', 'false', 'no'].includes(String(process.env.CAMPUS_GUESTS || '').toLowerCase());
   const guestsAllowed = () => guestsOn() && !!db.get('SELECT id FROM institutions LIMIT 1');
   router.post('/api/guest', async (ctx) => {
-    if (!guestsAllowed()) throw forbidden('Guest access is switched off.');
+    if (!guestsOn()) throw forbidden('Guest access is switched off.');
     const b = await ctx.json();
+    // A lecture's own university is known from the lecture; otherwise the first one (one lookup that also tells
+    // whether there is a university at all).
     const lecture = b.lecture ? links.lectureOf(b.lecture) : null;
     if (b.lecture && !lecture) throw notFound('This QR code no longer works. Ask your lecturer for the current one.');
+    const institutionId = lecture ? lecture.institution_id : db.get('SELECT id FROM institutions ORDER BY id LIMIT 1')?.id;
+    if (!institutionId) throw forbidden('Guest access is switched off.');
     const allowed = lecture ? hallLimiter.hit(`guest:${ctx.ip}:${lecture.id}`) : ipLimiter.hit(`guest:${ctx.ip}`);
     if (!allowed) throw tooMany('Too many guest sessions from this network. Please wait a few minutes.');
-    const institutionId = lecture ? lecture.institution_id : institutionOrDefault(null);
     const name = text(b.name, { max: 60, optional: true, label: 'Name' }).replace(/\s+/g, ' ') || 'Guest';
     const userId = db.insert(
       "INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",

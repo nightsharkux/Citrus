@@ -178,22 +178,56 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
    * so the lecturer sees at a glance when to explain again. Sent only when the status changes. Counts only.
    */
   const lastPuck = new Map();
-  function puck(s, p) {
+  function puck(s, p, knownRoom) {
     if (!deviceCommands) return 0;
-    const room = s.lecture_id ? db.get('SELECT room FROM lectures WHERE id = ?', s.lecture_id)?.room : '';
+    const room = knownRoom !== undefined ? knownRoom : s.lecture_id ? db.get('SELECT room FROM lectures WHERE id = ?', s.lecture_id)?.room : '';
     const status = s.ended ? 'off' : p.status;
     if (!room || lastPuck.get(s.id) === status) return 0;
     lastPuck.set(s.id, status);
     return deviceCommands.toRoom(s.institution_id, room, 'class.pulse', { session: s.id, status, following: p.following, unsure: p.unsure, lost: p.lost, answered: p.answered });
   }
 
-  /** Tell the lecturer's open screens that the pulse moved. Anonymous aggregates only. */
-  function announce(s) {
-    const p = livePulse(s);
+  /**
+   * Tell the lecturer's open screens that the pulse moved. Anonymous aggregates only. The first answer is announced
+   * at once; answers that follow within ANNOUNCE_GAP_MS are announced together (one recount instead of one per
+   * student: thirty students answering at once would otherwise recount thirty times).
+   */
+  const ANNOUNCE_GAP_MS = 1_500;
+  const announcing = new Map(); // session id → { at, timer }
+  function announceNow(s) {
+    // The answers, the class size and the room in one round trip.
+    const [signals, enrolledRows, roomRows] = db.batch([
+      ['SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', s.id],
+      ['SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', s.course_id],
+      ['SELECT room FROM lectures WHERE id = ?', s.lecture_id || 0],
+    ]);
+    const p = pulse(signals, { enrolled: enrolledRows[0].n });
     bus.publish(`user:${s.lecturer_id}`, 'live.pulse', { session: s.id, pulse: p });
-    puck(s, p);
+    puck(s, p, roomRows[0]?.room || '');
     moments.onPulse(s, p); // when the class tips into trouble, keep that moment for the lecturer's review
   }
+  function announce(s) {
+    const state = announcing.get(s.id) || { at: 0, timer: null };
+    announcing.set(s.id, state);
+    if (state.timer) return; // one is already waiting and will count this answer too
+    const wait = state.at + ANNOUNCE_GAP_MS - Date.now();
+    if (wait <= 0) {
+      state.at = Date.now();
+      announceNow(s);
+      return;
+    }
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      state.at = Date.now();
+      try {
+        announceNow(sessionRow(s.id) || s);
+      } catch (error) {
+        console.error('Could not announce the class pulse:', error.message);
+      }
+    }, wait);
+    state.timer.unref?.();
+  }
+  const sessionRow = (sessionId) => db.get('SELECT * FROM live_sessions WHERE id = ?', sessionId);
 
   /**
    * The lecturer's screen, refreshed whenever the class answers: everything in one round trip to the database, and
@@ -261,8 +295,11 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
    */
   function arrive(s, user) {
     if (s.ended || user.role !== 'student') return;
-    const last = db.get('SELECT share_name FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1', user.id);
-    const r = db.run('INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, ?)', s.id, user.id, isoNow(), last?.share_name ? 1 : 0);
+    // One statement: whether to show their name starts as they chose in their last lecture.
+    const r = db.run(
+      'INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, COALESCE((SELECT CASE WHEN share_name THEN 1 ELSE 0 END FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1), 0))',
+      s.id, user.id, isoNow(), user.id,
+    );
     if (r?.changes) bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present: presentCount(s.id) });
   }
   const sharesName = (sessionId, userId) => !!db.get('SELECT share_name FROM live_attendees WHERE session_id = ? AND user_id = ?', sessionId, userId)?.share_name;

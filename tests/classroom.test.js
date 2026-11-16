@@ -221,6 +221,8 @@ test('the class status reaches the Campus Puck in the lecture room, as counts on
     await app.call('cem', 'POST', `/api/courses/${courseId}/enroll`);
     const sid = (await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, title: 'Week 5', room: 'HSG 001' })).body.session.id;
     for (const who of ['ann', 'ben', 'cem']) await app.call(who, 'POST', `/api/live/sessions/${sid}/signal`, { level: 3 });
+    // The first answer is announced at once, a burst of answers together about a second and a half later.
+    await new Promise((resolve) => setTimeout(resolve, 1_700));
     await app.call('prof', 'POST', `/api/live/sessions/${sid}/end`);
     const sent = app.db.all("SELECT d.room, c.payload FROM device_commands c JOIN devices d ON d.id = c.device_id WHERE c.type = 'class.pulse' ORDER BY c.id");
     assert.ok(sent.every((c) => c.room === 'HSG 001'), 'only the lecture room');

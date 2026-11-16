@@ -67,7 +67,9 @@ test('admin model choices are tenant-scoped, survive restarts and govern complet
   assert.equal((await app.call('admin', 'GET', '/api/ai/settings')).body.provider, 'gateway');
   const user = app.db.get("SELECT * FROM users WHERE email = 'student@test.invalid'");
   const { createAiService } = require('../src/ai/service');
-  const restarted = createAiService({ db: app.db, env, fetchImpl });
+  // Another server instance reading the same database; the start-of-visit status is normally kept for a few
+  // seconds per instance, which this test (changes by one instance seen at once by the other) switches off.
+  const restarted = createAiService({ db: app.db, env: { ...env, CAMPUS_SETTINGS_CACHE_MS: '0' }, fetchImpl });
   assert.equal(restarted.status(user).model, 'openai/gpt-6.1-sol/low');
   await restarted.complete({ user, system: 'Explain', prompt: 'A question' });
   assert.equal(requests.at(-1).model, 'openai/gpt-6.1-sol');

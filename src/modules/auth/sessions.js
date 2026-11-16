@@ -27,11 +27,12 @@ function createSessions({ db, config }) {
   function start(user, req, res) {
     const token = randomToken();
     const now = Date.now();
-    db.run(
-      'INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES(?, ?, ?, ?, ?, ?)',
-      sha256(token), user.id, now + maxAgeSeconds * 1000, now, now, String(req.headers['user-agent'] || '').slice(0, 200),
-    );
-    db.run('UPDATE users SET last_login = ?, failed_logins = 0, locked_until = NULL WHERE id = ?', new Date(now).toISOString(), user.id);
+    // Both writes in one round trip to the database.
+    db.batch([
+      ['INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES(?, ?, ?, ?, ?, ?)',
+        sha256(token), user.id, now + maxAgeSeconds * 1000, now, now, String(req.headers['user-agent'] || '').slice(0, 200)],
+      ['UPDATE users SET last_login = ?, failed_logins = 0, locked_until = NULL WHERE id = ?', new Date(now).toISOString(), user.id],
+    ]);
     res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
   }
 
