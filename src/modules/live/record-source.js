@@ -39,6 +39,53 @@ function createRecordSource({ db, access }) {
     });
   }
 
+  /**
+   * The records of many sessions at once, for overviews of a term: results only (no transcript or notes), the
+   * same as load(…, { light: true }) for each, but one query per kind of data for all of them instead of about
+   * eight per session. Each query is a round trip to the hosted database, so this keeps a long term fast.
+   */
+  function loadMany(sessions, { audience = 'lecturer', studentId = null } = {}) {
+    if (!sessions.length) return [];
+    const student = audience === 'student';
+    const ids = sessions.map((s) => s.id);
+    const marks = (list) => list.map(() => '?').join(',');
+    const group = (rows) => {
+      const out = new Map(ids.map((i) => [i, []]));
+      for (const { session_id: sid, ...row } of rows) out.get(sid)?.push(row);
+      return out;
+    };
+    const signals = group(db.all(`SELECT session_id, user_id, level, created FROM live_signals WHERE session_id IN (${marks(ids)}) ORDER BY id`, ...ids));
+    const flags = group(db.all(`SELECT session_id, user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id IN (${marks(ids)}) ORDER BY id`, ...ids));
+    const moments = db.all(`SELECT session_id, kind, lost, unsure, answered, note, created FROM live_moments WHERE session_id IN (${marks(ids)}) AND kind IN ('struggle', 'point') ORDER BY id`, ...ids);
+    const struggles = group(moments.filter((m) => m.kind === 'struggle').map(({ kind, ...m }) => m));
+    const points = group(moments.filter((m) => m.kind === 'point').map((m) => ({ session_id: m.session_id, text: m.note, created: m.created })));
+    const named = new Map(ids.map((i) => [i, new Map()]));
+    if (!student) {
+      const rows = db.all(`SELECT a.session_id, u.id, u.name, u.email FROM live_attendees a JOIN users u ON u.id = a.user_id WHERE a.session_id IN (${marks(ids)}) AND a.share_name = 1 ORDER BY u.name`, ...ids);
+      for (const r of rows) named.get(r.session_id).set(r.id, { name: r.name, email: r.email });
+    }
+    const courseIds = [...new Set(sessions.map((s) => s.course_id))];
+    const courses = new Map(db.all(`SELECT id, code, title FROM courses WHERE id IN (${marks(courseIds)})`, ...courseIds).map((c) => [c.id, { code: c.code, title: c.title }]));
+    const enrolled = new Map(db.all(`SELECT course_id, COUNT(*) AS n FROM enrollments WHERE course_id IN (${marks(courseIds)}) GROUP BY course_id`, ...courseIds).map((r) => [r.course_id, r.n]));
+    const lecturerIds = [...new Set(sessions.map((s) => s.lecturer_id).filter(Boolean))];
+    const lecturers = new Map(lecturerIds.length ? db.all(`SELECT id, name FROM users WHERE id IN (${marks(lecturerIds)})`, ...lecturerIds).map((u) => [u.id, u.name]) : []);
+    return sessions.map((session) => buildRecord({
+      session,
+      course: courses.get(session.course_id),
+      audience,
+      userId: studentId,
+      names: named.get(session.id),
+      lecturer: lecturers.get(session.lecturer_id) || '',
+      enrolled: enrolled.get(session.course_id) || 0,
+      transcript: [],
+      signals: signals.get(session.id),
+      flags: flags.get(session.id),
+      struggles: struggles.get(session.id),
+      points: points.get(session.id),
+      notes: [],
+    }));
+  }
+
   /** The lectures a person can talk about: the ones they teach, or the ones they took part in. Newest first. */
   function lecturesOf(user) {
     if (user.role === 'student') {
@@ -83,7 +130,7 @@ function createRecordSource({ db, access }) {
     return recordText({ ...record, notes: [] });
   }
 
-  return { load, find, contextFor, lecturesOf };
+  return { load, loadMany, find, contextFor, lecturesOf };
 }
 
 module.exports = { createRecordSource };

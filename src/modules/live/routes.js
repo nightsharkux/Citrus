@@ -340,8 +340,13 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const courses = db.all(
       `SELECT id, code, title FROM courses WHERE institution_id = ? AND (lecturer_id = ? OR ? = 'admin') ORDER BY code LIMIT 60`,
       user.institution_id, user.id, user.role,
-    ).map((c) => ({ ...c, running: activeOf(c.id)?.id || null }));
-    return { running: [], courses };
+    );
+    // The running lecture of each course in one query, not one per course.
+    const running = new Map(courses.length ? db.all(
+      `SELECT course_id, MAX(id) AS id FROM live_sessions WHERE ended IS NULL AND course_id IN (${courses.map(() => '?').join(',')}) GROUP BY course_id`,
+      ...courses.map((c) => c.id),
+    ).map((r) => [r.course_id, r.id]) : []);
+    return { running: [], courses: courses.map((c) => ({ ...c, running: running.get(c.id) || null })) };
   });
 
   /**

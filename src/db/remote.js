@@ -193,10 +193,16 @@ function openRemoteDatabase({ url, authToken }) {
     return reply;
   }
 
-  /** One round trip. Returns one raw result per request. */
+  /**
+   * One round trip. Returns one raw result per request.
+   *
+   * A new stream needs foreign key checks switched on, but only for writing (they guard inserts, and deletes
+   * that cascade). Reads skip it: on Turso that statement doubled the time of every query (about 50 ms more).
+   */
   function exchange(requests, { keep = false, retry = false } = {}) {
     const first = !streamOpen;
-    const prelude = first ? [execute(`PRAGMA foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`, [], false)] : [];
+    const writes = requests.some((r) => r.type === 'sequence' || (r.type === 'execute' && !isRead(r.stmt.sql)));
+    const prelude = first && writes ? [execute(`PRAGMA foreign_keys = ${foreignKeys ? 'ON' : 'OFF'}`, [], false)] : [];
     const reply = call(prelude.concat(requests), keep, retry && first && !keep);
     if (!reply.ok) {
       streamOpen = false;

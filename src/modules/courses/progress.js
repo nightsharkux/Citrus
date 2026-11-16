@@ -25,24 +25,38 @@ function createProgress({ db, access }) {
     course.id, course.institution_id, MAX_LECTURES,
   ).reverse();
 
+  // All lectures of the term are loaded together (records.loadMany): a query per lecture would cost a round trip to
+  // the hosted database each, and the term overview would get slower with every lecture.
   function term(course) {
+    const sessions = sessionsOf(course);
+    const loaded = records.loadMany(sessions, { audience: 'lecturer' });
     return buildTerm({
       course,
       topics: topicsOf(course.id),
       enrolled: db.get('SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', course.id).n,
-      lectures: sessionsOf(course).map((s) => ({ session: s, sectionId: s.section_id, record: records.load(s, { audience: 'lecturer', light: true }) })),
+      lectures: sessions.map((s, i) => ({ session: s, sectionId: s.section_id, record: loaded[i] })),
     });
   }
 
+  /** The lectures of the course this student was in (came in, or answered), in one query. */
+  function tookPart(sessions, userId) {
+    if (!sessions.length) return [];
+    const ids = sessions.map((s) => s.id);
+    const marks = ids.map(() => '?').join(',');
+    const seen = new Set(db.all(
+      `SELECT session_id FROM live_attendees WHERE user_id = ? AND session_id IN (${marks}) UNION SELECT session_id FROM live_signals WHERE user_id = ? AND session_id IN (${marks})`,
+      userId, ...ids, userId, ...ids,
+    ).map((r) => r.session_id));
+    return sessions.filter((s) => seen.has(s.id));
+  }
+
   function mine(course, user) {
-    const took = sessionsOf(course).filter((s) => db.get(
-      'SELECT 1 AS yes FROM live_attendees WHERE session_id = ? AND user_id = ? UNION SELECT 1 FROM live_signals WHERE session_id = ? AND user_id = ? LIMIT 1',
-      s.id, user.id, s.id, user.id,
-    ));
+    const took = tookPart(sessionsOf(course), user.id);
+    const loaded = records.loadMany(took, { audience: 'student', studentId: user.id });
     return buildProgress({
       course,
       topics: topicsOf(course.id),
-      lectures: took.map((s) => ({ session: s, sectionId: s.section_id, record: records.load(s, { audience: 'student', studentId: user.id }) })),
+      lectures: took.map((s, i) => ({ session: s, sectionId: s.section_id, record: loaded[i] })),
     });
   }
 

@@ -9,7 +9,7 @@
 const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
-const { registerSections } = require('./sections');
+const { registerSections, sessionsByLecture } = require('./sections');
 const { registerProgress } = require('./progress');
 
 /**
@@ -86,13 +86,13 @@ function register(router, { db, access, bus, notifier, audit, rooms, blobs }) {
 
     const lecturer = course.lecturer_id ? db.get('SELECT name FROM users WHERE id = ?', course.lecturer_id)?.name : null;
     const enrolled = db.get('SELECT COUNT(*) n FROM enrollments WHERE course_id = ?', course.id).n;
+    const sessions = sessionsByLecture(db, course.id);
     return {
       course: { ...course, lecturer, enrolled },
       isTeacher,
       lectures: lectures.map((l) => {
-        const live = db.get('SELECT id FROM live_sessions WHERE lecture_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', l.id);
-        const last = db.get('SELECT id FROM live_sessions WHERE lecture_id = ? ORDER BY id DESC LIMIT 1', l.id);
-        return { ...l, live: !!live, liveSession: live?.id || null, lastSession: last?.id || null, topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) };
+        const s = sessions.get(l.id);
+        return { ...l, live: !!s?.live, liveSession: s?.live || null, lastSession: s?.last || null, topics: topics.filter((t) => t.lecture_id === l.id).map(shapeTopic) };
       }),
     };
   }

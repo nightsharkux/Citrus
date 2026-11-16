@@ -102,3 +102,49 @@ test('configuration picks the hosted database only when TURSO_DATABASE_URL is se
   assert.equal(loadConfig({}).database.url, '');
   assert.equal(loadConfig({ TURSO_DATABASE_URL: ' libsql://x.turso.io ', TURSO_AUTH_TOKEN: 't' }).database.url, 'libsql://x.turso.io');
 });
+
+test('reads go without the foreign key setting (it doubled every query on Turso); writes keep it and stay checked', async () => {
+  const { spawn } = require('node:child_process');
+  const fake = await startFakeTurso();
+  // A proxy in its own process (the driver blocks this one while it waits) that records each pipeline it passes on.
+  const script = `const http = require('node:http'); const sent = [];
+    const s = http.createServer(async (req, res) => {
+      if (req.url === '/__sent') { res.end(JSON.stringify(sent.splice(0))); return; }
+      const chunks = []; for await (const c of req) chunks.push(c); const body = Buffer.concat(chunks).toString(); sent.push(body);
+      const r = await fetch(process.argv[1] + req.url, { method: req.method, headers: { 'content-type': 'application/json', authorization: req.headers.authorization || '' }, body: req.method === 'GET' ? undefined : body });
+      res.writeHead(r.status, { 'content-type': 'application/json' }); res.end(await r.text());
+    });
+    s.listen(0, '127.0.0.1', () => console.log(s.address().port));`;
+  const child = spawn(process.execPath, ['-e', script, fake.url], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve) => child.stdout.once('data', (chunk) => resolve(String(chunk).trim())));
+  const proxy = `http://127.0.0.1:${port}`;
+  const sentSince = async () => (await (await fetch(`${proxy}/__sent`)).json());
+  const db = openRemoteDatabase({ url: proxy, authToken: TURSO_TOKEN });
+  const pragma = (body) => /PRAGMA foreign_keys/.test(body);
+  try {
+    db.exec('CREATE TABLE p(id INTEGER PRIMARY KEY); CREATE TABLE c(id INTEGER PRIMARY KEY, p INTEGER REFERENCES p(id) ON DELETE CASCADE)');
+    db.insert('INSERT INTO p(id) VALUES(1)');
+    db.insert('INSERT INTO c(p) VALUES(1)');
+    await sentSince();
+    db.get('SELECT * FROM p WHERE id = ?', 1);
+    db.all('SELECT * FROM c');
+    db.columns('c');
+    const reads = await sentSince();
+    assert.equal(reads.length, 3);
+    assert.ok(!reads.some(pragma), 'reads are sent alone');
+    db.run('DELETE FROM p WHERE id = ?', 1);
+    assert.ok(pragma((await sentSince())[0]), 'a write switches the checks on');
+    assert.equal(db.get('SELECT COUNT(*) AS n FROM c').n, 0, 'so deleting cascades');
+    assert.throws(() => db.run('INSERT INTO c(p) VALUES(?)', 404), /FOREIGN KEY/);
+    await sentSince();
+    db.transaction(() => {
+      db.get('SELECT 1 AS one');
+      db.run('INSERT INTO p(id) VALUES(2)');
+    });
+    assert.ok(pragma((await sentSince())[0]), 'a transaction too, from its first statement');
+  } finally {
+    db.close();
+    child.kill();
+    fake.child.kill();
+  }
+});
