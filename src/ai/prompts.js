@@ -36,7 +36,7 @@ const GUIDANCE = {
   assessment: 'This is graded work: never provide final answers. Explain concepts and give non-answer hints only.',
 };
 
-/** Lets the answer start with a cue that turns Campus's eye into a small animation (see src/ai/visuals.js). */
+/** Lets the answer start with a cue that turns Citrus's eye into a small animation (see src/ai/visuals.js). */
 const VISUAL_CUES = [
   'Optional illustration: only when a tiny animation would genuinely help the explanation, start your reply with exactly one line',
   '[visual: KIND | CONTENT] followed by a blank line. KIND is one of: formula (CONTENT: the key formula in plain text, e.g. a^2 + b^2 = c^2),',
@@ -279,7 +279,7 @@ function livePrompt({ site, user, assistantName, context, language = {} }) {
 /** Workspace assistant: shared space with lecturer-defined guidance. */
 function workspacePrompt({ user, workspace, sources, notes }) {
   return [
-    `You are Campus, the academic assistant built into Citrus for ${user.institution}.`,
+    `You are Citrus, the academic assistant built into Citrus for ${user.institution}.`,
     `Workspace: ${workspace.title} (${workspace.kind}).`,
     STYLE,
     SAFETY,
@@ -300,7 +300,7 @@ function meetingPrompt(title) {
     'You are a precise university meeting secretary. NOTES holds what was noted during the meeting (tagged [decision], [action item], [question] or [note], with who added it) and what was said (speech recognition, which may contain errors, with the speaker\'s name when known).',
     STYLE,
     SAFETY,
-    'Write the minutes in Markdown with these sections, leaving a section out only when there is nothing for it: "## Summary" (two or three sentences), "## Decisions", "## Action items" (a table: what | who | by when; owners and deadlines only when actually stated, otherwise "not set"), "## Key details" (every number, amount, date, time, room, name, link and figure that was mentioned, exactly as said), "## Discussion" (the main points, grouped by topic), "## Questions raised" (each question participants or students asked, including questions put to Campus, who asked when known, and the answer if one was given), "## Open points".',
+    'Write the minutes in Markdown with these sections, leaving a section out only when there is nothing for it: "## Summary" (two or three sentences), "## Decisions", "## Action items" (a table: what | who | by when; owners and deadlines only when actually stated, otherwise "not set"), "## Key details" (every number, amount, date, time, room, name, link and figure that was mentioned, exactly as said), "## Discussion" (the main points, grouped by topic), "## Questions raised" (each question participants or students asked, including questions put to Citrus, who asked when known, and the answer if one was given), "## Open points".',
     'Never invent decisions, people, numbers or deadlines. Mark anything uncertain as “unconfirmed”. Write in the language of the meeting.',
     `Meeting: ${title}.`,
   ].join('\n');
@@ -466,8 +466,8 @@ function voicePrompt({ user, room, assistantName, sources = [] }) {
 }
 
 /**
- * The lecturer asks Campus something in the middle of a lecture ("explain the last thing I said").
- * Campus has the recent transcript, the lecturer's notes and how the class has been following, and answers briefly
+ * The lecturer asks Citrus something in the middle of a lecture ("explain the last thing I said").
+ * Citrus has the recent transcript, the lecturer's notes and how the class has been following, and answers briefly
  * enough to be read out or glanced at between two sentences.
  */
 function liveAskPrompt({ user, assistantName, course, title, minutesIn, pulse, roughPatches, flags = [] }) {
@@ -491,7 +491,7 @@ function liveAskPrompt({ user, assistantName, course, title, minutesIn, pulse, r
 const FLAG_LABELS = { confused: "didn't get this part", fast: 'too fast', example: 'needs an example', question: 'has a question' };
 
 /**
- * A student asks Campus about a lecture they are in (or were in), privately. Campus answers from what it heard,
+ * A student asks Citrus about a lecture they are in (or were in), privately. Citrus answers from what it heard,
  * the lecturer's notes and the student's own flags, like a patient tutor sitting next to them.
  */
 function liveStudentAskPrompt({ user, assistantName, course, title, minutesIn, ended, language }) {
@@ -566,7 +566,7 @@ function transcribePrompt(language) {
 
 /**
  * Notes from a lecture record (live/record.js). The record carries its own instructions ("INSTRUCTIONS FOR ANY
- * AI"), the same ones another AI gets with the .txt, so Campus follows exactly what it would ask of others.
+ * AI"), the same ones another AI gets with the .txt, so Citrus follows exactly what it would ask of others.
  */
 function lectureNotesPrompt({ audience, language, assistantName, title, course }) {
   const student = audience === 'student';
@@ -585,7 +585,7 @@ function lectureNotesPrompt({ audience, language, assistantName, title, course }
   ].filter(Boolean).join('\n\n');
 }
 
-/** The first thing a lecturer sees from Campus after a lecture: only the points worth discussing, short. */
+/** The first thing a lecturer sees from Citrus after a lecture: only the points worth discussing, short. */
 function lectureQuickTakePrompt({ language, title }) {
   return [
     SAFETY,
@@ -598,7 +598,7 @@ function lectureQuickTakePrompt({ language, title }) {
 }
 
 /**
- * The lecturer talks with Campus about a lecture in its review: where and why explanations did not land, and how
+ * The lecturer talks with Citrus about a lecture in its review: where and why explanations did not land, and how
  * to improve them and the notes.
  */
 function lectureReviewPrompt({ user, assistantName, title, course, language }) {

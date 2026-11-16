@@ -2,9 +2,9 @@
  * Turn-taking for a spoken conversation. No browser APIs here, so it is tested
  * directly (tests/voice-conversation.test.js).
  *
- *   endOfTurnDelay(text, { final })    how long a silence means "your turn, Campus"
- *   isEcho(heard, spoken)              the microphone is hearing Campus's own voice
- *   isInterruption(heard, spoken, …)   the user is talking over Campus
+ *   endOfTurnDelay(text, { final })    how long a silence means "your turn, Citrus"
+ *   isEcho(heard, spoken)              the microphone is hearing Citrus's own voice
+ *   isInterruption(heard, spoken, …)   the user is talking over Citrus
  *   conversationCommand(text)          'end' | 'interrupt' | null
  *   speakBoundary(buffer, final)       where the next spoken piece of a streamed answer ends
  *
@@ -88,7 +88,7 @@ export function detectLanguage(text) {
   return null;
 }
 
-/** Word stems of what Campus said, for comparing with what the microphone heard. */
+/** Word stems of what Citrus said, for comparing with what the microphone heard. */
 const stem = (w) => (w.length > 5 ? w.slice(0, 5) : w);
 
 /** How much of `heard` is new compared with `spoken`: { total, novel }. */
@@ -98,19 +98,19 @@ export function overlap(heard, spoken) {
   return { total: list.length, novel: list.filter((w) => !vocabulary.has(stem(w))).length };
 }
 
-/** True when the microphone most likely picked up Campus's own voice (most words were in what it said). */
+/** True when the microphone most likely picked up Citrus's own voice (most words were in what it said). */
 export function isEcho(heard, spoken) {
   const { total, novel } = overlap(heard, spoken);
   return total > 0 && novel <= Math.floor(total * 0.25);
 }
 
-const INTERRUPT = /^(?:(?:hey|ok|okay)\s+)?(?:campus\s+)?(?:stop(?: it| talking| there)?|wait(?: a (?:second|moment|minute))?|hold on|hang on|one (?:moment|second|sec)|excuse me|sorry|no no|pause|enough|thats enough|be quiet|quiet|shush|shh|cancel|never ?mind|forget it|halt|stopp|warte|moment|warte mal|einen moment|moment mal|halt stopp|genug|ruhe|sei still|vergiss es|lass gut sein|hor auf|nicht so schnell)(?:\s+(?:please|campus|a second))*$/;
+const INTERRUPT = /^(?:(?:hey|ok|okay)\s+)?(?:(?:citrus|campus)\s+)?(?:stop(?: it| talking| there)?|wait(?: a (?:second|moment|minute))?|hold on|hang on|one (?:moment|second|sec)|excuse me|sorry|no no|pause|enough|thats enough|be quiet|quiet|shush|shh|cancel|never ?mind|forget it|halt|stopp|warte|moment|warte mal|einen moment|moment mal|halt stopp|genug|ruhe|sei still|vergiss es|lass gut sein|hor auf|nicht so schnell)(?:\s+(?:please|campus|a second))*$/;
 
 /**
- * The user is talking over Campus (and it is not Campus hearing itself).
- * A short stop word counts at once, unless Campus just said that word. Other speech must be clearly new:
- * a misheard echo of Campus easily has a word or two it did not say, and cutting Campus off by mistake is
- * worse than letting it finish a sentence. `strict`: the microphone listens in another language than Campus
+ * The user is talking over Citrus (and it is not Citrus hearing itself).
+ * A short stop word counts at once, unless Citrus just said that word. Other speech must be clearly new:
+ * a misheard echo of Citrus easily has a word or two it did not say, and cutting Citrus off by mistake is
+ * worse than letting it finish a sentence. `strict`: the microphone listens in another language than Citrus
  * speaks, so its echo comes back as nonsense words that all look new; only a stop word counts then.
  */
 export function isInterruption(heard, spoken, { final = false, strict = false } = {}) {
@@ -123,7 +123,7 @@ export function isInterruption(heard, spoken, { final = false, strict = false } 
   return novel >= 5 && novel / total >= 0.7;
 }
 
-const END = /^(?:(?:ok|okay|alright|right|thanks|thank you|cheers|great|perfect|that was helpful)\s+)*(?:(?:good ?)?bye(?: bye)?|see you(?: later)?|thats all|that is all|thats it|thats everything|im done|i am done|were done|end(?: the)? (?:conversation|call|chat|voice mode)|stop(?: the)? conversation|hang up|exit(?: voice mode)?|close(?: voice mode)?|stop listening|go to sleep|tschuss|tschau|ciao|auf wiedersehen|auf wiederhoren|bis spater|bis bald|das wars|das ist alles|das war alles|ende|schluss|mach schluss|gesprach beenden|beende das gesprach)(?:\s+(?:campus|then|now|for now|thanks|thank you))*$/;
+const END = /^(?:(?:ok|okay|alright|right|thanks|thank you|cheers|great|perfect|that was helpful)\s+)*(?:(?:good ?)?bye(?: bye)?|see you(?: later)?|thats all|that is all|thats it|thats everything|im done|i am done|were done|end(?: the)? (?:conversation|call|chat|voice mode)|stop(?: the)? conversation|hang up|exit(?: voice mode)?|close(?: voice mode)?|stop listening|go to sleep|tschuss|tschau|ciao|auf wiedersehen|auf wiederhoren|bis spater|bis bald|das wars|das ist alles|das war alles|ende|schluss|mach schluss|gesprach beenden|beende das gesprach)(?:\s+(?:citrus|campus|then|now|for now|thanks|thank you))*$/;
 
 /** Spoken control phrases: 'end' (finish the conversation), 'interrupt' (be quiet / never mind), or null for anything else. */
 export function conversationCommand(text) {

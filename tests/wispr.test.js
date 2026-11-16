@@ -80,7 +80,7 @@ async function harness(options = {}) {
     message(data) { this.onmessage?.({ data: JSON.stringify(data) }); }
   }
   const rec = new WisprRecognition({ Audio, Worklet, Socket, getUserMedia: async () => stream,
-    requestSession: async () => { state.sessions++; return { url: 'wss://platform-api.wisprflow.ai/api/v1/dash/client_ws', token: 'fixture.jwt', language: ['de', 'en'], context: { dictionary_context: ['Campus'] } }; }, ...options });
+    requestSession: async () => { state.sessions++; return { url: 'wss://platform-api.wisprflow.ai/api/v1/dash/client_ws', token: 'fixture.jwt', language: ['de', 'en'], context: { dictionary_context: ['Citrus'] } }; }, ...options });
   rec.onresult = (e) => state.results.push(e);
   rec.onend = () => state.ended++;
   rec.onerror = (e) => state.errors.push(e.error);

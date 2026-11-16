@@ -16,7 +16,7 @@ export const NAV = {
       item('/lectures', 'Lectures', 'presentation'),
       item('/participation', 'Check-in', 'nfc'),
       item('/learning', 'My progress', 'trending'),
-      item('/assistant', 'Ask Campus', 'campus'),
+      item('/assistant', 'Ask Citrus', 'campus'),
     ],
     secondary: [
       item('/courses', 'Courses', 'book'), item('/meetings', 'Meetings', 'message'), item('/schedule', 'Schedule', 'calendar'),
@@ -38,7 +38,7 @@ export const NAV = {
       item('/meetings', 'Meetings', 'message'),
     ],
     secondary: [
-      item('/assistant', 'Ask Campus', 'campus'), item('/library', 'Documents', 'library'), item('/classroom', 'Rooms & devices', 'door'),
+      item('/assistant', 'Ask Citrus', 'campus'), item('/library', 'Documents', 'library'), item('/classroom', 'Rooms & devices', 'door'),
       item('/schedule', 'Schedule', 'calendar'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
     hidden: [
@@ -51,7 +51,7 @@ export const NAV = {
   admin: {
     primary: [
       item('/home', 'Home', 'home'),
-      item('/assistant', 'Ask Campus', 'campus'),
+      item('/assistant', 'Ask Citrus', 'campus'),
       item('/admin/people', 'People', 'users'),
       item('/courses', 'Courses', 'book'),
       item('/admin/moderation', 'Moderation', 'flag'),

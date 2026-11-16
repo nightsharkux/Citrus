@@ -3,9 +3,9 @@
  *
  *   Lecturer  Term overview: how well each lecture landed and the trend, each topic of the course from weakest to
  *             strongest, the parts that went worst across all lectures (each opens the lecture's review at that
- *             part), and the students who chose to show their name. Ask Campus about the whole term in one tap.
+ *             part), and the students who chose to show their name. Ask Citrus about the whole term in one tap.
  *   Student   My progress: their own results next to the class, lecture by lecture, and every part they found hard
- *             in one list to work through, with a quiz on all of them or on one, and Campus to explain each.
+ *             in one list to work through, with a quiz on all of them or on one, and Citrus to explain each.
  *
  * Both download as a tagged .txt with instructions any AI can follow.
  */

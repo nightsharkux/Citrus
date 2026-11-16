@@ -3,7 +3,7 @@
  * A course page like Moodle's: topics, and topics inside topics (folders within folders), each with files, links
  * and its own lectures. Items without a topic belong to the course as a whole ("General").
  *
- * Files are kept in the database (base64, at most a few MB each) with their readable text, so Campus can use them
+ * Files are kept in the database (base64, at most a few MB each) with their readable text, so Citrus can use them
  * in lectures and answers and students can download them.
  */
 const { addColumn } = require('../helpers');

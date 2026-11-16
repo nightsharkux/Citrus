@@ -1,5 +1,5 @@
 /**
- * Campus's voice: everything Campus says aloud goes through here (answers while they stream in, read-aloud,
+ * Citrus's voice: everything Citrus says aloud goes through here (answers while they stream in, read-aloud,
  * the voice conversation, voice samples).
  *
  * Two engines:
@@ -40,11 +40,11 @@ let languageHint = () => null;
 let naturalRestsUntil = 0;
 let streamRestsUntil = 0;
 
-/** True while Campus's voice is audible. */
+/** True while Citrus's voice is audible. */
 export const isSpeaking = () => speakingNow;
-/** 0..1, how loud Campus is right now (the face's mouth follows it). */
+/** 0..1, how loud Citrus is right now (the face's mouth follows it). */
 export const speechLevel = () => level;
-/** fn(true|false) when Campus starts or stops talking (the wake word stops listening to itself meanwhile). */
+/** fn(true|false) when Citrus starts or stops talking (the wake word stops listening to itself meanwhile). */
 export function onSpeakingChange(fn) {
   speakingListeners.add(fn);
   return () => speakingListeners.delete(fn);
@@ -86,7 +86,7 @@ function audioGraph() {
       } else gain.connect(analyser).connect(ctx.destination);
       audio = { ctx, gain, analyser, samples: new Float32Array(analyser.fftSize) };
       // Phones suspend audio for a call or Siri, some browsers when the output device changes. Scheduled
-      // sentences would then never end and Campus would fall silent mid-answer, so resume while it talks.
+      // sentences would then never end and Citrus would fall silent mid-answer, so resume while it talks.
       ctx.onstatechange = () => {
         if (ctx.state !== 'running' && ctx.state !== 'closed' && current && !current.over) ctx.resume().catch(() => {});
       };
@@ -569,7 +569,7 @@ export function createSpeaker({ onStart, onEnd, options = {} } = {}) {
 /**
  * Live voice (features/live.js): GPT-Live's 24 kHz PCM, played as it arrives on the same output as natural
  * voices, so the face follows it and the volume setting applies. `push(base64)` adds audio, `clear()` drops what
- * has not been heard yet (the person talked over Campus), `close()` ends it. `onSpeaking(true|false)` follows the
+ * has not been heard yet (the person talked over Citrus), `close()` ends it. `onSpeaking(true|false)` follows the
  * audio actually playing. stopSpeaking() closes it like any other speaker.
  */
 export function createLivePlayer({ onSpeaking } = {}) {
@@ -667,7 +667,7 @@ export function speak(text, { onStart, onEnd, options } = {}) {
   return sp;
 }
 
-/** Silence Campus now. */
+/** Silence Citrus now. */
 export function stopSpeaking() {
   const sp = current;
   current = null;
@@ -686,7 +686,7 @@ export function setSpeechVolume(value) {
   if (deviceUtterance) deviceUtterance.volume = volume;
 }
 
-/** The language of what Campus is saying now ('en' | 'de'), or null. */
+/** The language of what Citrus is saying now ('en' | 'de'), or null. */
 export const speakingLanguage = () => current?.language || null;
 
 /**

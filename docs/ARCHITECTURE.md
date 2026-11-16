@@ -68,9 +68,9 @@ public/js/routes.js        URL → page module (lazy-loaded)
 public/js/core/            dom (safe html``), api (+SSE stream), router, store, live (SSE), ui (toasts, sheets,
                            confirm, menus, onSubmit), components, icons, brand (wordmark, ring), format,
                            markdown + math (Markdown and LaTeX → HTML/MathML for answers)
-public/js/features/        face (Campus's animated eye), face-visuals (its illustrations), speaker (everything
-                           Campus says: natural voices from the server or the browser's), voice (dictation,
-                           "Hey Campus" wake word, read-aloud, captions, conversation microphone),
+public/js/features/        face (Citrus's animated eye), face-visuals (its illustrations), speaker (everything
+                           Citrus says: natural voices from the server or the browser's), voice (dictation,
+                           "Hey Citrus" wake word, read-aloud, captions, conversation microphone),
                            voices (voice choice), conversation (hands-free voice conversation),
                            turns (its turn-taking rules, tested in Node), commands (spoken commands
                            that need no AI), recorder, push, print
@@ -121,5 +121,5 @@ The brand is the wordmark "Citrus", whose O is the gradient ring (`wordmark()` i
 - Single process with an in-memory rate limiter, SSE bus and long-poll waiters. Scaling out needs Redis or Postgres for those three.
 - SQLite with WAL is fine for one faculty. For a whole university, plan a move to PostgreSQL. The query helpers are isolated in `src/db/database.js`.
 - The hosted database driver (`src/db/remote.js`) keeps the synchronous API by blocking the calling thread during each query. Fine for a pilot with the database near the server; a larger deployment should make the data layer asynchronous.
-- Speech recognition uses explicitly configured Wispr Flow or Deepgram Nova-3, otherwise OpenAI live transcription through a configured AI Gateway, or the browser vendor's service. Natural speech defaults to streamed ElevenLabs Flash v2.5 through Gateway. Audio access depends on the provider account. Capture requests WebRTC echo cancellation and noise suppression. See [SPEECH.md](SPEECH.md) for activation and limitations. Telling Campus's own voice from the user's also uses a word-overlap heuristic; on phones the microphone pauses while Campus speaks, so interrupting there takes a tap.
+- Speech recognition uses explicitly configured Wispr Flow or Deepgram Nova-3, otherwise OpenAI live transcription through a configured AI Gateway, or the browser vendor's service. Natural speech defaults to streamed ElevenLabs Flash v2.5 through Gateway. Audio access depends on the provider account. Capture requests WebRTC echo cancellation and noise suppression. See [SPEECH.md](SPEECH.md) for activation and limitations. Telling Citrus's own voice from the user's also uses a word-overlap heuristic; on phones the microphone pauses while Citrus speaks, so interrupting there takes a tap.
 - Native store apps, BLE proximity and vendor equipment control are not built. They're marked *In development*.

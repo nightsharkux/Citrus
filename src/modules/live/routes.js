@@ -1,12 +1,12 @@
 'use strict';
 /**
- * Live lectures: the loop that makes Campus useful in a lecture room.
+ * Live lectures: the loop that makes Citrus useful in a lecture room.
  *
  *   The lecturer starts the lecture and shows a six-digit code. Students type it on their phones (that also joins
  *   the course), then tell the lecturer how they are following (following / unsure / lost) and flag moments they
  *   need help with ("didn't get this", "too fast", "need an example", a question, with an optional note). The
  *   lecturer sees the class pulse, a minute-by-minute timeline and the flags live, without names, and can ask
- *   Campus things mid-lecture with the notes, what it heard and the flags as context. Students can ask Campus
+ *   Citrus things mid-lecture with the notes, what it heard and the flags as context. Students can ask Citrus
  *   about the lecture privately, during it and afterwards, and get each of their flags explained.
  *
  *   POST /api/live/sessions                     { course_id, lecture_id?, title?, notes?, keep_transcript? }  (lecturer)
@@ -27,9 +27,9 @@
  *   GET  /api/live/sessions/:id/transcript.txt  the lecture record with the kept transcript       (lecturer)
  *   GET  /api/live/sessions/:id/record.txt      the tagged lecture record, with instructions for any AI
  *                                               (lecturer: everything; student: their own results)
- *   POST /api/live/sessions/:id/ai-notes        Campus writes the notes from the record → { markdown, txt }
+ *   POST /api/live/sessions/:id/ai-notes        Citrus writes the notes from the record → { markdown, txt }
  *                                               (lecturer: notes and teaching review; student: study notes)
- *   POST /api/live/sessions/:id/review-chat     { message, history } → { answer }  improve it with Campus (lecturer)
+ *   POST /api/live/sessions/:id/review-chat     { message, history } → { answer }  improve it with Citrus (lecturer)
  *   DELETE /api/live/sessions/:id/transcript    forget the kept transcript                      (lecturer)
  *   POST /api/live/sessions/:id/notes           { attachment_ids }  add prepared notes          (lecturer)
  *   POST /api/live/sessions/:id/ask             { question }  → { answer }                      (lecturer)
@@ -148,7 +148,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     sessionId,
   );
   /**
-   * What Campus reads as the lecture's notes: the files the lecturer added to the lecture, plus the readable files
+   * What Citrus reads as the lecture's notes: the files the lecturer added to the lecture, plus the readable files
    * of the course topic the lecture belongs to (and the topics around it).
    */
   const notesFor = (s) => {
@@ -164,7 +164,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   const publicSession = (s) => ({ id: s.id, course_id: s.course_id, lecture_id: s.lecture_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript });
   const listening = (s) => !s.ended && Date.now() - transcripts.lastAt(s.id) < LISTENING_MS;
 
-  /** What Campus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. */
+  /** What Citrus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. */
   function heardText(s, { from = 0, to = Infinity, maxChars = TRANSCRIPT_FOR_AI } = {}) {
     if (s.keep_transcript) {
       const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, from, Number.isFinite(to) ? to : 100_000);
@@ -178,7 +178,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   }
 
   /**
-   * The class status on the Campus Puck (and any door light or display) in the lecture's room: green, amber or red,
+   * The class status on the Citrus Puck (and any door light or display) in the lecture's room: green, amber or red,
    * so the lecturer sees at a glance when to explain again. Sent only when the status changes. Counts only.
    */
   const lastPuck = new Map();
@@ -339,7 +339,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const room = text(b.room, { max: 60, optional: true, label: 'Room' });
     db.run("UPDATE lectures SET status = 'active', ends = CASE WHEN ends IS NULL OR ends < ? THEN ? ELSE ends END WHERE id = ?", isoNow(), new Date(Date.now() + 60 * 60_000).toISOString(), lecture.id);
     if (room) db.run('UPDATE lectures SET room = ? WHERE id = ?', room, lecture.id);
-    // Keeping the transcript is the default: it is what lets Campus answer about the lecture afterwards.
+    // Keeping the transcript is the default: it is what lets Citrus answer about the lecture afterwards.
     const keep = b.keep_transcript === false ? 0 : b.keep_transcript === true || !previous ? 1 : previous.keep_transcript;
     const sessionId = db.insert(
       'INSERT INTO live_sessions(institution_id, course_id, lecturer_id, lecture_id, title, started, join_code, keep_transcript) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
@@ -483,7 +483,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       points,
       flags,
       signals: mine.length,
-      // Campus can answer about this lecture when it kept what it heard.
+      // Citrus can answer about this lecture when it kept what it heard.
       canAsk: !!s.keep_transcript && storedLines(s.id) > 0,
       // Their own results, section by section, next to the class average: what to work on.
       record: recordSummary(recordOf(ctx.user, s, 'student'), { detail: true }),
@@ -583,7 +583,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const kind = oneOf(b.kind, FLAG_KINDS, 'Flag');
     const note = text(b.note, { max: 240, optional: true, label: 'Note' }) || '';
     const mine = db.all('SELECT created FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id DESC', s.id, user.id);
-    if (mine.length >= MAX_FLAGS) throw conflict('You have flagged a lot already. Ask Campus instead, or talk to your lecturer after class.');
+    if (mine.length >= MAX_FLAGS) throw conflict('You have flagged a lot already. Ask Citrus instead, or talk to your lecturer after class.');
     if (mine[0] && Date.now() - Date.parse(mine[0].created) < FLAG_GAP_MS) throw conflict('Wait a few seconds before flagging again.');
     const minute = minuteOf(s);
     const created = isoNow();
@@ -594,7 +594,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     return { id: flagId, kind, minute, note, created, explanation: '' };
   });
 
-  /** Campus explains one of the student's flags from what was said around it. Kept, so the recap shows it again. */
+  /** Citrus explains one of the student's flags from what was said around it. Kept, so the recap shows it again. */
   router.post('/api/live/sessions/:id/flags/:flagId/explain', async (ctx) => {
     const user = ctx.user;
     const s = joined(user, ctx.params.id);
@@ -610,7 +610,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     return { id: flag.id, explanation, heard: !!heard };
   });
 
-  /** A student asks about the lecture, privately: from what Campus heard, the notes and their own flags. */
+  /** A student asks about the lecture, privately: from what Citrus heard, the notes and their own flags. */
   router.post('/api/live/sessions/:id/student-ask', async (ctx) => {
     const user = ctx.user;
     const s = attending(user, ctx.params.id);
@@ -679,14 +679,14 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   });
 
   /**
-   * Campus's quick take for the lecturer: the few points worth discussing or acting on, each tied to its time and
+   * Citrus's quick take for the lecturer: the few points worth discussing or acting on, each tied to its time and
    * part, before the full notes or a conversation.
    */
   router.post('/api/live/sessions/:id/quick-take', async (ctx) => {
     const user = ctx.user;
     const s = teaching(user, ctx.params.id);
     if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
-    if (!notesWriting.hit(user.id)) throw tooMany('Campus is still thinking. Wait a minute and try again.');
+    if (!notesWriting.hit(user.id)) throw tooMany('Citrus is still thinking. Wait a minute and try again.');
     const record = recordOf(user, s, 'lecturer');
     const system = lectureQuickTakePrompt({ language: language(user), title: s.title });
     const answer = await ai.complete({ user, system, prompt: `<RECORD>\n${recordText({ ...record, notes: [] }).slice(0, 110_000)}\n</RECORD>`, maxTokens: 700, task: 'chat' });
@@ -716,8 +716,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   });
 
   /**
-   * Campus writes the notes from the record, following the same instructions any AI gets. Nothing is stored: the
-   * phone downloads the PDF and the .txt. For a student, Campus may read what was said to explain it, but their
+   * Citrus writes the notes from the record, following the same instructions any AI gets. Nothing is stored: the
+   * phone downloads the PDF and the .txt. For a student, Citrus may read what was said to explain it, but their
    * files never contain it word for word.
    */
   router.post('/api/live/sessions/:id/ai-notes', async (ctx) => {
@@ -730,7 +730,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (forStudent && (!lecturer || !sharesName(s.id, forStudent))) throw forbidden('This student has not shown their name in this lecture');
     const audience = lecturer && !forStudent ? 'lecturer' : 'student';
     if (!ai.status(user).aiEnabled) throw unavailable('Notes are written by the AI, which is not connected yet. The .txt record works without it.');
-    if (!notesWriting.hit(user.id)) throw tooMany('Campus is still writing. Wait a minute and try again.');
+    if (!notesWriting.hit(user.id)) throw tooMany('Citrus is still writing. Wait a minute and try again.');
     const record = recordOf(user, s, audience, { studentId: forStudent || user.id });
     const seen = notesFor(s);
     const heard = audience === 'student' && s.keep_transcript ? heardText(s, { maxChars: 30_000 }) : '';
@@ -740,7 +740,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     };
     const system = lectureNotesPrompt({ audience, language: language(user), assistantName: assistantNameFor(user, site), title: s.title, course: record.meta.course });
     const markdown = String(await ai.complete({ user, system, prompt, maxTokens: 5000, task: 'chat' })).trim();
-    if (!markdown) throw unavailable('Campus could not write the notes this time. Try again.');
+    if (!markdown) throw unavailable('Citrus could not write the notes this time. Try again.');
     const who = forStudent ? namedStudents(s.id).get(forStudent)?.name || 'student' : '';
     const name = `${fileBase(s)}-${forStudent ? `notes-for-${who.replace(/[^\w-]+/g, '-')}` : audience === 'student' ? 'my-notes' : 'lecture-notes'}`;
     return {
@@ -751,8 +751,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   });
 
   /**
-   * The lecturer and Campus talk about the lecture in its review: why an explanation did not land, how to say it
-   * better, improved notes for next time. Campus has the whole record. The conversation stays on the lecturer's
+   * The lecturer and Citrus talk about the lecture in its review: why an explanation did not land, how to say it
+   * better, improved notes for next time. Citrus has the whole record. The conversation stays on the lecturer's
    * device (history comes with each message); nothing is stored.
    */
   router.post('/api/live/sessions/:id/review-chat', async (ctx) => {

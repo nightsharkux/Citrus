@@ -13,7 +13,7 @@ export default {
         <div class="stagger">
           <span class="chip accent"><span class="dot"></span>${session.site.tagline || 'Your university'}</span>
           <h1 style="margin-top:18px">Your whole campus.<br><em>One calm place.</em></h1>
-          <p class="lede">Lectures, schedule, study groups and campus life — with Campus, an assistant that actually knows your courses. Just say “Hey Campus”.</p>
+          <p class="lede">Lectures, schedule, study groups and campus life — with Citrus, an assistant that actually knows your courses. Just say “Hey Citrus”.</p>
           <div class="cta">
             <a class="btn btn-primary btn-lg" href="/login">Sign in ${icon('arrow-right', 18)}</a>
             ${session.registration ? html`<a class="btn btn-lg" href="/register">Create an account</a>` : ''}
@@ -40,7 +40,7 @@ export default {
             </div>
           </div>
           <div class="float-card card a"><span class="tile sm success">${icon('check', 16)}</span>Checked in · MF2</div>
-          <div class="float-card card b"><span data-landing-face></span><span>“Hey Campus, explain Big-O”</span></div>
+          <div class="float-card card b"><span data-landing-face></span><span>“Hey Citrus, explain Big-O”</span></div>
         </div>
       </section>`;
   },

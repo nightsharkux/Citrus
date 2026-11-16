@@ -1,8 +1,8 @@
 /**
- * Campus explains Citrus (see pitch.js): a full-screen card with Campus's face, excited, the three core
+ * Citrus explains Citrus (see pitch.js): a full-screen card with Citrus's face, excited, the three core
  * features lighting up as each is explained, and subtitles. Spoken with the natural voice when there is one, the
  * browser's voice otherwise; with no voice at all the subtitles still move on by themselves. Esc, the close button
- * or "Campus, stop" ends it.
+ * or "Citrus, stop" ends it.
  */
 import { html, render } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -29,7 +29,7 @@ export function showPitch() {
       <h1 class="pitch-title">${wordmark()}</h1>
       <p class="pitch-lead">${lang === 'de' ? 'Der Assistent für den Hörsaal' : 'The classroom assistant'}</p>
       <div class="pitch-cards">${cards.map(([id, glyph, title, body]) => html`<div class="pitch-card" data-card="${id}"><span class="tile accent">${icon(glyph, 22)}</span><strong>${title}</strong><span class="small muted">${body}</span></div>`)}</div>
-      <div class="pitch-side" data-card="ask">${icon('campus', 16)} ${lang === 'de' ? 'Nebenbei: einfach Campus fragen, statt Dokumente zu durchsuchen' : 'On the side: just ask Campus instead of searching documents'}</div>
+      <div class="pitch-side" data-card="ask">${icon('campus', 16)} ${lang === 'de' ? 'Nebenbei: einfach Citrus fragen, statt Dokumente zu durchsuchen' : 'On the side: just ask Citrus instead of searching documents'}</div>
       <p class="pitch-subtitle" data-subtitle aria-live="polite"></p>
     </div>`);
   document.body.append(el);

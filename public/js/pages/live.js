@@ -1,13 +1,13 @@
 /**
  * Live lecture (/live/:courseId).
  *
- *   Lecturer  Start: a title, notes (pictures and PDFs) and whether Campus keeps the transcript. Running: a bar with
- *             the time, the join code (full screen for the projector), how many are in the room and whether Campus
+ *   Lecturer  Start: a title, notes (pictures and PDFs) and whether Citrus keeps the transcript. Running: a bar with
+ *             the time, the join code (full screen for the projector), how many are in the room and whether Citrus
  *             is listening; the class pulse and timeline; the moments students flagged, live and without names;
- *             "Ask Campus" (type it, or say "Hey Campus, …" while listening); notes. Ending shows where it went
+ *             "Ask Citrus" (type it, or say "Hey Citrus, …" while listening); notes. Ending shows where it went
  *             badly and links to the review.
  *   Student   How am I following (three large buttons), "Flag this moment" with what would help and an optional
- *             note, my flags with an explanation from Campus, and "Ask Campus about this lecture", privately.
+ *             note, my flags with an explanation from Citrus, and "Ask Citrus about this lecture", privately.
  */
 import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -160,7 +160,7 @@ function mountStudent(root, d, ctx) {
     ctx.navigate(`/lectures/review/${sid}`); // their own path, where the class got stuck, their flags, the key points
   });
 
-  // The minute and whether Campus is listening, without a reload.
+  // The minute and whether Citrus is listening, without a reload.
   const tick = async () => {
     try {
       const v = await api.get(`/live/sessions/${sid}`);
@@ -313,7 +313,7 @@ function start(d) {
       <section class="card stack">
         <div class="input-row"><label class="field"><span>Title</span><input class="input" data-title maxlength="120" placeholder="Week 5: gradient descent"></label>
           <label class="field" style="max-width:200px"><span>Room</span><input class="input" data-room maxlength="60" placeholder="HSG 001"></label></div>
-        <span class="hint">With a room, the class status also shows on the Campus Puck registered there: green, amber or red.</span>
+        <span class="hint">With a room, the class status also shows on the Citrus Puck registered there: green, amber or red.</span>
         <div class="field"><span>Notes (optional)</span>
           <div class="att-tray" data-tray hidden></div>
           <button class="btn" type="button" data-add-notes>${icon('upload', 16)} Add slides, pictures or PDFs</button>
@@ -495,8 +495,8 @@ function mountLecturer(root, d, ctx) {
 
   // ---- ask
   const ask = createAsk(root, (question) => api.post(`/live/sessions/${sid}/ask`, { question }), { onAnswer: (r) => speak(r.answer) });
-  const wake = wakeMatcher(name, { strict: true }); // a lecture microphone: "Hey Campus, …", never "the campus is…"
-  /** Ask Campus: the answer shows in the full-screen panel when the notes are open, otherwise on the page. */
+  const wake = wakeMatcher(name, { strict: true }); // a lecture microphone: "Hey Citrus, …", never "the campus is…"
+  /** Ask Citrus: the answer shows in the full-screen panel when the notes are open, otherwise on the page. */
   const askNow = (question, noteName) => {
     if (!viewer) return ask.ask(question);
     const q = noteName ? `${question} (I am showing “${noteName}”.)` : question;
@@ -537,7 +537,7 @@ function mountLecturer(root, d, ctx) {
     captioner = createCaptioner({
       onFinal: (text) => {
         if (!text) return;
-        // "…, hey Campus, could you elaborate?" after explaining Citrus: the presentation, not a question.
+        // "…, hey Citrus, could you elaborate?" after explaining Citrus: the presentation, not a question.
         if (notePitch(text, { requireWake: true })) return;
         const asked = wake.match(text);
         if (asked && asked.rest.length >= 4) {
@@ -582,7 +582,7 @@ function mountLecturer(root, d, ctx) {
           viewer?.setActive('mic', !!captioner?.running);
         } },
         { id: 'voice', icon: 'campus', label: `Ask ${name} by voice`, onSelect: () => {
-          // While listening, "Hey Campus, …" already works; otherwise listen for one question now.
+          // While listening, "Hey Citrus, …" already works; otherwise listen for one question now.
           if (captioner?.running) {
             viewer.answer(`Say “Hey ${name}, …” and your question.`, Promise.resolve({ answer: `I’m listening to the lecture. Start with “Hey ${name}” and I’ll answer here.` }));
             return;

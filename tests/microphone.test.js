@@ -70,5 +70,5 @@ test('an unplugged choice falls back to the default microphone', async () => {
   };
   await openMicrophone(getUserMedia, {}, devices);
   assert.deepEqual(opened, ['usb', 'default']);
-  assert.equal(microphoneRoute().bluetooth, true, 'the conversation then pauses the microphone while Campus talks');
+  assert.equal(microphoneRoute().bluetooth, true, 'the conversation then pauses the microphone while Citrus talks');
 });

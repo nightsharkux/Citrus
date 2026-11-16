@@ -68,7 +68,7 @@ test('the assistant sees the timetable of the programme the user names, and only
 });
 
 test('the prompt prepares the assistant for mixed German and English', () => {
-  const system = assistantPrompt({ site: {}, user: { name: 'Ana K', role: 'student', institution: 'OTH' }, assistantName: 'Campus', context: 'x', sources: [] });
+  const system = assistantPrompt({ site: {}, user: { name: 'Ana K', role: 'student', institution: 'OTH' }, assistantName: 'Citrus', context: 'x', sources: [] });
   assert.match(system, /German and English together/);
   assert.match(system, /Banhof/);
   assert.match(system, /Schirmitzer Weg/);

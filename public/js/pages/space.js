@@ -199,14 +199,14 @@ function meeting(d) {
     return html`<div class="space-grid">
       <div class="stack">
         <section class="card stack meeting-start">
-          <div><h2>Start a meeting</h2><p class="muted mt-8">Campus writes down what’s said, you add decisions and action items as you go, and when you end the meeting the minutes are drafted for everyone in the space.</p></div>
+          <div><h2>Start a meeting</h2><p class="muted mt-8">Citrus writes down what’s said, you add decisions and action items as you go, and when you end the meeting the minutes are drafted for everyone in the space.</p></div>
           <ol class="live-steps compact">
             <li><span class="step-n">1</span><div><strong>Start</strong><p class="small muted">Your microphone turns on. Others in the space can turn on theirs.</p></div></li>
             <li><span class="step-n">2</span><div><strong>Note as you go</strong><p class="small muted">One tap for a decision, an action item or a question.</p></div></li>
             <li><span class="step-n">3</span><div><strong>End</strong><p class="small muted">The minutes appear below. Review them before sending.</p></div></li>
           </ol>
           ${w.canSpeak ? html`<div><button class="btn btn-primary btn-lg" data-meeting-start>${icon('play', 18)} Start meeting</button></div>
-            <p class="small muted">Tell everyone present that Campus is writing down what’s said. Speech recognition needs Chrome, Edge or Safari.</p>`
+            <p class="small muted">Tell everyone present that Citrus is writing down what’s said. Speech recognition needs Chrome, Edge or Safari.</p>`
             : html`<div class="notice">${icon('info', 18)}<span>In this space the lecturer or the owner starts meetings.</span></div>`}
         </section>
         <section class="card flush"><details><summary class="card-head"><h2>Recordings</h2><span class="chip">${d.recordings.length}</span></summary>${recordingsList(d)}</details></section>
@@ -244,8 +244,8 @@ function meeting(d) {
           <ul class="flag-list" data-quick-list>${mineHere.map((n) => html`<li class="flag-item"><span class="chip ${NOTE_TONE[n.category] || ''}">${NOTE_TYPES.find((t) => t[0] === n.category)?.[1] || humanize(n.category)}</span> ${n.content} <span class="small faint">· ${n.author}</span></li>`)}</ul>
         </section>
         <section class="card stack">
-          <h2>Ask Campus</h2>
-          <form class="composer" id="meeting-ask"><textarea name="prompt" rows="1" maxlength="2000" placeholder="What did we decide about…?" aria-label="Ask Campus"></textarea><div class="composer-actions"><button class="btn btn-primary btn-icon" aria-label="Ask">${icon('arrow-up', 18)}</button></div></form>
+          <h2>Ask Citrus</h2>
+          <form class="composer" id="meeting-ask"><textarea name="prompt" rows="1" maxlength="2000" placeholder="What did we decide about…?" aria-label="Ask Citrus"></textarea><div class="composer-actions"><button class="btn btn-primary btn-icon" aria-label="Ask">${icon('arrow-up', 18)}</button></div></form>
           <div class="live-answer" id="meeting-answer" hidden></div>
         </section>
         ${recorderCard()}
@@ -403,7 +403,7 @@ function mountMeeting(root, d, ctx) {
   const w = d.room;
   const id = w.id;
   const offs = minutesHandlers(root, d, ctx);
-  let captioner = null; // pauses "Hey Campus" while the microphone is on, and resumes it after
+  let captioner = null; // pauses "Hey Citrus" while the microphone is on, and resumes it after
   ctx.live.on('workspace.updated', debounce((e) => e.workspaceId === id && e.what === 'meeting' && !captioner?.running && ctx.refresh(), 500));
 
   if (!w.meeting) {
@@ -460,7 +460,7 @@ function mountMeeting(root, d, ctx) {
       onFinal: (text) => {
         if (!text) return;
         if (notePitch(text, { requireWake: true })) return;
-        // "Hey Campus, explain …" (or any question to Campus): answered at once, and kept in the meeting's record.
+        // "Hey Citrus, explain …" (or any question to Citrus): answered at once, and kept in the meeting's record.
         const asked = wake.match(text);
         if (asked && asked.rest.length >= 4) {
           askCampus(asked.rest, { aloud: true });
@@ -509,7 +509,7 @@ function mountMeeting(root, d, ctx) {
     });
   }));
 
-  // ---- ask Campus about the meeting so far, typed or by voice ("Hey Campus, explain …")
+  // ---- ask Citrus about the meeting so far, typed or by voice ("Hey Citrus, explain …")
   const askForm = $('#meeting-ask', root);
   const answer = $('#meeting-answer', root);
   const wake = wakeMatcher(assistantName(), { strict: true });
@@ -541,7 +541,7 @@ function mountMeeting(root, d, ctx) {
 
   offs.push(on(root, 'click', '[data-mic]', () => mic()));
   offs.push(on(root, 'click', '[data-meeting-end]', async (e, b) => {
-    if (!(await confirm({ title: 'End the meeting?', message: 'Microphones stop and Campus drafts the minutes for everyone in the space.', confirmLabel: 'End meeting' }))) return;
+    if (!(await confirm({ title: 'End the meeting?', message: 'Microphones stop and Citrus drafts the minutes for everyone in the space.', confirmLabel: 'End meeting' }))) return;
     captioner?.stop();
     captioner = null;
     await busy(b, async () => {
@@ -573,7 +573,7 @@ function mountMeeting(root, d, ctx) {
 
 function assistant(d) {
   const [label, desc] = GUIDANCE[d.room.guidance] || GUIDANCE.coach;
-  const name = 'Campus';
+  const name = 'Citrus';
   return html`<section class="card chat-card">
     <div class="spread"><div><h2>${name}</h2><p class="small muted">${label}: ${desc}</p></div>${d.messages.length ? html`<button class="btn btn-sm btn-ghost" data-clear>Clear</button>` : ''}</div>
     <div class="chat-log compact" id="space-log">${d.messages.length ? d.messages.map((m) => m.role === 'user'

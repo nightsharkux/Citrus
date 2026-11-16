@@ -76,8 +76,8 @@ export function mountApp() {
         <a class="topbar-mobile-brand" href="/home" aria-label="Citrus home">${wordmark()}</a>
         <span class="topbar-title" id="topbar-title"></span>
         <div class="topbar-actions">
-          <button class="icon-btn focus-btn" data-focus aria-label="Campus Focus" title="Campus Focus: pause notifications">${icon('moon', 18)}</button>
-          <button class="icon-btn wake-indicator" data-wake-indicator hidden aria-label="Campus is listening for “Hey Campus”. Click to stop." title="Listening for “Hey Campus” — click to stop">${icon('mic', 18)}</button>
+          <button class="icon-btn focus-btn" data-focus aria-label="Citrus Focus" title="Citrus Focus: pause notifications">${icon('moon', 18)}</button>
+          <button class="icon-btn wake-indicator" data-wake-indicator hidden aria-label="Citrus is listening for “Hey Citrus”. Click to stop." title="Listening for “Hey Citrus” — click to stop">${icon('mic', 18)}</button>
           <button class="search-pill" data-palette aria-label="Search">${icon('search', 18)}<span>Search or jump to…</span><kbd>${navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'} K</kbd></button>
           <a class="icon-btn" href="/inbox" aria-label="Inbox" data-bell>${icon('bell', 19)}<span data-unread-slot>${session.unread ? html`<span class="count">${session.unread > 99 ? '99+' : session.unread}</span>` : ''}</span></a>
           <button class="icon-btn" data-user-menu aria-label="Account menu" style="padding:0;overflow:hidden">${avatar(u.name, 'sm')}</button>
@@ -115,7 +115,7 @@ function wirePitch() {
   });
 }
 
-/** Campus Focus: minutes left (0 when off). Notifications that are not urgent wait quietly in the inbox meanwhile. */
+/** Citrus Focus: minutes left (0 when off). Notifications that are not urgent wait quietly in the inbox meanwhile. */
 const focusLeft = () => Math.max(0, Math.ceil((Date.parse(session.user?.preferences?.focusUntil || '') - Date.now()) / 60000)) || 0;
 const span = (m) => (m >= 60 ? `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}` : `${m} min`);
 let focusTimer = 0;
@@ -124,7 +124,7 @@ function syncFocus() {
   const el = $('[data-focus]');
   if (el) {
     el.classList.toggle('is-on', left > 0);
-    el.title = left > 0 ? `Focus on for ${span(left)}. Click to change.` : 'Campus Focus: pause notifications';
+    el.title = left > 0 ? `Focus on for ${span(left)}. Click to change.` : 'Citrus Focus: pause notifications';
   }
   clearTimeout(focusTimer);
   if (left > 0) focusTimer = setTimeout(syncFocus, 30_000);
@@ -148,7 +148,7 @@ function syncWakeIndicator() {
   if (el) el.hidden = !wake.enabled;
 }
 
-/** The floating "Listening" pill: appears after "Hey Campus", shows the words as they are spoken, leaves when the command is sent. */
+/** The floating "Listening" pill: appears after "Hey Citrus", shows the words as they are spoken, leaves when the command is sent. */
 let pillTimer = 0;
 function showPill(text, { final = false } = {}) {
   const pill = $('[data-voice-pill]');
@@ -266,7 +266,7 @@ function wireShell() {
     }
   });
 
-  // "Hey Campus" from any page: open the assistant (and ask, if a question followed). `spoken` lets it answer out loud.
+  // "Hey Citrus" from any page: open the assistant (and ask, if a question followed). `spoken` lets it answer out loud.
   wake.setFallback((text) => navigate(`/assistant?q=${encodeURIComponent(text)}&spoken=1`));
   wake.setInterceptor(handleVoiceCommand);
   wake.onState(onWakeState);
@@ -279,7 +279,7 @@ function wireShell() {
   });
   on(document, 'click', '[data-wake-indicator]', async () => {
     await turnOffWake();
-    toast('Campus stopped listening.', 'info');
+    toast('Citrus stopped listening.', 'info');
   });
 
   live.on('notification', (n) => {
@@ -416,9 +416,9 @@ function openMore() {
 let toolsCache = null;
 async function openPalette() {
   const actions = [
-    { label: 'Ask Campus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
-    { label: 'Ask Campus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
-    { label: 'Talk to Campus', hint: 'Voice conversation', icon: 'waveform', run: () => talkToCampus({ threadId: currentThreadId() }), group: 'Actions' },
+    { label: 'Ask Citrus', icon: 'campus', href: '/assistant?new=1', group: 'Actions' },
+    { label: 'Ask Citrus in full screen', icon: 'maximize', href: '/assistant?new=1&full=1', group: 'Actions' },
+    { label: 'Talk to Citrus', hint: 'Voice conversation', icon: 'waveform', run: () => talkToCampus({ threadId: currentThreadId() }), group: 'Actions' },
     { label: 'Explain Citrus', hint: 'The short presentation', icon: 'presentation', run: () => startPitch(), group: 'Actions' },
     { label: 'Start a meeting', icon: 'message', href: '/meetings', group: 'Actions' },
     { label: 'New space', icon: 'plus', href: '/spaces?new=1', group: 'Actions' },

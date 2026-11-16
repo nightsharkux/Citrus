@@ -59,7 +59,7 @@ test('the recognition session carries the lecture’s terms for its lecturer onl
     const mine = await keyterms('prof', { language: 'multi', live_session: app.liveId });
     assert.ok(mine.includes('Week 5 Optimisation') && mine.includes('Machine Learning'), mine.join(' | '));
     assert.ok(mine.includes('PyTorch'), 'terms mined from the uploaded notes');
-    assert.ok(mine.includes('Campus'), 'the campus basics stay');
+    assert.ok(mine.includes('Citrus'), 'the campus basics stay');
     assert.ok(mine.length <= 100);
 
     const student = await keyterms('stu', { language: 'multi', live_session: app.liveId });

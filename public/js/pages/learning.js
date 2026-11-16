@@ -48,12 +48,12 @@ function card(item, index, total) {
   return html`<section class="card review-card" data-id="${item.id}">
     <div class="spread"><span class="chip">${item.course || 'General'} · ${item.kind === 'topic' ? 'Topic' : item.kind === 'poll' ? 'Concept check' : 'Practice'}</span><span class="small faint">${index + 1} of ${total}</span></div>
     <div class="review-prompt">${item.prompt}</div>
-    <div class="review-answer hidden">${item.answer ? html`<p class="small faint">Answer</p><p>${item.answer}</p>` : html`<p class="muted">Compare your explanation with your notes or ask Campus to check it.</p>`}</div>
+    <div class="review-answer hidden">${item.answer ? html`<p class="small faint">Answer</p><p>${item.answer}</p>` : html`<p class="muted">Compare your explanation with your notes or ask Citrus to check it.</p>`}</div>
     <div class="review-actions">
       <button class="btn btn-primary btn-lg btn-block" data-reveal>Show answer</button>
       <div class="grades hidden">${Object.entries(item.preview).map(([g, d]) => html`<button class="btn grade grade-${g}" data-grade="${g}"><b>${GRADE_LABEL[g]}</b><small>${interval(d)}</small></button>`)}</div>
     </div>
-    <a class="small" href="/assistant?q=${encodeURIComponent(`Help me understand: ${item.prompt}`)}">${icon('campus', 14)} Ask Campus about this</a>
+    <a class="small" href="/assistant?q=${encodeURIComponent(`Help me understand: ${item.prompt}`)}">${icon('campus', 14)} Ask Citrus about this</a>
   </section>`;
 }
 

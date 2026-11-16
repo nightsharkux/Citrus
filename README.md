@@ -1,6 +1,6 @@
 # Citrus 1.1
 
-A classroom assistant for universities, built around the lecture: students give live feedback from their phones, the class status shows on screen and on the Campus Puck so the lecturer can explain again at once, professors review where explanations need work, students see where they got stuck, and participation is taken with the NFC chip already in student IDs. **Campus**, an assistant that knows your courses, makes information easy to reach on the side. Students, lecturers and administrators each get their own views. One codebase serves several institution themes (an OTH Amberg-Weiden concept edition and a general edition).
+A classroom assistant for universities, built around the lecture: students give live feedback from their phones, the class status shows on screen and on the Citrus Puck so the lecturer can explain again at once, professors review where explanations need work, students see where they got stuck, and participation is taken with the NFC chip already in student IDs. **Citrus**, an assistant that knows your courses, makes information easy to reach on the side. Students, lecturers and administrators each get their own views. One codebase serves several institution themes (an OTH Amberg-Weiden concept edition and a general edition).
 
 > **Status:** a production-structured pilot. The code is complete and tested, but a real university deployment still needs HTTPS, your identity provider, a data-protection review and institutional approval. The OTH edition is an independent concept, **not** an official OTH Amberg-Weiden service.
 
@@ -8,15 +8,15 @@ A classroom assistant for universities, built around the lecture: students give 
 
 | Area | What it does |
 |---|---|
-| **Campus (assistant)** | Threaded conversations, streamed answers, citations from the approved knowledge library, web search, personal context (your courses, schedule, review queue), dictation, natural voices and a hands-free voice conversation. An animated eye that reacts, follows what you type and turns into small illustrations while it explains. A full-screen mode, and "Hey Campus" on any page. Vercel AI Gateway with configurable default and summary models. |
+| **Citrus (assistant)** | Threaded conversations, streamed answers, citations from the approved knowledge library, web search, personal context (your courses, schedule, review queue), dictation, natural voices and a hands-free voice conversation. An animated eye that reacts, follows what you type and turns into small illustrations while it explains. A full-screen mode, and "Hey Citrus" on any page. Vercel AI Gateway with configurable default and summary models. |
 | **Learning** | Courses → lectures → topics. Private understanding ratings, concept checks with live class results, a spaced-review queue, practice sets (AI-written or from the lecturer's checks), per-course progress, and tutor-style quizzes with eight kinds of question. |
 | **Schedule** | Course, personal and university-wide events. Weekly repeats keep their local time across daylight-saving changes. ICS import and a private subscription link for phone calendars. |
-| **Live lectures** | The lecturer goes live and shows a six-digit code; students join from their phones, say how they're following and flag the moments they need help with. The lecturer sees the class pulse and the flags without names. Campus listens, answers the lecturer mid-lecture, and (when the transcript is kept) answers students about the lecture and explains their flags afterwards. |
+| **Live lectures** | The lecturer goes live and shows a six-digit code; students join from their phones, say how they're following and flag the moments they need help with. The lecturer sees the class pulse and the flags without names. Citrus listens, answers the lecturer mid-lecture, and (when the transcript is kept) answers students about the lecture and explains their flags afterwards. |
 | **Spaces** | Invite-code rooms with shared notes, an assistant with lecturer-defined behaviour, meetings (live captions from every member's microphone with names, one-tap decisions and action items, minutes drafted for everyone when it ends), optional audio recording, and live captions for lectures. |
-| **Documents** | Lecturers and administrators upload PDFs, scans, photos, slides, Word or Excel files as they are. Campus reads every page (pictures with the AI) into the knowledge library and offers it as one AI-readable `.txt`. |
-| **Meetings** | Meeting mode from the menu or Home: captions from everyone's microphone, one-tap decisions and action items, "Hey Campus, explain …" answered at once, minutes that can be split into separate files by chat or voice. |
-| **Make a tool** | Describe a small tool and Campus builds it in the Citrus look; private until shared and approved, then in More tools. |
-| **Campus** | A moderated feed with events and RSVPs, jobs, housing and research calls. Opt-in interest matching. A campus guide with maps, official links and knowledge search. Room status. |
+| **Documents** | Lecturers and administrators upload PDFs, scans, photos, slides, Word or Excel files as they are. Citrus reads every page (pictures with the AI) into the knowledge library and offers it as one AI-readable `.txt`. |
+| **Meetings** | Meeting mode from the menu or Home: captions from everyone's microphone, one-tap decisions and action items, "Hey Citrus, explain …" answered at once, minutes that can be split into separate files by chat or voice. |
+| **Make a tool** | Describe a small tool and Citrus builds it in the Citrus look; private until shared and approved, then in More tools. |
+| **Citrus** | A moderated feed with events and RSVPs, jobs, housing and research calls. Opt-in interest matching. A campus guide with maps, official links and knowledge search. Room status. |
 | **Check-in** | Participation sessions with a rotating six-digit code, lecturer confirmation, or card taps on a registered reader. |
 | **Devices** | A signed device API for classroom pucks, NFC readers and door lights. Tapping a card starts a session only after the lecturer confirms it in the app. |
 | **Inbox** | Notifications with Web Push, quiet hours, topic preferences and plain-language settings ("mute events"). |
@@ -51,24 +51,24 @@ This needs `HOST=0.0.0.0` in `.env` (the default in `.env.example`). Browsers on
 
 **Upgrading from 0.6:** just start the new version. The database upgrades itself (additive, numbered migrations). A full copy of the previous version is in `backups/v0.6.0-original/`. Run `npm run backup` before major changes.
 
-### Talking to Campus
+### Talking to Citrus
 
-- **Ask Campus** is in the menu on every screen, or press Ctrl/⌘K and type a question.
-- **Full screen:** the expand button in the assistant header, or Ctrl/⌘K → *Ask Campus in full screen*. Esc leaves it.
-- **Voice conversation:** press the waveform button in the message box (it shows while the box is empty), choose Ctrl/⌘K → *Talk to Campus*, or say "Hey Campus, let's talk". Campus listens, answers out loud in short spoken sentences, then listens again, like a phone call. Interrupt by speaking (on a computer) or by tapping the eye; say "goodbye" or press the red button to end. The arrow button shrinks it to a pill so you can keep talking on other pages. The conversation is saved as a normal thread.
+- **Ask Citrus** is in the menu on every screen, or press Ctrl/⌘K and type a question.
+- **Full screen:** the expand button in the assistant header, or Ctrl/⌘K → *Ask Citrus in full screen*. Esc leaves it.
+- **Voice conversation:** press the waveform button in the message box (it shows while the box is empty), choose Ctrl/⌘K → *Talk to Citrus*, or say "Hey Citrus, let's talk". Citrus listens, answers out loud in short spoken sentences, then listens again, like a phone call. Interrupt by speaking (on a computer) or by tapping the eye; say "goodbye" or press the red button to end. The arrow button shrinks it to a pill so you can keep talking on other pages. The conversation is saved as a normal thread.
 - **German and English, your own name.** Switch language from the account menu or Settings → Assistant; the assistant understands both, even mixed in one sentence. Give it any name (it is a setting per account) and say "Hey <name>". Most settings can also be changed by asking in chat.
 - **University knowledge and the campus map.** Ask for a contact, a procedure or "what lecture do I have right now?" and the answer comes from the university's public pages and published timetables. *Campus life → Map* shows both campuses and the way to your next lesson.
-- **Hey Campus:** turn on *Listen for "Hey Campus"* in Settings → Assistant (or the microphone button in the assistant header). Then say "Hey Campus, …" or just "Campus, …" on any page. Common mishearings such as "hit Campus" work at the start of a sentence; sentences about the place ("let's hit campus tomorrow", "campus is closed") don't wake it. A chime and a "Listening" pill show it heard you; saying only "Campus" waits for your command. Short commands run instantly ("open schedule", "dark mode", "new chat", "stop"); anything else goes to the assistant, and the answer is read aloud. This uses the browser's speech service (Chrome, Edge and Safari) and needs HTTPS or localhost.
-- **Campus's voice:** answers are read aloud in a natural voice from the AI Gateway (Coral, Nova, Sage and others), sentence after sentence without gaps, starting while the answer is still being written. Choose the voice, a speaking style and when answers are read aloud in Settings → Assistant. If natural voices are not available, Campus uses the browser's own voices.
-- **Web search:** Campus looks things up on the web when its own sources are not enough, and links the pages it used. Press the globe in the message box to make it search for every message.
+- **Hey Citrus:** turn on *Listen for "Hey Citrus"* in Settings → Assistant (or the microphone button in the assistant header). Then say "Hey Citrus, …" or just "Citrus, …" on any page. Common mishearings such as "hit Citrus" work at the start of a sentence; sentences about the place ("let's hit campus tomorrow", "campus is closed") don't wake it. A chime and a "Listening" pill show it heard you; saying only "Citrus" waits for your command. Short commands run instantly ("open schedule", "dark mode", "new chat", "stop"); anything else goes to the assistant, and the answer is read aloud. This uses the browser's speech service (Chrome, Edge and Safari) and needs HTTPS or localhost.
+- **Citrus's voice:** answers are read aloud in a natural voice from the AI Gateway (Coral, Nova, Sage and others), sentence after sentence without gaps, starting while the answer is still being written. Choose the voice, a speaking style and when answers are read aloud in Settings → Assistant. If natural voices are not available, Citrus uses the browser's own voices.
+- **Web search:** Citrus looks things up on the web when its own sources are not enough, and links the pages it used. Press the globe in the message box to make it search for every message.
 - **Quizzes:** say "quiz me on photosynthesis" or open *Quizzes* in the menu. Choose a topic, one of your courses or paste your notes; pick from eight kinds of question (multiple choice, select all, true or false, fill in the blank, short answer, put in order, match, calculation). Every answer is marked at once with an explanation, every question has a hint and a tutor you can ask, and *Practise my mistakes* gives you another go.
-- **Hands-free changes:** ask Campus to "add a study session tomorrow at 4 pm", "move it an hour later" or "open my schedule". It changes your own calendar, opens pages and switches the theme, shows what it did, and every change has an *Undo*. See [docs/AI.md](docs/AI.md#actions).
+- **Hands-free changes:** ask Citrus to "add a study session tomorrow at 4 pm", "move it an hour later" or "open my schedule". It changes your own calendar, opens pages and switches the theme, shows what it did, and every change has an *Undo*. See [docs/AI.md](docs/AI.md#actions).
 - **Textbook explanations:** formulas, worked examples, tables and key ideas are laid out like a textbook, with real fractions, roots and exponents.
-- **Animated explanations:** when a picture helps, Campus's eye turns into a small animation, such as a formula, bars, steps or stick figures. You can turn this off in Settings → Assistant, and replay an illustration from the answer it belongs to.
+- **Animated explanations:** when a picture helps, Citrus's eye turns into a small animation, such as a formula, bars, steps or stick figures. You can turn this off in Settings → Assistant, and replay an illustration from the answer it belongs to.
 
 ### For a presentation
 
-Turn on *Listen for "Hey Campus"*, explain Citrus in your own words, then say "Now you probably didn't understand that, did you?" or "In case that wasn't clear, hey Campus, could you please elaborate further?". Campus explains the core features with an excited face. Ctrl/⌘+Shift+E does the same without the microphone.
+Turn on *Listen for "Hey Citrus"*, explain Citrus in your own words, then say "Now you probably didn't understand that, did you?" or "In case that wasn't clear, hey Citrus, could you please elaborate further?". Citrus explains the core features with an excited face. Ctrl/⌘+Shift+E does the same without the microphone.
 
 ### Turn on the extras
 
@@ -90,7 +90,7 @@ Turn on *Listen for "Hey Campus"*, explain Citrus in your own words, then say "N
 | Doc | For |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The module map, request flow, conventions, and how to add a feature |
-| [docs/AI.md](docs/AI.md) | Providers, prompts, retrieval, personal context, Campus's face and illustrations, and voice |
+| [docs/AI.md](docs/AI.md) | Providers, prompts, retrieval, personal context, Citrus's face and illustrations, and voice |
 | [docs/HARDWARE.md](docs/HARDWARE.md) | The device protocol, the activation flow, and reference clients |
 | [docs/API.md](docs/API.md) | Every HTTP endpoint |
 | [AGENTS.md](AGENTS.md) | Working rules for AI coding agents |

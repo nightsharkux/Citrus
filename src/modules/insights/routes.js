@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Lecture insights: while a lecture is captioned, Campus picks out the points
+ * Lecture insights: while a lecture is captioned, Citrus picks out the points
  * worth remembering (definitions, formulas, examples, what the lecturer stressed,
  * announcements, questions) in small steps, so students get live notes and the
  * lecturer gets a record of what was covered and what was unclear.

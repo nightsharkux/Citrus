@@ -70,7 +70,7 @@ export default {
       sheet({
         title: `Change ${tool.name}`,
         content: html`<form class="form" id="change-form">
-          <p class="small muted">Say or type what should be different. Campus rewrites the tool and keeps the rest.</p>
+          <p class="small muted">Say or type what should be different. Citrus rewrites the tool and keeps the rest.</p>
           <div class="composer"><textarea name="change" rows="3" maxlength="800" placeholder="Make the numbers bigger and add a start button" required minlength="3"></textarea>
             <div class="composer-actions"><button type="button" class="btn btn-ghost btn-icon" data-say aria-label="Say it">${icon('mic', 18)}</button></div></div>
           <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">${icon('sparkle', 16)} Change it</button></div>

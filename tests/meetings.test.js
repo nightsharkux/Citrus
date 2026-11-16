@@ -98,14 +98,14 @@ test('in a lecture space only the lecturer or the owner runs a meeting', async (
   }
 });
 
-test('meeting mode: start in one tap, questions to Campus are kept, minutes split into separate files', async () => {
+test('meeting mode: start in one tap, questions to Citrus are kept, minutes split into separate files', async () => {
   const state = { calls: [] };
   const fetchImpl = async (url, options) => {
     const body = JSON.parse(options.body);
     state.calls.push(body);
     const system = body.messages[0].content;
     let reply = 'Recursion is when a function calls itself.';
-    if (/meeting secretary/.test(system)) reply = '## Summary\nWe planned the exam review.\n\n## Decisions\n- Review on Friday.\n\n## Questions raised\n- Ann: Is recursion on the exam? (Asked Campus)';
+    if (/meeting secretary/.test(system)) reply = '## Summary\nWe planned the exam review.\n\n## Decisions\n- Review on Friday.\n\n## Questions raised\n- Ann: Is recursion on the exam? (Asked Citrus)';
     if (/You edit meeting minutes/.test(system)) reply = JSON.stringify([{ label: 'With student questions', minutes: '## Decisions\n- Review on Friday.\n\n## Questions raised\n- Ann: Is recursion on the exam?' }, { label: 'Without student questions', minutes: '## Decisions\n- Review on Friday.' }]);
     return Response.json({ choices: [{ message: { content: reply } }] });
   };
@@ -122,16 +122,16 @@ test('meeting mode: start in one tap, questions to Campus are kept, minutes spli
     assert.equal((await app.call('ben', 'GET', '/api/meetings')).body.running.length, 0, 'not in his spaces');
     assert.equal((await app.call('ben', 'POST', `/api/workspaces/${quick.body.id}/assistant`, { prompt: 'Explain recursion' })).status, 403);
 
-    // "Hey Campus, explain recursion" during the meeting: answered, and kept as a question for the minutes.
+    // "Hey Citrus, explain recursion" during the meeting: answered, and kept as a question for the minutes.
     const asked = await app.call('ann', 'POST', `/api/workspaces/${quick.body.id}/assistant`, { prompt: 'Explain recursion' });
     assert.match(asked.body.answer, /calls itself/);
     const room = await app.call('ann', 'GET', `/api/workspaces/${quick.body.id}`);
-    assert.ok(room.body.notes.some((n) => n.category === 'question' && /Asked Campus: Explain recursion/.test(n.content)));
+    assert.ok(room.body.notes.some((n) => n.category === 'question' && /Asked Citrus: Explain recursion/.test(n.content)));
 
     const ended = await app.call('ann', 'POST', `/api/workspaces/${quick.body.id}/meeting`, { action: 'end' });
     assert.ok(ended.body.report.id);
     assert.ok(state.calls.at(-1).model.startsWith('openai/gpt-6.1'), 'minutes use the main model, not the cheap summary one');
-    assert.match(JSON.stringify(state.calls.at(-1).messages.at(-1).content), /\[question\] Asked Campus: Explain recursion/);
+    assert.match(JSON.stringify(state.calls.at(-1).messages.at(-1).content), /\[question\] Asked Citrus: Explain recursion/);
 
     // "Make two files: one with the student questions and one without."
     const split = await app.call('ann', 'POST', `/api/workspaces/${quick.body.id}/reports/${ended.body.report.id}/versions`, { instruction: 'Two files: one with the student questions and one without' });
@@ -146,7 +146,7 @@ test('meeting mode: start in one tap, questions to Campus are kept, minutes spli
     const minutesFile = await file.text();
     assert.match(minutesFile, /Review on Friday/);
     assert.match(minutesFile, /INSTRUCTIONS FOR ANY AI[\s\S]*=== DATA ===[\s\S]*--- MINUTES ---/, 'instructions any AI can follow come first');
-    assert.match(minutesFile, /\[QUESTION t=00:00:\d\d [^\]]+\] Asked Campus: Explain recursion/, 'what was noted, tagged with its time');
+    assert.match(minutesFile, /\[QUESTION t=00:00:\d\d [^\]]+\] Asked Citrus: Explain recursion/, 'what was noted, tagged with its time');
     assert.equal((await app.call('ben', 'GET', `/api/workspaces/${quick.body.id}/reports/${split.body.versions[1].id}/minutes.txt`)).status, 403);
     assert.equal((await app.call('ben', 'POST', `/api/workspaces/${quick.body.id}/reports/${ended.body.report.id}/versions`, { instruction: 'only decisions' })).status, 403);
   } finally {

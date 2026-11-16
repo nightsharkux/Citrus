@@ -16,7 +16,7 @@
  *   GET    /api/course-items/:id/file            download; ?view=1 opens PDFs and pictures in the browser (members)
  *   PATCH  /api/lectures/:id/section             { section_id }  put a lecture in a topic              (lecturer)
  *
- * Files are kept with their readable text, so Campus can use a topic's files in lectures and answers. Without file
+ * Files are kept with their readable text, so Citrus can use a topic's files in lectures and answers. Without file
  * storage they live in the database (at most 4 MB each, the limit of a request on the hosting); with a Vercel Blob
  * store (src/services/blob.js) the browser uploads them straight to it, up to 100 MB, and downloads are streamed
  * through here after the access check. Nothing runs from an uploaded file: downloads are attachments, and only
@@ -30,7 +30,7 @@ const { pipeTo, safeName } = require('../../services/blob');
 
 const MAX_FILE = 4 * 1024 * 1024;
 const MAX_STORED_FILE = 100 * 1024 * 1024;
-const MAX_READ = 25 * 1024 * 1024; // larger files are kept for download, without Campus reading them
+const MAX_READ = 25 * 1024 * 1024; // larger files are kept for download, without Citrus reading them
 const MAX_DEPTH = 6;
 const VIEWABLE = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const SAFE_TYPES = /^(application\/(pdf|msword|vnd\.[\w.+-]+|zip|json|x-ipynb\+json)|text\/(plain|markdown|csv)|image\/(png|jpeg|webp|gif)|audio\/[\w.+-]+|video\/(mp4|webm))$/;
@@ -338,7 +338,7 @@ function registerSections(router, { db, access, bus, blobs = { enabled: false } 
 }
 
 /**
- * The readable text of the files in a lecture's topic (and the topics around it, up to the course), for Campus
+ * The readable text of the files in a lecture's topic (and the topics around it, up to the course), for Citrus
  * during and after the lecture. Empty when the lecture has no topic or the files have no text.
  */
 function topicFilesText(db, lectureId, maxChars = 40_000) {
@@ -367,7 +367,7 @@ const STOP = new Set('the and for with that this what how why when where which w
 const termsOf = (s) => [...new Set(String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 2 && !STOP.has(w)))];
 
 /**
- * Course files that answer a question, best first, for Ask Campus at any time (not only in lectures). `courseIds`
+ * Course files that answer a question, best first, for Ask Citrus at any time (not only in lectures). `courseIds`
  * are the courses the person may see. With `all`, every readable file of the course counts (best first) even
  * without a match: the person asked about that course. Returns [{ id, title, topic, course, excerpt, text }].
  */

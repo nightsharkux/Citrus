@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Loads a lecture record (record.js) from the database, and finds the lecture a person is talking about in Ask
- * Campus ("my last lecture", "the eigenvalues lecture"), so the general assistant can discuss a lecture too.
+ * Citrus ("my last lecture", "the eigenvalues lecture"), so the general assistant can discuss a lecture too.
  *
  * Who gets what: the lecturer of the course gets everything (with the names of students who chose to show them);
  * a student gets only their own record, never the lecturer's words verbatim or other students.
@@ -104,7 +104,7 @@ function createRecordSource({ db, access }) {
   const words = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter((w) => w.length > 2);
 
   /**
-   * The lecture this conversation is about: the one given by id (from a "continue in Ask Campus" link), else one
+   * The lecture this conversation is about: the one given by id (from a "continue in Ask Citrus" link), else one
    * named in the text by its title, else "my last lecture". Null when none.
    */
   function find(user, { id = null, text = '' } = {}) {

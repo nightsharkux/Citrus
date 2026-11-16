@@ -40,8 +40,8 @@ export default {
   'Your private calendar link is active.': 'Dein privater Kalenderlink ist aktiv.',
 
   // ---- assistant settings
-  'Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud.': 'Sag auf jeder Seite „Hey Campus“ oder nur „Campus“, gefolgt von einer Bitte: einer Frage, „trag morgen um 16 Uhr eine Lernsession ein“, „öffne meinen Stundenplan“ oder „Dunkelmodus“. Antworten werden vorgelesen.',
-  'Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. Your browser’s speech service processes the audio while this is on.': 'Sag auf jeder Seite „Hey Campus“ oder nur „Campus“, gefolgt von einer Bitte: einer Frage, „trag morgen um 16 Uhr eine Lernsession ein“, „öffne meinen Stundenplan“ oder „Dunkelmodus“. Antworten werden vorgelesen. Der Sprachdienst deines Browsers verarbeitet das Audio, solange das aktiv ist.',
+  'Say “Hey Citrus” or just “Citrus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud.': 'Sag auf jeder Seite „Hey Citrus“ oder nur „Citrus“, gefolgt von einer Bitte: einer Frage, „trag morgen um 16 Uhr eine Lernsession ein“, „öffne meinen Stundenplan“ oder „Dunkelmodus“. Antworten werden vorgelesen.',
+  'Say “Hey Citrus” or just “Citrus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. Your browser’s speech service processes the audio while this is on.': 'Sag auf jeder Seite „Hey Citrus“ oder nur „Citrus“, gefolgt von einer Bitte: einer Frage, „trag morgen um 16 Uhr eine Lernsession ein“, „öffne meinen Stundenplan“ oder „Dunkelmodus“. Antworten werden vorgelesen. Der Sprachdienst deines Browsers verarbeitet das Audio, solange das aktiv ist.',
   'Your browser’s speech service processes the audio while this is on.': 'Der Sprachdienst deines Browsers verarbeitet das Audio, solange das aktiv ist.',
 
   // ---- links and notices that come from the server (edition settings)
@@ -130,7 +130,7 @@ export default {
   'Many lost': 'Viele verloren',
   'Too few answers': 'Zu wenige Antworten',
   'Recording (audio)': 'Aufnahme (Audio)',
-  'Ask Campus about this topic': 'Campus zu diesem Thema fragen',
+  'Ask Citrus about this topic': 'Citrus zu diesem Thema fragen',
 
   // ---- QR codes of lectures, joining with them, and the date picker
   'QR code': 'QR-Code',
@@ -157,7 +157,7 @@ export default {
   'The QR code to scan, print or download': 'Der QR-Code zum Scannen, Drucken oder Herunterladen',
   'QR code for this lecture': 'QR-Code für diese Vorlesung',
   'Students scan it with their phone camera, no account needed, or tap': 'Studierende scannen ihn mit der Handykamera, ohne Konto, oder tippen in Citrus auf',
-  'in Citrus and type the code. Then turn on listening so Campus can follow.': 'und geben den Code ein. Schalte dann das Zuhören ein, damit Campus folgen kann.',
+  'in Citrus and type the code. Then turn on listening so Citrus can follow.': 'und geben den Code ein. Schalte dann das Zuhören ein, damit Citrus folgen kann.',
   'A QR code and a six-digit code appear. Put them on the projector: students scan the QR code with their phone camera, no account needed, or type the code.': 'Ein QR-Code und ein sechsstelliger Code erscheinen. Zeig sie am Beamer: Studierende scannen den QR-Code mit der Handykamera, ohne Konto, oder geben den Code ein.',
   'This link does not open a lecture. Type the six-digit code from the screen.': 'Dieser Link öffnet keine Vorlesung. Gib den sechsstelligen Code vom Bildschirm ein.',
   'Live now': 'Jetzt live',

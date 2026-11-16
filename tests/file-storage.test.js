@@ -156,12 +156,12 @@ test('big course files go straight to private storage and come back only through
     assert.deepEqual(outline.body.storage, { direct: true, maxBytes: 100 * 1024 * 1024 });
     const topic = await app.call('prof', 'POST', `/api/courses/${courseId}/sections`, { title: 'Eigenvalues' });
 
-    // 6 MB: more than one request to the hosting may carry, so it could never go through Campus itself.
+    // 6 MB: more than one request to the hosting may carry, so it could never go through Citrus itself.
     const big = Buffer.concat([Buffer.from('Eigenvalues: Av = λv. '), Buffer.alloc(6 * 1024 * 1024, 'x')]);
     const added = await uploadDirect(app, 'prof', `/api/courses/${courseId}/files/start`, `/api/courses/${courseId}/files/finish`, big, { name: 'Week 3 / notes.txt', type: 'text/plain', section_id: topic.body.id });
     assert.equal(added.status, 201, JSON.stringify(added.body));
     assert.equal(added.body.size, big.length);
-    assert.equal(added.body.readable, true, 'Campus read its text');
+    assert.equal(added.body.readable, true, 'Citrus read its text');
     const row = app.db.get('SELECT * FROM course_items WHERE id = ?', added.body.id);
     assert.equal(row.data, '', 'not in the database');
     assert.match(row.blob_url, new RegExp(`^${blob.origin}/courses/${courseId}/[0-9a-f-]{36}/Week-3-notes\\.txt$`));
@@ -171,7 +171,7 @@ test('big course files go straight to private storage and come back only through
 
     // The store itself is private.
     assert.equal((await fetch(row.blob_url)).status, 403);
-    // Members download it through Campus; others cannot.
+    // Members download it through Citrus; others cannot.
     const got = await app.call('ann', 'GET', `/api/course-items/${added.body.id}/file`, undefined, { raw: true });
     assert.equal(got.status, 200);
     assert.match(got.headers.get('content-disposition'), /^attachment; filename="Week 3 - notes.txt"/);

@@ -3,8 +3,8 @@
  *
  *   Lecturer  where it went wrong: the class's minute-by-minute understanding, the lecture part by part with its
  *             average, each stretch where students got lost with what was being said, the flags and key points.
- *             Campus writes notes and a teaching review (PDF to the phone), and the lecturer talks it through with
- *             Campus right here to improve the explanations and the notes.
+ *             Citrus writes notes and a teaching review (PDF to the phone), and the lecturer talks it through with
+ *             Citrus right here to improve the explanations and the notes.
  *   Student   a private recap: their own results part by part next to the class, the areas to target first, their
  *             flags explained, their own study notes (PDF), and one tap to a quiz or a question to the assistant.
  *
@@ -104,7 +104,7 @@ function chartCard(record, student) {
   </section>`;
 }
 
-/** Campus's quick take: the basics, one click; then more detail or a conversation. */
+/** Citrus's quick take: the basics, one click; then more detail or a conversation. */
 function quickTakeCard(d) {
   const name = assistantName();
   return html`<section class="card stack quick-take">
@@ -169,7 +169,7 @@ function shareCard(d) {
     <span class="switch"><input type="checkbox" data-share ${d.shareName ? 'checked' : ''}><span></span></span></label></section>`;
 }
 
-/** Notes Campus writes from the record, and the record itself, saved to this device. */
+/** Notes Citrus writes from the record, and the record itself, saved to this device. */
 function notesCard(d, student) {
   const name = assistantName();
   return html`<section class="card stack review-notes"><div class="spread"><div><h2>${student ? 'My notes' : 'Notes and teaching review'}</h2>
@@ -182,7 +182,7 @@ function notesCard(d, student) {
     <div data-notes-out></div></section>`;
 }
 
-/** The lecturer and Campus, in the review: why parts did not land, better explanations, improved notes. */
+/** The lecturer and Citrus, in the review: why parts did not land, better explanations, improved notes. */
 function coachCard() {
   const name = assistantName();
   const ideas = ['Which part went worst, and why?', 'Rewrite my explanation of the hardest part with a simpler example', 'What should I recap at the start of the next lecture?', 'Make improved notes for next time'];
@@ -201,9 +201,9 @@ const keyPoints = (points) => (points.length
   : '');
 
 /**
- * The lecturer's review, in the order they need it: the numbers, the chart (tap for the exact moments), Campus's
- * quick take, the lecture part by part, students who shared their name, the conversation with Campus, notes and
- * downloads. "Ask Campus" in the header continues in the general assistant with this lecture.
+ * The lecturer's review, in the order they need it: the numbers, the chart (tap for the exact moments), Citrus's
+ * quick take, the lecture part by part, students who shared their name, the conversation with Citrus, notes and
+ * downloads. "Ask Citrus" in the header continues in the general assistant with this lecture.
  */
 function lecturerView(d) {
   const { session: s, course } = d;
@@ -262,7 +262,7 @@ function studentView(d) {
       ${keyPoints(points)}
       ${points.length || stuck.length ? html`<section class="card"><h3>Review</h3>
         <div class="cluster mt-8"><a class="btn btn-primary" href="/quiz/new?topic=${encodeURIComponent(topic)}&count=6">${icon('target', 16)} Quiz me on this lecture</a>
-        <a class="btn" href="/assistant?new=1&q=${encodeURIComponent(`Help me review the lecture “${s.title}”. ${points.map((p) => p.text).join(' ')}`)}">${icon('campus', 16)} Ask Campus</a></div></section>` : ''}
+        <a class="btn" href="/assistant?new=1&q=${encodeURIComponent(`Help me review the lecture “${s.title}”. ${points.map((p) => p.text).join(' ')}`)}">${icon('campus', 16)} Ask Citrus</a></div></section>` : ''}
       ${!points.length && !stuck.length && !signals && !d.flags?.length && !d.canAsk ? html`<div class="card">${empty({ icon: 'presentation', title: 'Nothing to review yet', body: 'Key points and trouble spots appear when the lecturer’s microphone was on during the lecture.' })}</div>` : ''}
     </div>`;
 }
@@ -323,7 +323,7 @@ export default {
       },
     };
 
-    // ---- notes: written by Campus, saved to this device as PDF and .txt
+    // ---- notes: written by Citrus, saved to this device as PDF and .txt
     const notesKey = `campus-notes-${sid}-${student ? 'me' : 'lecturer'}`;
     let notes = store.get(notesKey, null);
     const showNotes = () => {
@@ -336,7 +336,7 @@ export default {
     showNotes();
     const pdfOfNotes = () => savePdf({ markdown: notes.markdown, name: notes.name, subtitle, kicker: student ? 'Citrus · My lecture notes' : 'Citrus · Lecture notes and teaching review', figure });
 
-    // ---- the conversation with Campus about the lecture (lecturer)
+    // ---- the conversation with Citrus about the lecture (lecturer)
     const chatKey = `campus-review-chat-${sid}`;
     let chat = store.get(chatKey, []);
     const showChat = (pending = '') => {
@@ -390,7 +390,7 @@ export default {
       part.scrollIntoView({ block: 'start', behavior: 'smooth' });
     };
 
-    // ---- Campus's quick take (lecturer): the basics first
+    // ---- Citrus's quick take (lecturer): the basics first
     const quickKey = `campus-quick-${sid}`;
     const showQuick = (markdownText) => {
       const out = $('[data-quick-out]', root);
@@ -503,7 +503,7 @@ export default {
           toastError(error);
         }
       })),
-      // A student asks Campus to explain one part they should work on.
+      // A student asks Citrus to explain one part they should work on.
       on(root, 'click', '[data-explain-part]', (e, button) => {
         const part = d.record.sections.find((s) => s.id === button.dataset.explainPart);
         if (!part) return;

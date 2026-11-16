@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The classroom loop, end to end: a join code on the projector, flags on moments, a kept transcript that Campus can
+ * The classroom loop, end to end: a join code on the projector, flags on moments, a kept transcript that Citrus can
  * answer from during and after the lecture, and who may see what.
  */
 const test = require('node:test');
@@ -44,7 +44,7 @@ test('students join with the code on the screen, which also joins the course', a
     assert.equal(started.status, 201);
     const code = started.body.session.joinCode;
     assert.match(code, /^\d{6}$/);
-    assert.equal(started.body.session.keepTranscript, true, 'Campus keeps the transcript unless the lecturer says no');
+    assert.equal(started.body.session.keepTranscript, true, 'Citrus keeps the transcript unless the lecturer says no');
     assert.equal(started.body.present, 0);
 
     // Not enrolled yet: the code is enough.
@@ -97,7 +97,7 @@ test('flags reach the lecturer without names, and each student only sees their o
     assert.deepEqual(bens.body.flags.map((f) => f.kind), ['fast'], 'only their own flags');
     assert.ok(!JSON.stringify(bens.body).includes('second formula'));
 
-    // Campus explains a flag to the student who made it, and only to them.
+    // Citrus explains a flag to the student who made it, and only to them.
     assert.equal((await app.call('ben', 'POST', `/api/live/sessions/${sid}/flags/${flag.body.id}/explain`)).status, 404);
     await app.call('prof', 'POST', `/api/live/sessions/${sid}/transcript`, { text: 'Now we derive the gradient of the loss with respect to the weights.' });
     const explained = await app.call('ann', 'POST', `/api/live/sessions/${sid}/flags/${flag.body.id}/explain`);
@@ -115,7 +115,7 @@ test('flags reach the lecturer without names, and each student only sees their o
   }
 });
 
-test('a kept transcript lets students ask Campus about the lecture during and after it', async () => {
+test('a kept transcript lets students ask Citrus about the lecture during and after it', async () => {
   const fixture = gateway();
   const { app, courseId } = await setup(fixture);
   try {
@@ -145,7 +145,7 @@ test('a kept transcript lets students ask Campus about the lecture during and af
     assert.match(JSON.stringify(fixture.state.calls.at(-1).messages.at(-1).content), /\[minute 1\] The gradient points uphill/);
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/recap`)).body.canAsk, true);
 
-    // Deleting it: Campus can no longer answer from it.
+    // Deleting it: Citrus can no longer answer from it.
     assert.equal((await app.call('ann', 'DELETE', `/api/live/sessions/${sid}/transcript`)).status, 403);
     await app.call('prof', 'DELETE', `/api/live/sessions/${sid}/transcript`);
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/recap`)).body.canAsk, false);
@@ -211,7 +211,7 @@ test('a lecture that was ended and reopened can be rejoined, with the same code 
   }
 });
 
-test('the class status reaches the Campus Puck in the lecture room, as counts only', async () => {
+test('the class status reaches the Citrus Puck in the lecture room, as counts only', async () => {
   const fixture = gateway();
   const { app, courseId } = await setup(fixture);
   try {

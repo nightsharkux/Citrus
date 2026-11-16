@@ -85,7 +85,7 @@ test('live voice is off without AI, when switched off, and rests after the gatew
   assert.equal((await refused.call('stu', 'GET', '/api/bootstrap')).body.ai.live, false, 'conversations use the standard voice meanwhile');
 });
 
-test('a question handed over by live voice carries what Campus had just said', async (t) => {
+test('a question handed over by live voice carries what Citrus had just said', async (t) => {
   const fixture = gateway();
   const app = await readyApp(fixture);
   t.after(() => app.close());
@@ -115,7 +115,7 @@ async function harness(options = {}) {
     server(event) { this.onmessage?.({ data: JSON.stringify(event) }); }
   }
   const live = new LiveSession({
-    requestPass: async () => ({ token: PASS, url: LIVE_URL, model: 'openai/gpt-live-1', instructions: 'Be Campus.' }),
+    requestPass: async () => ({ token: PASS, url: LIVE_URL, model: 'openai/gpt-live-1', instructions: 'Be Citrus.' }),
     Socket,
     capture: async (onPacket) => {
       state.packet = onPacket;
@@ -139,7 +139,7 @@ test('the browser starts a Live session, streams the microphone only once it is 
   assert.equal(socket.url, LIVE_URL);
   assert.deepEqual(socket.protocols, ['ai-gateway-realtime.v1', `ai-gateway-auth.${PASS}`]);
   socket.open();
-  assert.deepEqual(state.events[0], { type: 'session.start', session: { model: 'openai/gpt-live-1', store: false, delegation: { type: 'client' }, audio: { format: { type: 'audio/pcm', rate: 24000 } }, instructions: 'Be Campus.' } });
+  assert.deepEqual(state.events[0], { type: 'session.start', session: { model: 'openai/gpt-live-1', store: false, delegation: { type: 'client' }, audio: { format: { type: 'audio/pcm', rate: 24000 } }, instructions: 'Be Citrus.' } });
   state.packet(new Uint8Array([1, 2, 3, 4]).buffer);
   assert.equal(state.events.length, 1, 'no audio before session.started');
   socket.server({ type: 'session.started' });
@@ -161,7 +161,7 @@ test('the browser starts a Live session, streams the microphone only once it is 
   assert.equal(live.usage, 42);
 });
 
-test('delegations get the words of the current turn and what Campus said before it; answers go back to be spoken', async () => {
+test('delegations get the words of the current turn and what Citrus said before it; answers go back to be spoken', async () => {
   const { live, state } = await harness();
   await live.start();
   const socket = state.sockets[0];

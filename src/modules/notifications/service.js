@@ -7,7 +7,7 @@
  * message: { kind, title, body?, link?, category?, priority?, urgent? }
  *   kind      'system' | 'campus' | 'course' | 'device' | ...
  *   category  campus feed category (used for topic preferences)
- *   urgent    bypass quiet hours and Campus Focus (e.g. a device tap the user just made)
+ *   urgent    bypass quiet hours and Citrus Focus (e.g. a device tap the user just made)
  */
 const { zonedParts } = require('../../lib/time');
 const { isFocused } = require('../account/preferences');
@@ -36,7 +36,7 @@ function createNotifier({ db, bus, push, timeZone }) {
     return start < end ? now >= start && now < end : now >= start || now < end;
   }
 
-  /** Campus Focus is on for this person right now. */
+  /** Citrus Focus is on for this person right now. */
   function focused(userId) {
     try {
       return isFocused(JSON.parse(db.get('SELECT preferences FROM users WHERE id = ?', userId)?.preferences || '{}'));

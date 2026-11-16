@@ -1,8 +1,8 @@
 /**
- * Voice conversation: talk with Campus hands-free, like a phone call.
+ * Voice conversation: talk with Citrus hands-free, like a phone call.
  *
- * Open it with the waveform button in the assistant, "Talk to Campus" in the
- * command palette, or by saying "Hey Campus, let's talk". Campus listens,
+ * Open it with the waveform button in the assistant, "Talk to Citrus" in the
+ * command palette, or by saying "Hey Citrus, let's talk". Citrus listens,
  * notices when you have finished, answers out loud while the answer is still
  * being written, then listens again. The exchange is saved in an ordinary
  * conversation thread (the one open in the assistant, or a new one).
@@ -15,15 +15,15 @@
  *     speech service) and a Try again button instead of failing silently;
  *   - the end of a turn is a pause, longer after "and", "because", "um" …
  *     (features/turns.js); tapping the eye sends at once;
- *   - on computers the microphone stays open while Campus talks, so you can
- *     interrupt by speaking; what it hears of Campus's own voice is recognised
+ *   - on computers the microphone stays open while Citrus talks, so you can
+ *     interrupt by speaking; what it hears of Citrus's own voice is recognised
  *     and ignored. Phones route speech to the earpiece while the microphone is
- *     open, so there the microphone pauses while Campus talks: tap to interrupt.
+ *     open, so there the microphone pauses while Citrus talks: tap to interrupt.
  *     So it does with Bluetooth headphones that are the only microphone: they
  *     play everything in muffled call quality while it is open (microphone.js);
  *   - speech that stalls is detected (voice.js) and the conversation carries on;
  *   - after two quiet minutes the microphone turns itself off.
- * "Hey Campus" pauses while a conversation is open. Asking Campus to open a
+ * "Hey Citrus" pauses while a conversation is open. Asking Citrus to open a
  * page shrinks the conversation to a pill, so you can keep talking there.
  */
 import { html, render, $, on } from '../core/dom.js';
@@ -137,7 +137,7 @@ function createConversation({ threadId: startThread }) {
   let turnTimer = 0;
   let quietTimer = 0;
 
-  // What Campus is saying.
+  // What Citrus is saying.
   let turn = 0; // bumps on every question, interruption and close: late callbacks check it
   let controller = null;
   let speaker = null;
@@ -146,7 +146,7 @@ function createConversation({ threadId: startThread }) {
   let spokeAt = 0;
   let effects = [];
   let closeAfterSpeech = false;
-  let pendingTrouble = null; // the microphone failed while Campus was talking: shown once it is quiet
+  let pendingTrouble = null; // the microphone failed while Citrus was talking: shown once it is quiet
   let captionFrame = 0;
 
   const resumeWake = wake.enabled;
@@ -310,7 +310,7 @@ function createConversation({ threadId: startThread }) {
     forgetTurn();
   }
 
-  /** Forget the finished phrases only. A phrase still being spoken stays, so words said just as Campus stops are kept. */
+  /** Forget the finished phrases only. A phrase still being spoken stays, so words said just as Citrus stops are kept. */
   function skipFinals() {
     let i = results ? results.length : 0;
     while (i > turnFrom && !results[i - 1].isFinal) i -= 1;
@@ -326,7 +326,7 @@ function createConversation({ threadId: startThread }) {
     clearTimeout(turnTimer);
   }
 
-  /** Right after Campus stops, what the microphone still hears may be the end of its own sentence. */
+  /** Right after Citrus stops, what the microphone still hears may be the end of its own sentence. */
   const echoOfLastReply = (text) => listenWhileSpeaking() && Date.now() - spokeAt < 1500 && isEcho(text, lastReply);
 
   function onHeard() {
@@ -340,12 +340,12 @@ function createConversation({ threadId: startThread }) {
       return;
     }
     if (state === 'speaking') {
-      // Listening in one language while Campus speaks the other: its own voice comes back as "new" words.
+      // Listening in one language while Citrus speaks the other: its own voice comes back as "new" words.
       const strict = recognitionLanguage() !== 'multi' && (speakingLanguage() || recognitionLanguage().slice(0, 2)) !== recognitionLanguage().slice(0, 2);
       if (listenWhileSpeaking() && isInterruption(text, reply, { final, strict })) {
         interrupt();
         hear(text, final);
-      } else if (final) skipFinals(); // Campus hearing itself
+      } else if (final) skipFinals(); // Citrus hearing itself
       return;
     }
     if (echoOfLastReply(text)) {
@@ -353,7 +353,7 @@ function createConversation({ threadId: startThread }) {
       return;
     }
     if (state === 'thinking') {
-      // Speaking again while Campus thinks: the new words become the question (the first stays in the thread).
+      // Speaking again while Citrus thinks: the new words become the question (the first stays in the thread).
       if (words(text).length < 2 && !conversationCommand(text)) return;
       interrupt();
     }
@@ -395,7 +395,7 @@ function createConversation({ threadId: startThread }) {
     // A phone in the background cannot open the microphone; it reopens when the page is visible again.
     if (!(touch && document.hidden)) listener.start();
     setState('listening');
-    // The user may already have started the next sentence while Campus finished its own.
+    // The user may already have started the next sentence while Citrus finished its own.
     const { text, final } = readTurn();
     if (text && !echoOfLastReply(text)) {
       hear(text, final);
@@ -409,7 +409,7 @@ function createConversation({ threadId: startThread }) {
     }, QUIET_LIMIT);
   }
 
-  /** Stop whatever Campus is saying or preparing. A theme change it was asked for still happens; opening a page does not. */
+  /** Stop whatever Citrus is saying or preparing. A theme change it was asked for still happens; opening a page does not. */
   function interrupt() {
     turn += 1;
     controller?.abort();
@@ -438,7 +438,7 @@ function createConversation({ threadId: startThread }) {
       listen();
       return;
     }
-    // The presentation line ("you probably didn't understand that, did you?"): Campus explains itself instead.
+    // The presentation line ("you probably didn't understand that, did you?"): Citrus explains itself instead.
     if (notePitch(text)) {
       close();
       return;
@@ -575,7 +575,7 @@ function createConversation({ threadId: startThread }) {
     said.end();
   }
 
-  /** Campus has finished speaking, was cut off (Esc, another voice) or could not speak. */
+  /** Citrus has finished speaking, was cut off (Esc, another voice) or could not speak. */
   function answered(reason) {
     speaker = null;
     lastReply = reply;
@@ -623,7 +623,7 @@ function createConversation({ threadId: startThread }) {
     else paint();
   }
 
-  /** The eye: send now while you talk, interrupt while Campus thinks or talks, switch the microphone back on. */
+  /** The eye: send now while you talk, interrupt while Citrus thinks or talks, switch the microphone back on. */
   function tap() {
     if (state === 'hearing') endTurn();
     else if (state === 'thinking' || state === 'speaking') {

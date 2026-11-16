@@ -7,8 +7,10 @@
  * contain a number or a name are matched by the patterns at the end of that file. Anything not in the dictionary
  * stays English. Text the user wrote (messages, titles, notes) is never touched.
  *
- * The same pass puts the person's name for the assistant where the interface says "Campus" (Ask Campus, Hey
- * Campus), except in "Citrus", "Campus life", "Campus map" and similar names.
+ * The same pass puts the person's name for the assistant where the interface says "Citrus" (Ask Citrus, Hey
+ * Citrus). The product is called Citrus too, so a person who gives the assistant another name sees that name
+ * wherever the interface says Citrus. "Campus" (Campus feed, Campus map, Weidener Technologie-Campus) is the place
+ * and is never touched.
  */
 
 /**
@@ -24,11 +26,21 @@ export async function loadGerman() {
 const KEY = 'campus-lang';
 const SKIP = 'script, style, textarea, input, code, pre, svg, [data-no-translate], .prose, .bubble, .att-name, .md, .markdown';
 const ATTRS = ['placeholder', 'aria-label', 'title', 'alt'];
-/** "Campus" as the assistant, not as a place or as the product name. */
-const NAME_RE = /\bCampus\b(?!\s+(?:OS|life|map|feed|guide|topics|TV)\b)/g;
+/**
+ * "Citrus" where it means the assistant, which the person may have renamed (by default it is just Citrus). The
+ * product is called Citrus too, so the phrasings where the interface means the product are skipped: "Citrus home",
+ * "Open Citrus", "your Citrus password", "in Citrus", "What Citrus is", "the Citrus app".
+ */
+const NAME_RE = new RegExp([
+  String.raw`(?<!\b(?:in|inside|across|alongside|outside|[Oo]pen|[Yy]our|[Ee]xplains?|explaining|Welcome to|Choose how) )`,
+  String.raw`(?!(?<=\b[Ww]hat )Citrus (?:is|does)\b)`,
+  String.raw`(?!(?<=\bthe )Citrus (?:look|app|Android)\b)`,
+  String.raw`\bCitrus\b`,
+  String.raw`(?! (?:home|look|app|Android|password|schedule|address|pilot|Demonstration)\b)(?! ·)`,
+].join(''), 'g');
 
 let language = 'en';
-let assistant = 'Campus';
+let assistant = 'Citrus';
 let observer = null;
 let queue = new Set();
 let frame = 0;
@@ -55,9 +67,9 @@ export function translateWith(lang, name, text) {
   const raw = String(text ?? '');
   const trimmed = raw.trim();
   if (!trimmed) return raw;
-  const key = name !== 'Campus' && trimmed.includes(name) ? trimmed.split(name).join('Campus') : trimmed;
-  // Only an English "Campus" that means the assistant is renamed. A German "Campus" is the place (Auf dem Campus).
-  const meansAssistant = name !== 'Campus' && new RegExp(NAME_RE.source).test(key);
+  const key = name !== 'Citrus' && trimmed.includes(name) ? trimmed.split(name).join('Citrus') : trimmed;
+  // Only an English "Citrus" is renamed; a German text is looked up first and then renamed the same way.
+  const meansAssistant = name !== 'Citrus' && new RegExp(NAME_RE.source).test(key);
   let out = key;
   if (lang === 'de' && dictionary) {
     const { DE, PATTERNS } = dictionary;
@@ -78,14 +90,14 @@ export function translateWith(lang, name, text) {
       }
     }
   }
-  if (meansAssistant && out !== 'Campus') out = out.replace(NAME_RE, name);
+  if (meansAssistant && out !== 'Citrus') out = out.replace(NAME_RE, name);
   return out === trimmed ? raw : raw.replace(trimmed, () => out);
 }
 
 
 export const t = (text) => translateWith(language, assistant, text);
 
-const active = () => language !== 'en' || assistant !== 'Campus';
+const active = () => language !== 'en' || assistant !== 'Citrus';
 
 function textNode(node) {
   const known = texts.get(node);
@@ -197,7 +209,7 @@ export function setLanguage(code, { save = true } = {}) {
 }
 
 export function setAssistantName(name) {
-  const next = String(name || '').trim() || 'Campus';
+  const next = String(name || '').trim() || 'Citrus';
   if (next === assistant) return;
   assistant = next;
   rescan();
@@ -206,7 +218,7 @@ export function setAssistantName(name) {
 /** Start once at boot: pick the language, then keep every new piece of the page in step with it. */
 export function startTranslating({ language: account = null, assistantName = null } = {}) {
   language = account === 'de' || account === 'en' ? account : browserLanguage();
-  assistant = String(assistantName || '').trim() || 'Campus';
+  assistant = String(assistantName || '').trim() || 'Citrus';
   document.documentElement.lang = language;
   if (!observer) {
     observer = new MutationObserver((records) => {

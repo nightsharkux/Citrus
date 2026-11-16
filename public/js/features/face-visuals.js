@@ -1,5 +1,5 @@
 /**
- * Illustrations that Campus's eye turns into while it explains something.
+ * Illustrations that Citrus's eye turns into while it explains something.
  *
  * Each visual draws inside the eye (SVG user space, centre 0,0, radius ~32)
  * and may animate with CSS (face.css) or a small JS loop. Add a visual by

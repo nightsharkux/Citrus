@@ -60,8 +60,8 @@ test('voice commands work in German and English, and a question still goes to th
 test('the interface switches to German, keeps names and Citrus, and uses the assistant\'s own name', async () => {
   const { translateWith, loadGerman } = await load('core/i18n.js');
   await loadGerman();
-  const de = (s, name = 'Campus') => translateWith('de', name, s);
-  const en = (s, name = 'Campus') => translateWith('en', name, s);
+  const de = (s, name = 'Citrus') => translateWith('de', name, s);
+  const en = (s, name = 'Citrus') => translateWith('en', name, s);
 
   assert.equal(de('Schedule'), 'Stundenplan');
   assert.equal(de('Sign out'), 'Abmelden');
@@ -72,17 +72,24 @@ test('the interface switches to German, keeps names and Citrus, and uses the ass
   assert.equal(de('Hi Ana, what can I help with?'), 'Hallo Ana, wobei kann ich helfen?');
   assert.equal(de('Name: Claudia · Voice speed: faster'), 'Name: Claudia · Sprechtempo: schneller', 'action details are translated part by part');
 
-  // The assistant's name replaces "Campus" where it means the assistant, not the product, the place or the map.
-  assert.equal(en('Ask Campus', 'Claudia'), 'Ask Claudia');
-  assert.equal(en('Listen for “Hey Campus”', 'Claudia'), 'Listen for “Hey Claudia”');
+  // The assistant's name replaces "Citrus" where it means the assistant, not the product, the place or the map.
+  assert.equal(en('Ask Citrus', 'Claudia'), 'Ask Claudia');
+  assert.equal(en('Listen for “Hey Citrus”', 'Claudia'), 'Listen for “Hey Claudia”');
   assert.equal(en('Citrus home', 'Claudia'), 'Citrus home');
   assert.equal(en('Campus life', 'Claudia'), 'Campus life');
   assert.equal(en('Campus map', 'Claudia'), 'Campus map');
   assert.equal(en('Campus', 'Claudia'), 'Campus', 'a bare "Campus" is a heading about the place');
-  assert.equal(de('Ask Campus', 'Claudia'), 'Claudia fragen');
+  // Citrus is the product's name too: where the interface means the product it stays, wherever it means the assistant it changes.
+  for (const product of ['Open Citrus on your phone', 'Use your Citrus password', 'Get your Citrus schedule', 'Everything in Citrus', 'Explain what Citrus is', 'What Citrus does', 'Choose how Citrus looks', 'Welcome to Citrus', 'By the Citrus app', 'Citrus · Student project', 'Institution-managed Citrus pilot.']) {
+    assert.equal(en(product, 'Claudia'), product, product);
+  }
+  assert.equal(en('Citrus can answer from your notes', 'Claudia'), 'Claudia can answer from your notes');
+  assert.equal(en('What Citrus said', 'Claudia'), 'What Claudia said');
+  assert.equal(en('Talk to Citrus', 'Claudia'), 'Talk to Claudia');
+  assert.equal(de('Ask Citrus', 'Claudia'), 'Claudia fragen');
   assert.equal(de('Campus life', 'Claudia'), 'Campusleben');
   assert.equal(de('Message Claudia, or paste a picture', 'Claudia'), 'Schreib Claudia – oder füge ein Bild ein');
-  assert.equal(de('Campus is listening for “Hey Campus”. Click to stop.', 'Max'), 'Max hört auf „Hey Max“. Klicken zum Beenden.');
+  assert.equal(de('Citrus is listening for “Hey Citrus”. Click to stop.', 'Max'), 'Max hört auf „Hey Max“. Klicken zum Beenden.');
   assert.equal(de('Tomorrow'), 'Morgen');
   assert.equal(de('Answer language'), 'Antwortsprache');
   assert.equal(de('Follow my language'), 'Meiner Sprache folgen');

@@ -3,8 +3,8 @@
  *
  * Bluetooth headphones switch to their hands-free mode while a page records from their microphone: sound becomes
  * narrow and muffled, like a phone call, for everything they play. So when the computer has a microphone of its
- * own, Campus records from that one and the headphones keep their full sound. When the headphones are the only
- * microphone, the conversation releases it while Campus talks (features/conversation.js: microphoneMuffles()).
+ * own, Citrus records from that one and the headphones keep their full sound. When the headphones are the only
+ * microphone, the conversation releases it while Citrus talks (features/conversation.js: microphoneMuffles()).
  *
  * Browsers name devices only after microphone permission, so the first recording may still open the headset;
  * openMicrophone() then moves to the computer's microphone at once.

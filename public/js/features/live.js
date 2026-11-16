@@ -1,11 +1,11 @@
 /**
  * Live voice: GPT-Live through the AI Gateway (docs/SPEECH.md#live-voice).
  *
- * One WebSocket carries the microphone (24 kHz PCM, 50 ms packets) to the model and Campus's voice back. The
+ * One WebSocket carries the microphone (24 kHz PCM, 50 ms packets) to the model and Citrus's voice back. The
  * model hears the person while it talks and decides itself when they have finished, so there is no separate
  * recognise → answer → speak chain to wait for. When an answer needs Citrus (the person's timetable, the
  * university's pages, something to do in the app) it delegates: `onDelegation(id, words, said)` receives what
- * the person said in that turn and what Campus said just before it, and `answer(id, text)` gives the result back
+ * the person said in that turn and what Citrus said just before it, and `answer(id, text)` gives the result back
  * to be said aloud.
  *
  *   const live = new LiveSession({ requestPass, onReady, onAudio, onUserText, onReplyText, onDelegation, onEnd });
@@ -84,8 +84,8 @@ export class LiveSession {
     this.muted = false;
     this.turn = ''; // what the person said in the current turn
     this.lastTurn = '';
-    this.said = ''; // what Campus said since the person last spoke
-    this.saidBefore = ''; // what Campus said just before the current turn
+    this.said = ''; // what Citrus said since the person last spoke
+    this.saidBefore = ''; // what Citrus said just before the current turn
     this.campusSpoke = false;
     this.usage = null;
     this.trace = { opened: false, events: {}, sent: 0, closeCode: null, closeReason: '', error: null, at: Date.now() };
@@ -180,7 +180,7 @@ export class LiveSession {
       }
       case 'session.input_transcript.delta': {
         const text = String(event.delta || '');
-        // Campus answered since the person last spoke: these words begin a new turn.
+        // Citrus answered since the person last spoke: these words begin a new turn.
         if (this.campusSpoke) {
           this.lastTurn = this.turn;
           this.turn = '';
@@ -218,7 +218,7 @@ export class LiveSession {
     }
   }
 
-  /** The result of a delegation, for Campus to say in its own words. */
+  /** The result of a delegation, for Citrus to say in its own words. */
   answer(id, text) {
     const content = String(text || '').trim().slice(0, MAX_APPEND);
     if (content) this.send({ type: 'session.commentary.append', delegation_id: id, content });

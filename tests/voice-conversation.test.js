@@ -34,7 +34,7 @@ test('turn completion allows breathing and thinking pauses and never submits an 
   assert.equal(endOfTurnDelay('Please explain it', { requiresFinal: true, final: true, silenceMs: 2200 }), 100);
 });
 
-test('Campus hearing its own voice is not mistaken for the user', async () => {
+test('Citrus hearing its own voice is not mistaken for the user', async () => {
   const { isEcho, isInterruption } = await load('features/turns.js');
   const spoken = 'The library opens at eight in the morning and closes at ten in the evening. Want me to add a study session?';
   assert.equal(isEcho('the library opens at eight in the morning', spoken), true);
@@ -43,27 +43,27 @@ test('Campus hearing its own voice is not mistaken for the user', async () => {
   assert.equal(isInterruption('the library opens at 8 in the mourning', spoken, { final: true }), false, 'a couple of misheard words are still an echo');
   assert.equal(isEcho('no I meant the gym on Tuesday', spoken), false);
 
-  assert.equal(isInterruption('actually what about Tuesday instead', spoken), true, 'new words while Campus talks');
+  assert.equal(isInterruption('actually what about Tuesday instead', spoken), true, 'new words while Citrus talks');
   assert.equal(isInterruption('wait', spoken), true, 'a stop word interrupts at once');
-  assert.equal(isInterruption('Campus, stop.', spoken), true);
+  assert.equal(isInterruption('Citrus, stop.', spoken), true);
   assert.equal(isInterruption('no thanks', spoken), false, 'two words in flight are not enough');
   assert.equal(isInterruption('no thanks', spoken, { final: true }), false, 'nor two finished ones: an echo often has two misheard words');
   assert.equal(isInterruption('no thanks I have plans', spoken, { final: true }), true, 'a finished phrase of new words is');
   assert.equal(isInterruption('the libretto opens hate in them warning', spoken), false, 'a badly misheard echo still has too few new words in flight');
-  // Campus speaks German while the microphone listens for English: its echo comes back as English nonsense.
+  // Citrus speaks German while the microphone listens for English: its echo comes back as English nonsense.
   const german = 'Die Bibliothek öffnet morgen um acht Uhr und schließt um zehn.';
-  assert.equal(isInterruption('the beauty of tech often morgan room act true', german, { strict: true }), false, 'strict: nonsense words do not cut Campus off');
+  assert.equal(isInterruption('the beauty of tech often morgan room act true', german, { strict: true }), false, 'strict: nonsense words do not cut Citrus off');
   assert.equal(isInterruption('stop', german, { strict: true }), true, 'strict: a stop word still does');
-  assert.equal(isInterruption('wait', 'Wait for the bus at the main gate.'), false, 'a stop word Campus just said is an echo');
+  assert.equal(isInterruption('wait', 'Wait for the bus at the main gate.'), false, 'a stop word Citrus just said is an echo');
   assert.equal(isInterruption('', spoken), false);
 });
 
 test('spoken phrases end the conversation or interrupt, and questions pass through', async () => {
   const { conversationCommand } = await load('features/turns.js');
-  for (const text of ['Goodbye', 'okay thanks bye', 'That’s all for now.', 'stop listening', 'end the conversation', 'Bye Campus', 'Tschüss']) {
+  for (const text of ['Goodbye', 'okay thanks bye', 'That’s all for now.', 'stop listening', 'end the conversation', 'Bye Citrus', 'Tschüss']) {
     assert.equal(conversationCommand(text), 'end', text);
   }
-  for (const text of ['Stop.', 'wait a second', 'never mind', 'hold on', 'Campus, stop']) {
+  for (const text of ['Stop.', 'wait a second', 'never mind', 'hold on', 'Citrus, stop']) {
     assert.equal(conversationCommand(text), 'interrupt', text);
   }
   for (const text of ['thanks', 'what is a good bye week', 'stop the semester clock from ticking', 'when does the library close', '']) {

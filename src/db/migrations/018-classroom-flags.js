@@ -3,9 +3,9 @@
  * The classroom loop, made easier to join and more useful afterwards:
  *
  *   join_code        six digits the lecturer shows on the projector; students type it to join (and enrol)
- *   keep_transcript  the lecturer chose to keep what Campus heard, so Campus can answer about the lecture later.
+ *   keep_transcript  the lecturer chose to keep what Citrus heard, so Citrus can answer about the lecture later.
  *                    Off for every session started before this migration (they were never stored).
- *   live_transcript  what Campus heard, per minute, only for sessions with keep_transcript
+ *   live_transcript  what Citrus heard, per minute, only for sessions with keep_transcript
  *   live_flags       a student marks a moment ("didn't get this", "too fast", "need an example", a question), with an
  *                    optional note. The lecturer sees them without names; the student gets an explanation later.
  *   live_attendees   who opened the lecture, so the lecturer sees how many are in the room

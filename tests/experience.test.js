@@ -5,7 +5,7 @@ process.env.DB_PATH=path.join(tmp,'campusos.db');process.env.CAMPUS_ADMIN_EMAIL=
 const {server,db}=require('../server');
 const bootstrap=async()=>new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const call=async(base,url,{method='GET',body,cookie}={})=>{const r=await fetch(base+url,{method,headers:{...(cookie?{cookie}:{}),...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const json=await r.json();return {status:r.status,json,cookie:r.headers.get('set-cookie')?.split(';')[0]}};
-test('Campus Connect moderation and participation remain role scoped',async()=>{
+test('Citrus Connect moderation and participation remain role scoped',async()=>{
  await bootstrap();const base=`http://127.0.0.1:${server.address().port}/api`;
  try{
   const admin=await call(base,'/login',{method:'POST',body:{institution_id:1,email:process.env.CAMPUS_ADMIN_EMAIL,password:process.env.CAMPUS_ADMIN_PASSWORD}});

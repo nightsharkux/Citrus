@@ -1,5 +1,5 @@
 /**
- * Keeps the phone awake while Campus listens or records, so the screen does not switch off in the middle of a
+ * Keeps the phone awake while Citrus listens or records, so the screen does not switch off in the middle of a
  * lecture or meeting (that stops the microphone in the browser). Uses the Screen Wake Lock API: Chrome and Edge on
  * Android and computers, Safari on iPhone (16.4+, and in the home-screen app from iOS 18.4).
  *

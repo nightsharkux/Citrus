@@ -102,15 +102,15 @@ function assistant() {
   return html`<section class="card assistant-settings">
     <div class="cluster" style="--gap:16px"><span data-settings-face></span><div><h2 data-no-translate>${assistantName()}</h2><p class="small muted">Your assistant across Citrus.</p></div></div>
     <div class="stack mt-24" style="--gap:18px">
-      <label class="spread"><span><strong>Listen for “Hey Campus”</strong><br><span class="small muted">Say “Hey Campus” or just “Campus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'gateway' ? 'OpenAI processes microphone audio through AI Gateway while listening is on. Turn it off to stop streaming.' : session.ai.recognition.provider === 'wispr' ? 'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
-        <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Campus"><span></span></span></label>
-      <label class="spread"><span><strong>Animated explanations</strong><br><span class="small muted">Campus’s eye turns into small animations — formulas, steps, figures — while it explains something.</span></span>
+      <label class="spread"><span><strong>Listen for “Hey Citrus”</strong><br><span class="small muted">Say “Hey Citrus” or just “Citrus” on any page, followed by a request: a question, “add a study session tomorrow at 4 pm”, “open my schedule” or “dark mode”. Answers are read aloud. ${problem ? html`<span style="color:var(--warning)">${problem}</span>` : session.ai?.recognition?.enabled ? session.ai.recognition.provider === 'gateway' ? 'OpenAI processes microphone audio through AI Gateway while listening is on. Turn it off to stop streaming.' : session.ai.recognition.provider === 'wispr' ? 'Wispr Flow processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Deepgram processes microphone audio while listening is on. Turn it off to stop streaming.' : 'Your browser’s speech service processes the audio while this is on.'}</span></span>
+        <span class="switch"><input type="checkbox" data-pref="voiceWake" ${prefs.voiceWake ? 'checked' : ''} ${problem ? 'disabled' : ''} aria-label="Listen for Hey Citrus"><span></span></span></label>
+      <label class="spread"><span><strong>Animated explanations</strong><br><span class="small muted">Citrus’s eye turns into small animations — formulas, steps, figures — while it explains something.</span></span>
         <span class="switch"><input type="checkbox" data-pref="visuals" ${prefs.visuals === false ? '' : 'checked'} aria-label="Animated explanations"><span></span></span></label>
     </div>
   </section>
   ${identityCard()}
   ${voiceCard()}
-  <section class="card"><h2>What Campus can see</h2>
+  <section class="card"><h2>What Citrus can see</h2>
     <ul class="small muted mt-8" style="padding-left:18px;line-height:1.8">
       <li>Your own courses, schedule, review queue and the topics you marked as difficult.</li>
       <li>Your university’s approved knowledge library — answers cite it with numbered sources.</li>
@@ -131,7 +131,7 @@ function identityCard() {
   return html`<section class="card"><h2>Name and language</h2>
     <p class="small muted mt-8">Call the assistant what you like and “Hey ${name}” follows. You can also just ask in chat: “call yourself Nova”, “nenn dich Max”, “speak faster”, “auf Deutsch umstellen”.</p>
     <form class="form mt-16" id="identity-form">
-      <label class="field"><span>Assistant name</span><input class="input" name="assistantName" value="${prefs.assistantName || ''}" placeholder="Campus" maxlength="24" autocomplete="off" data-no-translate><span class="hint">Letters, up to 24. Leave it empty for the default name.</span></label>
+      <label class="field"><span>Assistant name</span><input class="input" name="assistantName" value="${prefs.assistantName || ''}" placeholder="Citrus" maxlength="24" autocomplete="off" data-no-translate><span class="hint">Letters, up to 24. Leave it empty for the default name.</span></label>
       <label class="field"><span>Interface language</span><select class="select" name="language">${option('en', 'English', language)}${option('de', 'Deutsch', language)}</select></label>
       <label class="field"><span>Answer language</span><select class="select" name="answerLanguage">${option('match', 'Follow my language', answer)}${option('de', 'Deutsch', answer)}${option('en', 'English', answer)}</select><span class="hint">You can switch languages or mix German and English in any conversation.</span></label>
       <label class="field"><span>Voice input language</span><select class="select" name="speechLanguage">${option('auto', 'Automatic (English and German)', speech)}${option('en', 'English', speech)}${option('de', 'Deutsch', speech)}</select>
@@ -294,7 +294,7 @@ function mountAssistant(root) {
       const r = await api.patch('/me', { preferences: { [key]: value } });
       setSession({ user: { ...session.user, preferences: r.user.preferences } });
       face.react(value ? 'happy' : 'surprised', 1100);
-      toast(key === 'voiceWake' ? (value ? 'Campus is listening for “Hey Campus”.' : 'Campus stopped listening.') : value ? 'Animated explanations on' : 'Animated explanations off', 'success');
+      toast(key === 'voiceWake' ? (value ? 'Citrus is listening for “Hey Citrus”.' : 'Citrus stopped listening.') : value ? 'Animated explanations on' : 'Animated explanations off', 'success');
     } catch (error) {
       input.checked = !value;
       toastError(error);

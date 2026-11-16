@@ -110,7 +110,7 @@ With `HOST=0.0.0.0` in `.env` (the default), every device on the same Wi-Fi can 
 
 Admin → *Institution* → *Open on other devices* shows the same list with copy buttons. When Windows asks whether Node.js may communicate on private networks, allow it. If a phone can't connect, check that both are on the same network (guest Wi-Fi often isolates devices), and that the Windows network profile is *Private*.
 
-There is no address to configure here. Links such as calendar feeds use whichever address each visitor typed. Over plain `http://` on a network address, browsers turn off the microphone ("Hey Campus", dictation), push notifications and app install. Everything else works. For those features, use option B or a server with HTTPS.
+There is no address to configure here. Links such as calendar feeds use whichever address each visitor typed. Over plain `http://` on a network address, browsers turn off the microphone ("Hey Citrus", dictation), push notifications and app install. Everything else works. For those features, use option B or a server with HTTPS.
 
 ---
 

@@ -1,10 +1,10 @@
 /**
  * The voice conversation with live voice (GPT-Live, features/live.js) on computers.
  *
- * Campus hears you while it talks and works out itself when you have finished, so it answers as soon as you
+ * Citrus hears you while it talks and works out itself when you have finished, so it answers as soon as you
  * stop and lets you finish when you only pause to think. Talk over it to interrupt; the eye or Space also cuts
  * it off. Questions about your timetable, courses or the university, and anything to do in the app, are handed
- * to the normal assistant (POST /api/assistant/messages, with your permissions) and Campus says the result. Those
+ * to the normal assistant (POST /api/assistant/messages, with your permissions) and Citrus says the result. Those
  * exchanges are saved in the conversation thread like typed ones.
  *
  * If live voice cannot start (no access on this account, no connection), the standard voice conversation opens
@@ -67,7 +67,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
   let reply = '';
   let replyAfterYou = false;
   let pending = 0; // delegations being answered
-  let dropping = false; // the eye cut Campus off: ignore the rest of that reply's audio
+  let dropping = false; // the eye cut Citrus off: ignore the rest of that reply's audio
   let lastAudioAt = 0;
   let lastWordsAt = Date.now();
   let quietTimer = 0;
@@ -104,7 +104,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
         <button class="talk-btn talk-end" data-talk-end aria-label="End conversation" title="End">${icon('x', 26)}</button>
       </div>
       <label class="talk-volume"><span>Volume</span><input type="range" min="0" max="1" step="0.05" value="${getVoiceSettings().volume}" data-talk-volume aria-label="Voice volume"><output data-talk-volume-label>${Math.round(getVoiceSettings().volume * 100)}%</output></label>
-      <p class="talk-hint">Talk over Campus or press Space to interrupt · Esc ends</p>
+      <p class="talk-hint">Talk over Citrus or press Space to interrupt · Esc ends</p>
     </div>
     <div class="voice-pill talk-pill" data-talk-pill hidden>
       <span class="voice-bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
@@ -153,7 +153,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
     paint();
   }
 
-  /** Back to the resting state once Campus is quiet: listening, looking something up, or muted. */
+  /** Back to the resting state once Citrus is quiet: listening, looking something up, or muted. */
   const rest = () => {
     if (closed || state === 'error' || state === 'starting') return;
     if (isSpeaking()) setState('speaking');
@@ -262,7 +262,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
       onUserText(text) {
         if (closed || live !== mine || !text) return;
         lastWordsAt = Date.now();
-        // Talking over Campus: drop what it has not said yet, at once.
+        // Talking over Citrus: drop what it has not said yet, at once.
         if (player?.active && player.ahead > 0.4) player.clear();
         you = mine.turn;
         replyAfterYou = false;
@@ -312,7 +312,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
     mine.start();
   }
 
-  /** "Goodbye": let Campus say goodbye, then end. */
+  /** "Goodbye": let Citrus say goodbye, then end. */
   function goodbye() {
     if (byeTimer) return;
     const since = Date.now();

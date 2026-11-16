@@ -1,11 +1,11 @@
 /**
- * Voice: the "Hey Campus" wake word, dictation, read-aloud and live captions.
+ * Voice: the "Hey Citrus" wake word, dictation, read-aloud and live captions.
  *
  * Uses Wispr Flow or Deepgram when configured, with WebRTC microphone cleanup and
  * multilingual decoding. Otherwise uses the browser's Web Speech API. Microphone
  * access needs HTTPS (or this computer). All engines expose the same result shape.
  *
- * How "Hey Campus" works:
+ * How "Hey Citrus" works:
  *   idle      one microphone session stays open and reads every phrase as it is
  *             spoken (interim results, so there is no wait for the speech service
  *             to finish a sentence). Wispr returns complete phrases after a pause.
@@ -14,7 +14,7 @@
  *   dispatch  after a short pause the command goes to the local command layer
  *             (open a page, dark mode, stop…) and otherwise to the page that
  *             registered with `onCommand`, usually the assistant.
- * "Hey Campus" on its own is fine: it waits (about nine seconds) for the command.
+ * "Hey Citrus" on its own is fine: it waits (about nine seconds) for the command.
  */
 import { toast } from '../core/ui.js';
 import { detectLanguage, endOfTurnDelay } from './turns.js';
@@ -279,7 +279,7 @@ function onResult(e) {
   resultCount = e.results.length;
   const now = Date.now();
   if (speaking || now < mutedUntil) {
-    // Campus is talking: it would hear itself. Only an explicit "Campus, stop" gets through.
+    // Citrus is talking: it would hear itself. Only an explicit "Citrus, stop" gets through.
     for (let i = e.resultIndex; i < e.results.length; i += 1) {
       if (wakeRe?.isStop(e.results[i][0].transcript)) {
         stopSpeaking();
@@ -291,7 +291,7 @@ function onResult(e) {
   networkErrors = 0;
   quickEnds = 0;
 
-  // "You probably didn't understand that, did you?" after someone explains Citrus: Campus explains itself
+  // "You probably didn't understand that, did you?" after someone explains Citrus: Citrus explains itself
   // (pitch.js). Checked on every phrase, before the wake word, so the command never reaches the assistant.
   for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
     if (notePitch(e.results[i][0].transcript)) {
@@ -304,7 +304,7 @@ function onResult(e) {
 
   if (mode === 'idle') {
     for (let i = Math.max(e.resultIndex, ignoreBefore); i < e.results.length; i += 1) {
-      // A misheard greeting ("hit campus") or the bare name waits for a whole word, so "hit campus tomorrow" stays asleep.
+      // A misheard greeting ("hit citrus") or the bare name waits for a whole word, so "hit citrus tomorrow" stays asleep.
       if (wakeRe?.ready(matchWake(e.results[i][0].transcript), e.results[i].isFinal)) {
         beginCapture(i, true);
         break;
@@ -349,15 +349,15 @@ function listen() {
   rec.onspeechend = () => rec.onactivity({ speaking: false });
   rec.onerror = (e) => {
     if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-      toast('Microphone access is blocked for this site. Allow it in the browser to use “Hey Campus”.', 'error', { duration: 7000 });
+      toast('Microphone access is blocked for this site. Allow it in the browser to use “Hey Citrus”.', 'error', { duration: 7000 });
       wake.stop('blocked');
     } else if (e.error === 'audio-capture') {
-      toast('No microphone was found. Plug one in and turn on “Hey Campus” again.', 'error', { duration: 7000 });
+      toast('No microphone was found. Plug one in and turn on “Hey Citrus” again.', 'error', { duration: 7000 });
       wake.stop('blocked');
     } else if (e.error === 'network') {
       networkErrors += 1;
       if (networkErrors >= 3) {
-        toast('The speech service is unavailable, so “Hey Campus” is off. Check the connection and try again.', 'error', { duration: 9000 });
+        toast('The speech service is unavailable, so “Hey Citrus” is off. Check the connection and try again.', 'error', { duration: 9000 });
         wake.stop('unavailable');
       }
     } else if (e.error === 'language-not-supported') {
@@ -371,7 +371,7 @@ function listen() {
     // Sessions end now and then (silence, time limit). Reopen straight away, but back off if they keep failing at once.
     quickEnds = Date.now() - startedAt < 1500 ? quickEnds + 1 : 0;
     if (quickEnds >= 12) {
-      toast('“Hey Campus” keeps stopping. Check your microphone and turn it on again.', 'error', { duration: 7000 });
+      toast('“Hey Citrus” keeps stopping. Check your microphone and turn it on again.', 'error', { duration: 7000 });
       wake.stop('unavailable');
       return;
     }
@@ -398,12 +398,12 @@ export const wake = {
   get enabled() {
     return enabled;
   },
-  /** True while Campus is waiting for, or hearing, a command. */
+  /** True while Citrus is waiting for, or hearing, a command. */
   get armed() {
     return mode === 'capture';
   },
   /** Start listening app-wide. Returns false (with a toast) when voice isn't available here. */
-  start(name = 'Campus') {
+  start(name = 'Citrus') {
     const problem = voiceProblem();
     if (problem) {
       toast(problem, 'error', { duration: 6000 });
@@ -487,7 +487,7 @@ export const wake = {
 /**
  * Speak into a text box. `onInterim(text)` fires while talking (so the words appear
  * as you say them), `onFinal(text)` once you pause, `onEnd()` when listening stops.
- * Uses the already-open "Hey Campus" session when there is one, so it starts at once.
+ * Uses the already-open "Hey Citrus" session when there is one, so it starts at once.
  * Returns { stop() }.
  */
 export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () => {} } = {}) {
@@ -528,8 +528,8 @@ export function dictate({ onInterim = () => {}, onFinal = () => {}, onEnd = () =
   return { stop: () => { try { rec.stop(); } catch { /* ended */ } } };
 }
 
-// Speaking (answers, read-aloud, samples) lives in speaker.js. The wake word only needs to know when Campus is
-// talking, so it does not take Campus's own voice for a command.
+// Speaking (answers, read-aloud, samples) lives in speaker.js. The wake word only needs to know when Citrus is
+// talking, so it does not take Citrus's own voice for a command.
 onSpeakingChange((on) => {
   speaking = on;
   if (!on) {

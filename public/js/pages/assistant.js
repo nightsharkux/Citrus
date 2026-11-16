@@ -1,8 +1,8 @@
 /**
- * Campus — the assistant. Threaded conversations with streamed answers (written
+ * Citrus — the assistant. Threaded conversations with streamed answers (written
  * like a textbook: formulas, steps, tables), cited sources, an animated face that
  * reacts and illustrates, things it does for you (calendar changes, opening pages)
- * with undo, dictation, read-aloud, app-wide "Hey Campus", a full-screen mode and
+ * with undo, dictation, read-aloud, app-wide "Hey Citrus", a full-screen mode and
  * a hands-free voice conversation (the send button while the box is empty).
  */
 import { html, render, $, on } from '../core/dom.js';
@@ -129,7 +129,7 @@ function welcome(starters) {
   return html`<div class="chat-welcome stagger">
     <span data-hero-face></span>
     <h1>Hi ${firstName()}, what can I help with?</h1>
-    <p class="muted">Campus knows your courses, your schedule and your university’s approved information.</p>
+    <p class="muted">Citrus knows your courses, your schedule and your university’s approved information.</p>
     <div class="suggestions">${startersFor(role, starters).map(([glyph, text]) => html`<button class="suggestion" data-suggest="${text}">${icon(glyph, 18)}<span>${text}</span></button>`)}</div>
   </div>`;
 }
@@ -170,7 +170,7 @@ export default {
               <span class="small muted chat-status">${statusLine(ready, data.status)}</span>
             </div>
             <div class="chat-head-actions">
-              <button class="btn btn-sm ${handsFree ? 'btn-primary' : ''}" data-wake aria-pressed="${handsFree}" title="Listen for “Hey Campus” on every page">${icon('mic', 15)}<span class="hide-sm">${handsFree ? 'Listening' : 'Hey Campus'}</span></button>
+              <button class="btn btn-sm ${handsFree ? 'btn-primary' : ''}" data-wake aria-pressed="${handsFree}" title="Listen for “Hey Citrus” on every page">${icon('mic', 15)}<span class="hide-sm">${handsFree ? 'Listening' : 'Hey Citrus'}</span></button>
               <button class="btn btn-ghost btn-icon" data-fullscreen aria-label="Full screen" title="Full screen">${icon('maximize', 18)}</button>
               ${active ? html`<button class="btn btn-ghost btn-icon" data-thread-menu aria-label="Conversation options">${icon('more', 19)}</button>` : ''}
             </div>
@@ -179,11 +179,11 @@ export default {
             ${data.thread?.messages.length ? data.thread.messages.map(messageView) : welcome(data.starters)}
           </div>
           <div class="composer-wrap">
-            ${ready ? '' : html`<div class="notice warning" style="margin-bottom:10px">${icon('info', 18)}<span>${session.user.role === 'admin' ? html`Campus wakes up once you connect a model in <a href="/admin/ai">AI & knowledge</a>.` : 'Campus is asleep until your administrator connects an AI model.'}</span></div>`}
+            ${ready ? '' : html`<div class="notice warning" style="margin-bottom:10px">${icon('info', 18)}<span>${session.user.role === 'admin' ? html`Citrus wakes up once you connect a model in <a href="/admin/ai">AI & knowledge</a>.` : 'Citrus is asleep until your administrator connects an AI model.'}</span></div>`}
             <form class="composer" id="composer">
               <div class="att-tray" hidden></div>
               <button type="button" class="btn btn-ghost btn-icon composer-attach" data-attach aria-label="Attach a picture or file" title="Attach a picture or file" ${ready ? '' : 'disabled'}>${icon('plus', 20)}</button>
-              <textarea name="prompt" rows="1" placeholder="Message Campus, or paste a picture" aria-label="Message Campus" maxlength="4000" ${ready ? '' : 'disabled'}></textarea>
+              <textarea name="prompt" rows="1" placeholder="Message Citrus, or paste a picture" aria-label="Message Citrus" maxlength="4000" ${ready ? '' : 'disabled'}></textarea>
               <div class="composer-actions">
                 ${ready && data.status.webSearch ? html`<button type="button" class="btn btn-ghost btn-icon composer-web ${webForced() ? 'is-on' : ''}" data-web aria-pressed="${webForced()}" aria-label="Search the web" title="Search the web: on means every message is looked up online">${icon('globe', 19)}</button>` : ''}
                 <button type="button" class="btn btn-ghost btn-icon" data-dictate aria-label="Dictate" title="Dictate" ${ready ? '' : 'disabled'}>${icon('mic', 19)}</button>
@@ -202,7 +202,7 @@ export default {
     const ready = data.status.aiEnabled;
     let threadId = data.thread?.thread.id || null;
     let lectureId = null; // set from ?lecture= below; the server also finds a lecture named in the conversation
-    let courseId = null; // set from ?course= ("Ask Campus" on a course page): the term so far and the course's files
+    let courseId = null; // set from ?course= ("Ask Citrus" on a course page): the term so far and the course's files
     let controller = null;
     let hideTimer = 0;
     let dictation = null;
@@ -229,8 +229,8 @@ export default {
       if (next === talkMode) return;
       talkMode = next;
       render(sendButton, icon(next ? 'waveform' : 'arrow-up', 19));
-      sendButton.setAttribute('aria-label', next ? 'Talk to Campus' : 'Send');
-      sendButton.title = next ? 'Talk to Campus: a hands-free voice conversation' : 'Send';
+      sendButton.setAttribute('aria-label', next ? 'Talk to Citrus' : 'Send');
+      sendButton.title = next ? 'Talk to Citrus: a hands-free voice conversation' : 'Send';
     }
     const talk = () => {
       dictation?.stop();
@@ -385,7 +385,7 @@ export default {
       let visual = null;
       let frame = 0;
       const results = [];
-      // Read aloud while the answer is being written: "When I speak to Campus" (default), "Every answer" or "Never".
+      // Read aloud while the answer is being written: "When I speak to Citrus" (default), "Every answer" or "Never".
       const readAloud = getVoiceSettings().readAloud;
       let afterSpeech = null;
       const speaker = readAloud === 'always' || (readAloud === 'spoken' && spoken)
@@ -447,7 +447,7 @@ export default {
               const effects = (payload.actions || results).filter((a) => a.ok && a.client).map((a) => a.client);
               const applyEffects = () => effects.forEach(runClientEffect);
               if (speaker?.active) {
-                // Open the page or switch the theme once Campus has finished saying so.
+                // Open the page or switch the theme once Citrus has finished saying so.
                 afterSpeech = applyEffects;
                 speaker.end();
               } else {
@@ -551,7 +551,7 @@ export default {
         b.classList.toggle('btn-primary', on_);
         b.setAttribute('aria-pressed', String(on_));
         const label = b.querySelector('span');
-        if (label) label.textContent = on_ ? 'Listening' : 'Hey Campus';
+        if (label) label.textContent = on_ ? 'Listening' : 'Hey Citrus';
       }
       if (controller) return;
       if (state === 'heard' || state === 'armed') faces.setMood('listening');
@@ -601,7 +601,7 @@ export default {
             autosize();
             syncSend();
             spokenDraft = !!t;
-            // With "Hey Campus" on, speaking is hands-free: send it.
+            // With "Hey Citrus" on, speaking is hands-free: send it.
             if (wake.enabled && t) send(field.value, { spoken: true });
             else field.focus();
           },
@@ -637,7 +637,7 @@ export default {
       on(root, 'click', '[data-fullscreen]', () => setFull(!isFull())),
       on(root, 'click', '.face', () => {
         if (faces.showingVisual) faces.hideVisual();
-        else if (!ready) toast('Campus is asleep until an AI model is connected.', 'info');
+        else if (!ready) toast('Citrus is asleep until an AI model is connected.', 'info');
         else faces.react('happy', 900);
       }),
       on(root, 'click', '[data-replay]', (e, b) => {
@@ -687,7 +687,7 @@ export default {
 
     syncSend();
     const initial = ctx.query.get('q');
-    // "Continue in Ask Campus" from a lecture review: this conversation is about that lecture.
+    // "Continue in Ask Citrus" from a lecture review: this conversation is about that lecture.
     lectureId = Number(ctx.query.get('lecture')) || null;
     courseId = Number(ctx.query.get('course')) || null;
     if (initial && ready) {

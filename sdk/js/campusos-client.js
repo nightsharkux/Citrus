@@ -41,7 +41,7 @@ export class CampusOSClient {
   grade(itemId, grade) { return this.request(`review/${Number(itemId)}`, { method: 'POST', body: { grade } }); }
   schedule(from, to) { return this.request(`timetable?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`); }
 
-  // Campus
+  // Citrus
   posts() { return this.request('connect/posts'); }
   notifications() { return this.request('notifications'); }
   checkIn(sessionId, code) { return this.request(`participation/${Number(sessionId)}/checkin`, { method: 'POST', body: code ? { code } : {} }); }

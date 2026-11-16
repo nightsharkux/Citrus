@@ -9,7 +9,7 @@ const listeners = new Map();
 
 export const session = {
   user: null,
-  site: { id: document.documentElement.dataset.edition || 'general', assistant: 'Campus', name: 'Citrus', shortName: 'Citrus', timezone: 'Europe/Berlin' },
+  site: { id: document.documentElement.dataset.edition || 'general', assistant: 'Citrus', name: 'Citrus', shortName: 'Citrus', timezone: 'Europe/Berlin' },
   ai: null,
   unread: 0,
   sso: { enabled: false, label: 'University login' },
@@ -41,5 +41,5 @@ export function setSession(patch) {
 
 export const role = () => session.user?.role || null;
 export const isStaff = () => role() === 'lecturer' || role() === 'admin';
-export const assistantName = () => session.user?.preferences?.assistantName || session.site.assistant || 'Campus';
+export const assistantName = () => session.user?.preferences?.assistantName || session.site.assistant || 'Citrus';
 export const firstName = () => (session.user?.name || '').split(/\s+/)[0];

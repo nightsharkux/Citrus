@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Natural voices for Campus: the speech models on the AI Gateway (text to speech, see docs/AI.md#voices).
+ * Natural voices for Citrus: the speech models on the AI Gateway (text to speech, see docs/AI.md#voices).
  *
  * The model comes from CAMPUS_AI_SPEECH_MODEL (default ElevenLabs Flash v2.5, "off" to disable). Each model family has
  * its own voices and options. Only voices named in the providers' documentation are listed, because some

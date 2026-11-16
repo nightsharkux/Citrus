@@ -113,16 +113,16 @@ Gateway access is separate from website hosting. See [DEPLOYMENT.md](DEPLOYMENT.
 | Feedback themes | `modules/admin` | `suggestionsPrompt` |
 | Voice puck answers | `modules/devices` | `voicePrompt` |
 
-## Campus's face and illustrations
+## Citrus's face and illustrations
 
-The assistant is called **Campus** (`site.assistant` in `config/editions/*.js`). Its face is the ring from the logo, used as a robot eye (`public/js/features/face.js`). There is no pupil: the ring itself is the eye. It squashes flat to blink, slides and turns to look around, follows the pointer, follows the caret while someone types and looks back up when they stop. Every expression is a change in the ring's own shape, drawn as one SVG path each frame and moved with springs:
+The assistant is called **Citrus** (`site.assistant` in `config/editions/*.js`). Its face is the ring from the logo, used as a robot eye (`public/js/features/face.js`). There is no pupil: the ring itself is the eye. It squashes flat to blink, slides and turns to look around, follows the pointer, follows the caret while someone types and looks back up when they stop. Every expression is a change in the ring's own shape, drawn as one SVG path each frame and moved with springs:
 
 | Mood | The ring… |
 |---|---|
 | `idle` | breathes, blinks, glances around, now and then tilts curiously, squints or hops; drowsy (heavy lid) after a minute without activity |
 | `listening` | opens wide and pulses |
 | `thinking` | looks up to the side while a gap circles the ring |
-| `speaking` | opens and closes with the loudness of Campus's voice (`speechLevel()` from `speaker.js`), or a talking rhythm when no voice plays |
+| `speaking` | opens and closes with the loudness of Citrus's voice (`speechLevel()` from `speaker.js`), or a talking rhythm when no voice plays |
 | `happy` | becomes an upturned arc and hops |
 | `excited` | a wide smile that bounces (several right answers in a row, thanks) |
 | `laugh` | a smile that shakes (jokes) |
@@ -144,7 +144,7 @@ const stop = watchTyping(textarea, face);          // eyes follow the caret
 face.destroy(); stop();
 ```
 
-**Illustrations.** While Campus explains something, the eye can turn into a small animation. The model asks for one by starting its answer with a single line:
+**Illustrations.** While Citrus explains something, the eye can turn into a small animation. The model asks for one by starting its answer with a single line:
 
 ```text
 [visual: formula | a^2 + b^2 = c^2]
@@ -172,7 +172,7 @@ Pictures and documents (`modules/assistant/attachments.js`, UI in `public/js/fea
 
 ## Actions
 
-Campus can change things for the signed-in user, hands-free. The text-only chat API has no tool calling, so the model starts its answer with one line per action:
+Citrus can change things for the signed-in user, hands-free. The text-only chat API has no tool calling, so the model starts its answer with one line per action:
 
 ```text
 [action: calendar.add | {"title":"Study session","start":"2026-11-10T16:00","duration_minutes":90}]
@@ -204,7 +204,7 @@ Safety rules, all enforced on the server:
 Academic questions use the user-supplied `resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt` snapshot. It contains 53 programme records, 182 extracted documents and 572 pages, plus academic calendar tables and feed events. The original UTF-8 file is retained unchanged. There is no schedule search or download at question time.
 
 - `src/ai/academic-snapshot.js` parses source/page boundaries once per process, preserving fixed-width layouts, drawn regions, OCR confidence and coordinates. It resolves programme names and abbreviations in German/English and uses the last programme mentioned, otherwise the user's profile. Printed semester labels help rank pages; page numbers are never semester numbers.
-- Programme-specific timetable, exam and curriculum questions use this snapshot ahead of the older website pack. General university information still uses `OTH_Public_Knowledge_2026-10-31.jsonl`, `OTH_Website_Knowledge.jsonl` and administrator-approved knowledge. Campus geometry remains in `oth-campus-map.json`.
+- Programme-specific timetable, exam and curriculum questions use this snapshot ahead of the older website pack. General university information still uses `OTH_Public_Knowledge_2026-10-31.jsonl`, `OTH_Website_Knowledge.jsonl` and administrator-approved knowledge. Citrus geometry remains in `oth-campus-map.json`.
 - References retain snapshot date, source ID, document metadata, page number and a PDF page link. Whole pages are selected within a bounded context budget; unusually long future pages are marked as partial. No whitespace flattening or conversion to inferred calendar events occurs. The old timetable/exam JSON files, duplicate academic JSONL packs, document index and `scripts/oth-timetables.py` were removed.
 - The printed semester and entry cohort determine applicability. A summer 2026 exam plan is not a winter 2026/27 exam plan. Curriculum plans do not establish weekly meeting times. Unverified OCR, ambiguous grids and missing material are identified rather than guessed. The Corpus Christi 2027 discrepancy between the calendar webpage and ICS is preserved in both references.
 - The map uses the student's own scheduled events for upcoming rooms. Snapshot layout/OCR data is not a validated events feed and cannot establish live room occupancy or personal enrolment.
@@ -221,7 +221,7 @@ The assistant can search the web through the AI Gateway's Perplexity search tool
 
 ## Quizzes
 
-`/quiz` (`public/js/pages/quiz.js`, `src/modules/quiz`) makes practice quizzes like a tutor's, from a topic, one of the person's courses (its topics and the ones they found hard) or their own pasted notes. Topic quizzes are grounded in the knowledge library when it has something on the topic. Saying "quiz me on…" to the assistant runs the `quiz.start` action, which opens `/quiz/new?topic=…` and writes the quiz at once. In a voice conversation Campus quizzes out loud instead, one question at a time.
+`/quiz` (`public/js/pages/quiz.js`, `src/modules/quiz`) makes practice quizzes like a tutor's, from a topic, one of the person's courses (its topics and the ones they found hard) or their own pasted notes. Topic quizzes are grounded in the knowledge library when it has something on the topic. Saying "quiz me on…" to the assistant runs the `quiz.start` action, which opens `/quiz/new?topic=…` and writes the quiz at once. In a voice conversation Citrus quizzes out loud instead, one question at a time.
 
 - **Eight kinds** (`questions.js`): multiple choice, select all that apply (partial credit, a wrong pick costs a right one), true or false, fill in the blank (a one-letter typo in a long word still counts), short answer (marked by the summary model with feedback, or by its key points if the model is unavailable), put in order, match, and calculations (with a tolerance and unit; German decimal commas work).
 - **Honest by construction.** The model's JSON is checked kind by kind; broken or duplicate questions are dropped. The page never receives an answer before the question is answered; order items and match descriptions are shuffled the same way on every visit. Each question is answered once; the server marks it and returns the score, the explanation and the right answer.
@@ -252,14 +252,14 @@ People here use German and English together, often in one sentence. `LANGUAGE_GU
 
 The browser handles voice (`public/js/features/voice.js`):
 
-- `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Campus"*, one microphone session stays open on every page and reads phrases as they are spoken (interim results, so there is no wait). "Hey Campus, …" works anywhere in a phrase; a bare "Campus, …" only at its start, so "the campus library" never wakes it. Common mishearings (Compass, Campos, Kampus) are accepted. On hearing it, a chime plays, a "Listening" pill shows the words live, and after a short pause the command is sent. Saying the name alone waits about nine seconds for the command. While Campus talks, it ignores what it hears except "Campus, stop".
+- `wake`: the app-wide wake word. When a user turns on *Listen for "Hey Citrus"*, one microphone session stays open on every page and reads phrases as they are spoken (interim results, so there is no wait). "Hey Citrus, …" works anywhere in a phrase; a bare "Citrus, …" only at its start, so "the campus library" never wakes it. Common mishearings (Compass, Campos, Kampus) are accepted. On hearing it, a chime plays, a "Listening" pill shows the words live, and after a short pause the command is sent. Saying the name alone waits about nine seconds for the command. While Citrus talks, it ignores what it hears except "Citrus, stop".
 - The command goes first to `wake.setInterceptor` (the shell's local commands in `features/commands.js`: "open schedule", "dark mode", "new chat", "stop", "stop listening". They run instantly, even with AI off, and only match whole short sentences), then to the page that registered `wake.onCommand(fn)`, otherwise to the assistant.
-- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Campus" on, a dictated message is sent automatically. `createCaptioner` gives live captions in spaces.
+- `dictate({ onInterim, onFinal, onEnd })` shows words as they are spoken and reuses the open wake session when there is one, so it starts at once. With "Hey Citrus" on, a dictated message is sent automatically. `createCaptioner` gives live captions in spaces.
 - Read-aloud follows Settings → Assistant → *Read answers aloud*: when the question was spoken (the default), every answer, or never. The voice, a style (speed and pitch) and that choice are stored per device in `features/voices.js`.
 
-### Campus's voice (speaking)
+### Citrus's voice (speaking)
 
-Everything Campus says goes through `public/js/features/speaker.js` (`speak`, `createSpeaker`, `stopSpeaking`, re-exported by `voice.js`). An answer is spoken while it streams in, cut at sentence ends (`speakBoundary` in `turns.js`, never inside formulas or code). There are two engines:
+Everything Citrus says goes through `public/js/features/speaker.js` (`speak`, `createSpeaker`, `stopSpeaking`, re-exported by `voice.js`). An answer is spoken while it streams in, cut at sentence ends (`speakBoundary` in `turns.js`, never inside formulas or code). There are two engines:
 
 - **Streaming natural voices** (default when available). ElevenLabs Flash v2.5 uses one Gateway WebSocket per answer, opened while the chat model starts its response. Text is sent as sentences become available, and mono 24 kHz PCM plays as it arrives. A measured recognition pause is deducted from turn timing instead of counted twice. Volume changes apply to active natural playback; Replay answer and Stop sample are available. See [SPEECH.md](SPEECH.md) for grants, cancellation and fallbacks.
 - **Buffered natural voices** (explicit non-streaming models or streaming startup fallback). `POST /api/speech` (`src/modules/speech`) turns a piece of text into audio with the AI Gateway's text-to-speech endpoint (`https://ai-gateway.vercel.sh/v4/ai/speech-model`, model in the `ai-model-id` header, audio back as base64). The first sentence goes alone so speech starts quickly; later ones go two or three at a time, which sounds more natural. The next piece is fetched while the current one plays, and all pieces are scheduled back to back on one Web Audio clock, so there are no gaps. An analyser gives `speechLevel()`, which the face's mouth follows.
@@ -271,7 +271,7 @@ Everything Campus says goes through `public/js/features/speaker.js` (`speak`, `c
 
 ### Voice conversation
 
-`features/conversation.js` is a hands-free conversation, like a phone call. It opens from the waveform button in the message box (shown while the box is empty), Ctrl/⌘K → *Talk to Campus*, or "Hey Campus, let's talk". It is an overlay on top of the app, so it survives page changes: the arrow button, or Campus opening a page, shrinks it to a pill.
+`features/conversation.js` is a hands-free conversation, like a phone call. It opens from the waveform button in the message box (shown while the box is empty), Ctrl/⌘K → *Talk to Citrus*, or "Hey Citrus, let's talk". It is an overlay on top of the app, so it survives page changes: the arrow button, or Citrus opening a page, shrinks it to a pill.
 
 ```text
 listening → hearing (live words) → thinking → speaking → listening …
@@ -279,9 +279,9 @@ listening → hearing (live words) → thinking → speaking → listening …
 
 - **Answers for the ear.** Questions go to `POST /api/assistant/messages` with `mode: 'voice'`, which swaps `FORMAT_GUIDE` for `VOICE_GUIDE`: one to three spoken sentences, no Markdown, lists or LaTeX, numbers as they are said, at most one question. Speech starts with the first sentence of the stream. Actions, citations and illustrations still work; everything is saved in the open thread (or a new one), and the assistant shows it when the conversation ends.
 - **Turn-taking** (`features/turns.js`, tested in `tests/voice-conversation.test.js`). A turn allows breathing and thinking pauses: about 2.2 seconds for an ordinary unfinalized phrase, around four seconds after connectors or filler words, and less for a complete short reply. Gateway capture remains open while transcription connections change and buffers audio during setup. Gateway partials cannot submit a question or execute a wake-word action; final corrected text and any queued speech must finish first. Tapping the eye (or Space) requests immediate finalization before sending.
-- **Interrupting.** On computers the microphone stays open while Campus talks. What it hears is compared with what Campus is saying: its own voice is ignored, and a stop word ("wait", "stop") or clearly new speech (at least three new words in a finished phrase, five while it is still being said) cuts Campus off and becomes the next question. When the microphone listens in one language while Campus speaks the other, its own voice comes back as nonsense words that all look new, so then only a stop word interrupts. Cutting Campus off by mistake was the main cause of answers stopping halfway. Phones send speech to the earpiece while the microphone is open, so there the microphone pauses while Campus talks and a tap interrupts. Speaking while Campus is still thinking replaces the question.
-- **Spoken controls.** "Goodbye", "that's all" or "stop listening" end it; "stop" or "never mind" just quiets Campus. The local commands from `features/commands.js` work too ("open schedule", "dark mode", "new chat").
-- **Microphone.** `createListener` in `voice.js` keeps one continuous recognition session and reopens it whenever the browser ends it, with back-off. It gives up only with a reason (blocked, no microphone, speech service unreachable, unsupported language, keeps stopping), shown with a *Try again* button. Words heard across a reopened session are kept, and Android's repeated phrases are merged. After two quiet minutes the microphone turns itself off. "Hey Campus" pauses during a conversation and resumes afterwards.
+- **Interrupting.** On computers the microphone stays open while Citrus talks. What it hears is compared with what Citrus is saying: its own voice is ignored, and a stop word ("wait", "stop") or clearly new speech (at least three new words in a finished phrase, five while it is still being said) cuts Citrus off and becomes the next question. When the microphone listens in one language while Citrus speaks the other, its own voice comes back as nonsense words that all look new, so then only a stop word interrupts. Cutting Citrus off by mistake was the main cause of answers stopping halfway. Phones send speech to the earpiece while the microphone is open, so there the microphone pauses while Citrus talks and a tap interrupts. Speaking while Citrus is still thinking replaces the question.
+- **Spoken controls.** "Goodbye", "that's all" or "stop listening" end it; "stop" or "never mind" just quiets Citrus. The local commands from `features/commands.js` work too ("open schedule", "dark mode", "new chat").
+- **Microphone.** `createListener` in `voice.js` keeps one continuous recognition session and reopens it whenever the browser ends it, with back-off. It gives up only with a reason (blocked, no microphone, speech service unreachable, unsupported language, keeps stopping), shown with a *Try again* button. Words heard across a reopened session are kept, and Android's repeated phrases are merged. After two quiet minutes the microphone turns itself off. "Hey Citrus" pauses during a conversation and resumes afterwards.
 - Errors are explicit: a blocked microphone, no microphone, or a browser whose speech service cannot be reached (some privacy browsers and embedded webviews) turn the wake word off with a message instead of failing silently.
 - `voiceProblem()` explains why voice is unavailable: unsupported browser, or a page not served over HTTPS or localhost.
 
@@ -312,7 +312,7 @@ Students' questions about a lecture (`liveStudentAskPrompt`) and explanations of
 
 ## Presentation: "What is Citrus?"
 
-`features/pitch.js` decides when a heard phrase asks Campus to explain itself and holds the explanation, in English and German; `features/pitch-show.js` shows and speaks it with the face set to excited. It is checked before the wake word in the always-on listener, in voice conversations, and (only together with the wake word) on lecture and meeting microphones. The explanation is fixed text, so it works without the model.
+`features/pitch.js` decides when a heard phrase asks Citrus to explain itself and holds the explanation, in English and German; `features/pitch-show.js` shows and speaks it with the face set to excited. It is checked before the wake word in the always-on listener, in voice conversations, and (only together with the wake word) on lecture and meeting microphones. The explanation is fixed text, so it works without the model.
 
 ## Made tools
 
@@ -320,4 +320,4 @@ Students' questions about a lecture (`liveStudentAskPrompt`) and explanations of
 
 ## Meeting minutes
 
-Minutes use the main model (`task: 'chat'`), not the summary model: they are judged on the details they keep. `meetingPrompt` asks for summary, decisions, an action-item table, key details (numbers, dates, rooms, names as said), discussion, questions raised (including questions put to Campus during the meeting) and open points. `minutesVersionsPrompt` turns finished minutes into one or more new files from an instruction ("with and without the student questions").
+Minutes use the main model (`task: 'chat'`), not the summary model: they are judged on the details they keep. `meetingPrompt` asks for summary, decisions, an action-item table, key details (numbers, dates, rooms, names as said), discussion, questions raised (including questions put to Citrus during the meeting) and open points. `minutesVersionsPrompt` turns finished minutes into one or more new files from an instruction ("with and without the student questions").

@@ -217,7 +217,7 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       return { title: going ? 'You are going' : 'No longer going', detail: post.title, link: '/campus', undo: { op: 'rsvp', id: post.id, was } };
     },
 
-    /** Campus notification level, topics and quiet hours. */
+    /** Citrus notification level, topics and quiet hours. */
     'notifications.set'(user, a) {
       db.run('INSERT OR IGNORE INTO cx_preferences(user_id, updated) VALUES(?, ?)', user.id, new Date().toISOString());
       const row = db.get('SELECT level, topics, quiet_start, quiet_end FROM cx_preferences WHERE user_id = ?', user.id);
@@ -467,7 +467,7 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       const yes = (v) => !(v === false || /^(false|off|no|aus|nein|0)$/i.test(String(v)));
       const word = (v) => String(v ?? '').trim().toLowerCase();
       const input = {};
-      if (a.assistant_name !== undefined) input.assistantName = /^(reset|default|standard|campus)$/i.test(String(a.assistant_name).trim()) ? '' : a.assistant_name;
+      if (a.assistant_name !== undefined) input.assistantName = /^(reset|default|standard|citrus|campus)$/i.test(String(a.assistant_name).trim()) ? '' : a.assistant_name;
       if (a.language !== undefined) input.language = /^(de|deutsch|german|germany)/.test(word(a.language)) ? 'de' : /^(en|english|englisch)/.test(word(a.language)) ? 'en' : a.language;
       if (a.answer_language !== undefined) input.answerLanguage = /^(de|deutsch|german)/.test(word(a.answer_language)) ? 'de' : /^(en|english|englisch)/.test(word(a.answer_language)) ? 'en' : /^(match|auto|both|same|beide)/.test(word(a.answer_language)) ? 'match' : a.answer_language;
       if (a.speech_language !== undefined) input.speechLanguage = /^(de|deutsch|german)/.test(word(a.speech_language)) ? 'de' : /^(en|english|englisch)/.test(word(a.speech_language)) ? 'en' : /^(auto|both|beide|automatic)/.test(word(a.speech_language)) ? 'auto' : a.speech_language;

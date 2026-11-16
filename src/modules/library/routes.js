@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Documents for Campus: lecturers and administrators upload files in whatever form they have them, and Campus reads
+ * Documents for Citrus: lecturers and administrators upload files in whatever form they have them, and Citrus reads
  * them into the knowledge library (see service.js). Everyone's assistant at the university can then find and cite
  * them. Lecturers manage their own uploads; administrators manage all of them.
  *

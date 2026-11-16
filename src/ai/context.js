@@ -249,7 +249,7 @@ function createContextBuilder({ db, timetable, timeZone, programmes = null, stud
       const p = user.preferences || {};
       const d = shared.extras.device || {};
       const bits = [
-        `assistant name "${shared.extras.assistantName || 'Campus'}"`,
+        `assistant name "${shared.extras.assistantName || 'Citrus'}"`,
         `interface language ${p.language === 'de' ? 'German' : p.language === 'en' ? 'English' : 'not chosen (follows the browser)'}`,
         `answers in ${{ de: 'always German', en: 'always English' }[p.answerLanguage] || 'the language the person writes'}`,
         `speech recognition ${{ de: 'German', en: 'English' }[p.speechLanguage] || 'automatic (English or German)'}`,

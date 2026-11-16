@@ -81,7 +81,7 @@
 a.source:hover { background: var(--fill-2); color: var(--text); text-decoration: none; }
 .source b { display: grid; place-items: center; min-width: 20px; height: 20px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 11px; }
 .source em { font-style: normal; color: var(--warning); font-weight: 600; font-size: 11px; white-space: nowrap; }
-/* Things Campus did for you: calendar changes, opening pages, theme. */
+/* Things Citrus did for you: calendar changes, opening pages, theme. */
 .actions { display: grid; gap: 8px; margin-bottom: 12px; }
 .actions[hidden] { display: none; }
 .action-card { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 12px; border-radius: var(--radius); border: 1px solid color-mix(in srgb, var(--success) 32%, var(--hairline)); background: var(--success-soft); animation: pop var(--dur) var(--ease); }
@@ -219,7 +219,7 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
 .captions .topic-mark { align-self: flex-start; font-size: 13px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 4px 12px; border-radius: 99px; }
 @media (max-width: 960px) { .space-grid { grid-template-columns: 1fr; } }
 
-/* ---------- Campus ---------- */
+/* ---------- Citrus ---------- */
 .feed { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
 .post-body { display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; color: var(--text-2); }
 .post-foot { flex-wrap: wrap; }
@@ -664,7 +664,7 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 .outline-main .tile { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--fill-2); color: var(--text-2); flex: none; }
 .outline-main .tile.accent { background: var(--accent-soft); color: var(--accent); }
 
-/* Talking the lecture through with Campus. */
+/* Talking the lecture through with Citrus. */
 .coach-log { display: grid; gap: 10px; }
 .coach-log:empty { display: none; }
 .coach-msg { padding: 12px 14px; border-radius: 16px; background: var(--fill-2); max-width: 100%; overflow-wrap: anywhere; }
@@ -672,7 +672,7 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 .coach-idea { cursor: pointer; font: inherit; font-size: 13px; }
 .coach-idea:hover { border-color: var(--accent); }
 
-/* Documents for Campus: the drop zone and the reading progress. */
+/* Documents for Citrus: the drop zone and the reading progress. */
 .drop-zone { display: grid; justify-items: center; gap: 8px; padding: 36px 20px; text-align: center; border: 2px dashed var(--hairline-strong); cursor: pointer; transition: border-color var(--fast), background var(--fast); }
 .drop-zone:hover, .drop-zone.is-over { border-color: var(--accent); background: var(--accent-soft); }
 .drop-zone:focus-within { box-shadow: var(--ring); }

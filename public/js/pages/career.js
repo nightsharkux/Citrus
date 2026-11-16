@@ -29,7 +29,7 @@ function results(d) {
     </div>
     <div class="notice">${icon('info', 18)}<span>${r.method} Results are visible only to you.</span></div>
     <div class="cluster">
-      <a class="btn btn-primary" href="/assistant?q=${encodeURIComponent(`My career interests lean towards ${r.top.map((t) => t.label).join(', ')}. Which modules, projects or student jobs at my university could help me explore that?`)}">${icon('campus', 16)} Talk it through with Campus</a>
+      <a class="btn btn-primary" href="/assistant?q=${encodeURIComponent(`My career interests lean towards ${r.top.map((t) => t.label).join(', ')}. Which modules, projects or student jobs at my university could help me explore that?`)}">${icon('campus', 16)} Talk it through with Citrus</a>
       <button class="btn" data-print>${icon('download', 16)} Save as PDF</button>
       <button class="btn" data-retake>Retake</button>
       <button class="btn btn-ghost" data-delete>Delete my answers</button>

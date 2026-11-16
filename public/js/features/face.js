@@ -1,5 +1,5 @@
 /**
- * Campus's face: the ring from the logo, used as a robot eye.
+ * Citrus's face: the ring from the logo, used as a robot eye.
  *
  * There is no pupil. The ring itself is the eye: it squashes flat to blink,
  * slides and turns to look around, and changes shape to show how it feels
@@ -146,7 +146,7 @@ function markup(id) {
   </svg>`;
 }
 
-export function createFace({ size, label = 'Campus', mood = 'idle', followPointer = true } = {}) {
+export function createFace({ size, label = 'Citrus', mood = 'idle', followPointer = true } = {}) {
   const id = ++seq;
   const el = document.createElement('span');
   el.className = 'face';
@@ -308,7 +308,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       w *= 1 + 0.05 * blink;
     }
     if (m.talk && !still && !s.visual) {
-      // With Campus's voice playing, the eye opens and closes with its loudness; otherwise a speech-like rhythm.
+      // With Citrus's voice playing, the eye opens and closes with its loudness; otherwise a speech-like rhythm.
       s.voice += ((isSpeaking() ? speechLevel() : (0.5 + 0.5 * Math.sin(t * 10.5)) * (0.6 + 0.4 * Math.sin(t * 2.3))) - s.voice) * Math.min(1, dt * 18);
       top -= s.voice * 9;
       bot -= s.voice * 4;
@@ -341,7 +341,7 @@ export function createFace({ size, label = 'Campus', mood = 'idle', followPointe
       ring.removeAttribute('stroke-dashoffset');
     }
 
-    // The colours drift slowly round the ring when Campus is busy.
+    // The colours drift slowly round the ring when Citrus is busy.
     s.spin += ((still ? 0 : m.spin || 0) - s.spin) * Math.min(1, dt * 3);
     if (Math.abs(s.spin) > 0.5) {
       s.angle = (s.angle + s.spin * dt) % 360;

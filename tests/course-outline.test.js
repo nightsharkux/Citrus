@@ -1,7 +1,7 @@
 'use strict';
 /**
  * The course page as an outline (like Moodle): topics inside topics, files and links in each, lectures in topics,
- * and Campus reading a topic's files during its lectures. Who may change and who may download.
+ * and Citrus reading a topic's files during its lectures. Who may change and who may download.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -78,7 +78,7 @@ test('topics inside topics with files and links; students download, only the lec
   }
 });
 
-test('a lecture in a topic: Campus reads the topic files; deleting the topic keeps the lecture', async () => {
+test('a lecture in a topic: Citrus reads the topic files; deleting the topic keeps the lecture', async () => {
   const { app, state, courseId } = await setup();
   try {
     const topic = await app.call('prof', 'POST', `/api/courses/${courseId}/sections`, { title: 'Eigenvalues' });

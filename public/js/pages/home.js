@@ -104,7 +104,7 @@ function assistantCard() {
   const name = assistantName();
   const ready = session.ai?.aiEnabled;
   return html`<section class="card assistant-teaser">
-    <div class="spread"><div><h2>Ask ${name}</h2><p class="muted small">${ready ? 'Your courses, schedule and campus — just ask.' : 'Campus is asleep until an AI model is connected.'}</p></div><span data-home-face></span></div>
+    <div class="spread"><div><h2>Ask ${name}</h2><p class="muted small">${ready ? 'Your courses, schedule and campus — just ask.' : 'Citrus is asleep until an AI model is connected.'}</p></div><span data-home-face></span></div>
     <form class="ask-pill mt-16" id="home-ask">
       <input name="q" placeholder="${ready ? 'What’s on my plate this week?' : 'Ask anything'}" aria-label="Ask ${name}" autocomplete="off">
       <button class="btn btn-primary btn-icon btn-sm" aria-label="Ask">${icon('arrow-up', 16)}</button>
@@ -145,13 +145,13 @@ function introCard(role) {
     ? [['presentation', 'In lectures', 'Tell your lecturer how you’re following and flag the moments you need help with. Nobody sees your name.'],
       ['trending', 'Afterwards', 'See where you got stuck, get each flag explained and practise it.'],
       ['nfc', 'Check in', 'Tap your student ID on the reader, or type the code.']]
-    : [['presentation', 'While you teach', 'See live how the class follows, on screen and on the Campus Puck, and explain again when it turns red.'],
+    : [['presentation', 'While you teach', 'See live how the class follows, on screen and on the Citrus Puck, and explain again when it turns red.'],
       ['trending', 'Afterwards', 'Review where the class struggled and what was being said, to improve the explanation.'],
       ['nfc', 'Participation', 'Students tap their student ID; you confirm.']];
   return html`<section class="card intro-card" data-intro>
     <div class="spread"><h2>What Citrus does</h2><button class="btn btn-ghost btn-icon btn-sm" data-intro-close aria-label="Got it">${icon('x', 16)}</button></div>
     <div class="intro-grid">${lines.map(([glyph, title, body]) => html`<div><span class="tile accent">${icon(glyph, 18)}</span><strong>${title}</strong><span class="small muted">${body}</span></div>`)}</div>
-    <p class="small muted mt-8">On the side, ask Campus anything about your courses and the university. Everything else is under <a href="/tools">All tools</a>.</p>
+    <p class="small muted mt-8">On the side, ask Citrus anything about your courses and the university. Everything else is under <a href="/tools">All tools</a>.</p>
   </section>`;
 }
 
@@ -159,7 +159,7 @@ function introCard(role) {
 function meetingCard(meetings) {
   const running = meetings?.running || [];
   return html`<section class="card meeting-card">
-    <div class="spread"><div><h2>Meetings</h2><p class="small muted">${running.length ? `${running.length === 1 ? 'A meeting is' : `${running.length} meetings are`} running in your spaces.` : 'Campus writes the minutes while you talk.'}</p></div>
+    <div class="spread"><div><h2>Meetings</h2><p class="small muted">${running.length ? `${running.length === 1 ? 'A meeting is' : `${running.length} meetings are`} running in your spaces.` : 'Citrus writes the minutes while you talk.'}</p></div>
       <a class="btn btn-sm btn-primary" href="/meetings">${icon('play', 14)} Start</a></div>
     ${running.length ? html`<div class="list mt-8">${running.slice(0, 2).map((m) => html`<a class="list-row" href="/spaces/${m.space.id}/meeting"><span class="tile accent">${icon('message', 16)}</span><span class="body"><span class="title">${m.space.title}</span><span class="sub">Started by ${m.by || 'a member'} ${ago(m.started)}</span></span><span class="trail"><span class="chip success"><span class="dot live"></span>Join</span></span></a>`)}</div>` : ''}
   </section>`;
@@ -280,7 +280,7 @@ export default {
       const q = e.target.q.value.trim();
       ctx.navigate(q ? `/assistant?q=${encodeURIComponent(q)}` : '/assistant');
     });
-    // A small live Campus that watches you type.
+    // A small live Citrus that watches you type.
     const slot = $('[data-home-face]', root);
     const face = slot ? createFace({ size: 52, mood: session.ai?.aiEnabled ? 'idle' : 'asleep' }) : null;
     let unwatch = null;

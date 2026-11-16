@@ -15,7 +15,7 @@
  * Without that header it returns the whole answer as JSON.
  *
  * Body: { prompt, thread_id?, attachments?, mode?, web?, lecture_id?, course_id? }. lecture_id and course_id come
- * from "Ask Campus" buttons on a review or course page: the answer then knows that lecture's record or that course's
+ * from "Ask Citrus" buttons on a review or course page: the answer then knows that lecture's record or that course's
  * term so far (the lecturer's overview, or a student's own progress) and reads its files. Course files that answer a
  * question are also used (and cited) without a button, from any of the person's courses. mode 'voice' (the spoken
  * conversation) asks for short answers written to be read aloud; default 'text'.
@@ -226,14 +226,14 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
     const task = voice ? (lookup ? 'voice-search' : 'voice') : (lookup ? 'search' : 'chat');
     const seen = attachments.forModel(files);
     const turn = { text: [prompt || 'Please look at what I attached and tell me what it is and what I can do with it.', ...seen.blocks].join('\n\n'), images: seen.images };
-    // A question handed over by live voice (features/live.js) arrives with what Campus had just said aloud, so a
+    // A question handed over by live voice (features/live.js) arrives with what Citrus had just said aloud, so a
     // reply such as "yes, add it" makes sense here. It is the user's own conversation, kept in CONTEXT as data.
     const liveLine = voice && typeof b.live_context === 'string' && b.live_context.trim()
       ? `\nLive voice conversation: just before this request ${assistantNameFor(user, site)} said aloud: "${b.live_context.replace(/\s+/g, ' ').trim().slice(0, 600)}"` : '';
-    // A lecture the conversation is about ("continue in Ask Campus" from a review, or "my last lecture"): its record,
+    // A lecture the conversation is about ("continue in Ask Citrus" from a review, or "my last lecture"): its record,
     // the lecturer's whole record or a student's own, so the general assistant can discuss it too.
     const lecture = lectures.find(user, { id: b.lecture_id, text: [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n') });
-    // A course this conversation is about ("Ask Campus" on a course page, a lecture of it, or named in the text):
+    // A course this conversation is about ("Ask Citrus" on a course page, a lecture of it, or named in the text):
     // its term so far for this person, and its files. Files from any of their courses answer questions too.
     const said = [...history.filter((h) => h.role === 'user').map((h) => h.content), prompt].join('\n');
     const courses = coursesOf(user);

@@ -1,7 +1,7 @@
 /**
- * Documents for Campus (/library), for lecturers and administrators.
+ * Documents for Citrus (/library), for lecturers and administrators.
  *
- * Drop in files as they are: PDFs, scans, photos of notices or the board, Word, PowerPoint, Excel, text. Campus reads
+ * Drop in files as they are: PDFs, scans, photos of notices or the board, Word, PowerPoint, Excel, text. Citrus reads
  * every page (pictures and scanned pages with the AI) and files them in the knowledge library, so the assistant can
  * find and cite them. Each document, or all of them at once, downloads as one plain-text file in the library format.
  * Reading happens a few pages per request while this page is open; leaving pauses it and coming back resumes it.
@@ -49,7 +49,7 @@ function docRow(d) {
 }
 
 export default {
-  title: 'Documents for Campus',
+  title: 'Documents for Citrus',
   roles: ['lecturer', 'admin'],
   async load() {
     return api.get('/library/documents');
@@ -58,7 +58,7 @@ export default {
     const name = assistantName();
     const ready = d.documents.some((x) => x.status === 'ready');
     return html`${pageHead({
-      title: 'Documents for Campus',
+      title: 'Documents for Citrus',
       subtitle: `Upload timetables, regulations, slides, scans or photos as they are. ${name} reads every page, pictures too, and files it so it can find and cite it later.`,
       actions: ready ? html`<a class="btn" href="/api/library/export.txt">${icon('download', 17)} Download all as .txt</a>` : '',
     })}

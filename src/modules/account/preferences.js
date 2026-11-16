@@ -51,7 +51,7 @@ function applyPreferences(current, changes) {
 }
 
 /**
- * Campus Focus: "do not disturb until". null (or a time already past) turns it off; otherwise a time up to 12 hours away.
+ * Citrus Focus: "do not disturb until". null (or a time already past) turns it off; otherwise a time up to 12 hours away.
  * While it lasts, notifications that are not urgent arrive silently in the inbox (no push, no pop-up).
  */
 function cleanFocus(value) {
@@ -64,14 +64,14 @@ function cleanFocus(value) {
   return new Date(at).toISOString();
 }
 
-/** True while the person has Campus Focus on. */
+/** True while the person has Citrus Focus on. */
 const isFocused = (preferences, now = Date.now()) => Date.parse(preferences?.focusUntil || '') > now;
 
 /** The name the assistant answers to for this person. */
 const assistantNameFor = (user, site) => {
   const own = user?.preferences?.assistantName;
   // A saved value is checked again on every use, so a name stored before these rules existed cannot reach the prompt.
-  return typeof own === 'string' && own.length <= 24 && NAME.test(own) ? own : site.assistant || 'Campus';
+  return typeof own === 'string' && own.length <= 24 && NAME.test(own) ? own : site.assistant || 'Citrus';
 };
 
 module.exports = { isFocused, readPreferences, applyPreferences, cleanAssistantName, assistantNameFor, LANGUAGES, SPEECH_LANGUAGES, ANSWER_LANGUAGES };

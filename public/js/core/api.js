@@ -47,8 +47,8 @@ export const api = {
   },
 
   /**
-   * Upload straight to file storage (when the server has it): ask Campus for a pass, send the file to the store,
-   * then hand back the receipt. Big files never pass through Campus this way. `fields` go with the first step.
+   * Upload straight to file storage (when the server has it): ask Citrus for a pass, send the file to the store,
+   * then hand back the receipt. Big files never pass through Citrus this way. `fields` go with the first step.
    */
   async uploadDirect(startPath, finishPath, blob, fields = {}) {
     const type = blob.type.split(';')[0] || 'application/octet-stream';

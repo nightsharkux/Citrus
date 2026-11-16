@@ -41,7 +41,7 @@ async function liveSession({ env, fetchImpl = (...args) => fetch(...args), model
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10000)]) : AbortSignal.timeout(10000),
     });
   } catch {
-    throw unavailable('Cannot reach the live voice service. Campus uses its standard voice instead.');
+    throw unavailable('Cannot reach the live voice service. Citrus uses its standard voice instead.');
   }
   let grant = null;
   if (response.ok) {
@@ -49,7 +49,7 @@ async function liveSession({ env, fetchImpl = (...args) => fetch(...args), model
   }
   // The token travels in a WebSocket subprotocol, so it may only contain token characters.
   if (typeof grant?.token !== 'string' || !/^[A-Za-z0-9_.-]{8,4096}$/.test(grant.token)) {
-    const error = unavailable('Live voice is not available for this account. Campus uses its standard voice instead.');
+    const error = unavailable('Live voice is not available for this account. Citrus uses its standard voice instead.');
     error.refused = response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429);
     throw error;
   }

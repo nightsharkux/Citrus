@@ -85,7 +85,7 @@ test('which questions count as lookups', () => {
 });
 
 test('answers are written for someone at the university, without saying so', () => {
-  const base = { site: { concept: true }, assistantName: 'Campus', context: '', sources: [] };
+  const base = { site: { concept: true }, assistantName: 'Citrus', context: '', sources: [] };
   const student = assistantPrompt({ ...base, user: { institution: 'OTH Amberg-Weiden — Independent Concept', name: 'Ana Person', role: 'student' } });
   assert.match(student, /Treat every question as coming from a student at OTH Amberg-Weiden, unless they say otherwise/);
   assert.match(student, /campuses in Amberg and Weiden/);

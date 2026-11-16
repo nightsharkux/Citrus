@@ -1,5 +1,5 @@
 /**
- * The voice Campus speaks with: which voices this device has, what they sound
+ * The voice Citrus speaks with: which voices this device has, what they sound
  * like, and the user's choice (voice, speed, pitch, volume, when to read aloud).
  *
  * Browsers do not say whether a voice is male or female, so the gender is read
@@ -22,7 +22,7 @@ export const PRESETS = [
 
 /**
  * voices: the chosen device voice per language ({ en: uri, de: uri }); gender: what Automatic should prefer.
- * engine: 'natural' (Campus's natural voices from the server, when available) or 'device' (this browser's voices).
+ * engine: 'natural' (Citrus's natural voices from the server, when available) or 'device' (this browser's voices).
  * natural: the chosen natural voice ('' for the server's default).
  */
 export const DEFAULTS = { v: 2, voices: {}, uri: '', preset: 'natural', rate: 1.12, pitch: 1, volume: 1, readAloud: 'spoken', gender: 'any', engine: 'natural', natural: '' };
@@ -36,7 +36,7 @@ export function naturalSpeed(settings = getVoiceSettings()) {
   return Math.round(Math.min(1.35, Math.max(0.8, 1 + (rate - DEFAULTS.rate) * 0.85)) * 100) / 100;
 }
 export const READ_ALOUD = [
-  ['spoken', 'When I speak to Campus'],
+  ['spoken', 'When I speak to Citrus'],
   ['always', 'Every answer'],
   ['never', 'Never (only when I press the speaker)'],
 ];

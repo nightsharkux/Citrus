@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Campus's voice (public/js/features/speaker.js), run against simulated browser engines: speech that streams in
+ * Citrus's voice (public/js/features/speaker.js), run against simulated browser engines: speech that streams in
  * is said one sentence at a time and in order, a sentence the engine drops is retried, cancelling stops at once,
  * natural voices play back to back without gaps or overlaps, and a failing
  * natural voice hands over to the device voice without losing words.
@@ -208,7 +208,7 @@ test('repeated device failure reports blocked instead of claiming a complete ans
   } finally { timing.deviceStart = 4000; }
 });
 
-test('stopping Campus silences it at once and reports it once', async () => {
+test('stopping Citrus silences it at once and reports it once', async () => {
   const { createSpeaker, stopSpeaking, isSpeaking } = await load('features/speaker.js');
   synth.reset();
   let ends = 0;

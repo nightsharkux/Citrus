@@ -2,7 +2,7 @@
 /**
  * The course over the term: the lecturer's overview (lectures, trend, topics, hardest parts, students who shared
  * their name), a student's own progress (their results and every part they found hard), both as .txt for any AI;
- * and Ask Campus answering from the course's files and the term at any time, with the files cited.
+ * and Ask Citrus answering from the course's files and the term at any time, with the files cited.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -115,7 +115,7 @@ test('the lecturer sees the term; a student sees only their own progress; both d
   }
 });
 
-test('Ask Campus answers from the course files at any time, cites them, and knows the term', async () => {
+test('Ask Citrus answers from the course files at any time, cites them, and knows the term', async () => {
   const { app, fixture, courseId, ids } = await setup();
   try {
     const topic = (await app.call('prof', 'POST', `/api/courses/${courseId}/sections`, { title: 'Eigenvalues' })).body.id;
@@ -128,7 +128,7 @@ test('Ask Campus answers from the course files at any time, cites them, and know
     const asked = await app.call('ann', 'POST', '/api/assistant/messages', { prompt: 'How do I get the eigenvalues from the characteristic polynomial?' });
     assert.equal(asked.status, 200, JSON.stringify(asked.body));
     const system = fixture.state.calls.at(-1).messages[0].content;
-    assert.match(system, /roots of det\(A - λI\)/, 'the file text reaches Campus');
+    assert.match(system, /roots of det\(A - λI\)/, 'the file text reaches Citrus');
     const source = asked.body.message.sources.find((s) => s.id === `course-file-${file.body.id}`);
     assert.ok(source, 'cited as a source');
     assert.equal(source.url, `/api/course-items/${file.body.id}/file?view=1`);
@@ -138,7 +138,7 @@ test('Ask Campus answers from the course files at any time, cites them, and know
     await app.call('newbie', 'POST', '/api/assistant/messages', { prompt: 'How do I get the eigenvalues from the characteristic polynomial?' });
     assert.doesNotMatch(fixture.state.calls.at(-1).messages[0].content, /roots of det/);
 
-    // "Ask Campus about the term" from the course page: the lecturer's overview and the files.
+    // "Ask Citrus about the term" from the course page: the lecturer's overview and the files.
     await app.call('prof', 'POST', '/api/assistant/messages', { prompt: 'Which parts should I revisit?', course_id: courseId });
     const lect = fixture.state.calls.at(-1).messages[0].content;
     assert.match(lect, /COURSE OVERVIEW: the user is talking about MA2 Linear Algebra/);

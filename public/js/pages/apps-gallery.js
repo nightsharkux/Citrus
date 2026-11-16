@@ -24,7 +24,7 @@ export default {
     return api.get('/apps/gallery');
   },
   render(d) {
-    return html`${pageHead({ back: { href: '/apps', label: 'My tools' }, title: 'More tools', subtitle: 'Tools people at your university made with Campus and shared. Add the ones you like to My tools.' })}
+    return html`${pageHead({ back: { href: '/apps', label: 'My tools' }, title: 'More tools', subtitle: 'Tools people at your university made with Citrus and shared. Add the ones you like to My tools.' })}
       <div class="stack stagger" style="max-width:900px">
         ${d.admin && d.waiting.length ? html`<section class="card flush"><div class="card-head"><h2>Waiting for review</h2><span class="chip warning">${d.waiting.length}</span></div>
           <p class="small muted" style="padding:0 20px">Try each one first. Approve tools that are useful and fit the university’s rules; they then appear here for everyone.</p>

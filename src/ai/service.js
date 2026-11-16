@@ -191,15 +191,15 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
     if (info.provider === 'gateway') return recognition.session({ language, user, signal });
     const profile = db.get('SELECT p.programme FROM user_profiles p JOIN users u ON u.id = p.user_id WHERE p.user_id = ? AND u.institution_id = ?', user.id, user.institution_id);
     // Lecture terms first (they matter most), then the campus basics; Deepgram takes about a hundred keyterms.
-    const dictionary = [...terms, 'Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120)).slice(0, 100);
+    const dictionary = [...terms, 'Citrus', 'Campus', 'OTH Amberg-Weiden', 'HSG', 'WTC', 'Mensa', 'Prüfungsamt', profile?.programme, user.preferences?.assistantName].filter(Boolean).map((s) => String(s).slice(0, 120)).slice(0, 100);
     return recognition.session({ language, user, dictionary, signal });
   }
 
   /** One piece of speech in a natural voice: { audio: Buffer, mime }. */
   async function speak({ user, text, voice = '', speed = 1, language = null, signal }) {
     const s = status(user);
-    if (!s.speech) throw unavailable('Natural voices are not available. Campus uses this device’s voices.');
-    if (!speechQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Campus is speaking a lot right now. Please wait a moment.');
+    if (!s.speech) throw unavailable('Natural voices are not available. Citrus uses this device’s voices.');
+    if (!speechQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Citrus is speaking a lot right now. Please wait a moment.');
     const options = speechOptions(s.speechModel, { voice, language, speed });
     text = calmText(text);
     const key = crypto.createHash('sha256').update(JSON.stringify([user.institution_id, user.id, s.speechModel, options, text])).digest('hex');
@@ -240,7 +240,7 @@ function createAiService({ db, env = process.env, fetchImpl, packs = [], readPac
 
   /** A pass for one live voice conversation: { token, expiresAt, url, model }. */
   async function liveSession({ user, signal }) {
-    if (!status(user).live) throw unavailable('Live voice is not available. Campus uses its standard voice instead.');
+    if (!status(user).live) throw unavailable('Live voice is not available. Citrus uses its standard voice instead.');
     if (!liveQuota.hit(`${user.institution_id}:${user.id}`)) throw tooMany('Please wait a moment before starting another voice conversation.');
     try {
       return await openLiveSession({ env, fetchImpl, model: liveModel(), signal });

@@ -1,4 +1,4 @@
-/** Campus: feed, guide (search + maps + links) and room status. */
+/** Citrus: feed, guide (search + maps + links) and room status. */
 import { html, render, $, on } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
@@ -220,7 +220,7 @@ function mountGuide(root) {
         <p class="small muted mt-8">${r.excerpt}</p>
         ${r.url ? html`<a class="small" href="${r.url}" target="_blank" rel="noopener">${hostOf(r.url)} ${icon('external', 12)}</a>` : ''}
       </article>`)}
-      <a class="btn btn-sm" href="/assistant?q=${encodeURIComponent(q)}">${icon('campus', 14)} Ask Campus</a></div>` : html`<p class="small muted">No matches. Try different words, or <a href="/assistant?q=${encodeURIComponent(q)}">ask Campus</a>.</p>`);
+      <a class="btn btn-sm" href="/assistant?q=${encodeURIComponent(q)}">${icon('campus', 14)} Ask Citrus</a></div>` : html`<p class="small muted">No matches. Try different words, or <a href="/assistant?q=${encodeURIComponent(q)}">ask Citrus</a>.</p>`);
     } catch (error) {
       if (error.name !== 'AbortError') toastError(error);
     }

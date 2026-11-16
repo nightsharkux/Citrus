@@ -9,7 +9,7 @@ module.exports = {
   name: 'Citrus · Student project',
   shortName: 'Citrus',
   institution: 'OTH Amberg-Weiden — Independent Concept',
-  assistant: 'Campus',
+  assistant: 'Citrus',
   tagline: 'Student project',
   conceptNotice: 'A student project. Not an official service of OTH Amberg-Weiden.',
   timezone: 'Europe/Berlin',

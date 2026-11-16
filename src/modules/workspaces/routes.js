@@ -301,9 +301,9 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
     if (!ai.status(ctx.user).aiEnabled) throw unavailable('AI is not configured. An administrator can choose a provider in AI & knowledge.');
     const history = db.all('SELECT role, content FROM ai_chats WHERE workspace_id = ? AND user_id = ? ORDER BY id DESC LIMIT 8', w.id, ctx.user.id).reverse();
     const answer = await ai.complete({ user: ctx.user, system: workspaceSystem(ctx.user, w, prompt), prompt, history });
-    // During a meeting, questions put to Campus are part of what happened: the minutes list them under questions.
+    // During a meeting, questions put to Citrus are part of what happened: the minutes list them under questions.
     if (w.meeting_started) {
-      db.run("INSERT INTO workspace_notes(workspace_id, author_id, category, content, created) VALUES(?, ?, 'question', ?, ?)", w.id, ctx.user.id, `Asked Campus: ${prompt}`.slice(0, 2000), isoNow());
+      db.run("INSERT INTO workspace_notes(workspace_id, author_id, category, content, created) VALUES(?, ?, 'question', ?, ?)", w.id, ctx.user.id, `Asked Citrus: ${prompt}`.slice(0, 2000), isoNow());
       touch(w, 'notes');
     }
     db.run('INSERT INTO ai_chats(workspace_id, user_id, role, content, created) VALUES(?, ?, ?, ?, ?)', w.id, ctx.user.id, 'user', prompt, isoNow());
@@ -357,7 +357,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
       maxTokens: 6000, task: 'chat',
     });
     const versions = readVersions(raw);
-    if (!versions.length) throw unavailable('Campus could not make that version. Try saying it differently.');
+    if (!versions.length) throw unavailable('Citrus could not make that version. Try saying it differently.');
     const parent = report.parent_id || report.id;
     const made = versions.map((v) => {
       const versionId = db.insert(

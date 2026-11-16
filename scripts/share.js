@@ -7,7 +7,7 @@
  *
  * Starts a free Cloudflare quick tunnel, reads its https://….trycloudflare.com
  * address and starts Citrus behind it (COOKIE_SECURE + TRUST_PROXY).
- * HTTPS means phones get the microphone, "Hey Campus", push and app install.
+ * HTTPS means phones get the microphone, "Hey Citrus", push and app install.
  * The address changes every time; it stops working when you close this window.
  */
 const { spawn, spawnSync } = require('node:child_process');

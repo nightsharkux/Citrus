@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Documents for Campus: any file in, readable library entries out. Text is taken from the file itself; pictures,
+ * Documents for Citrus: any file in, readable library entries out. Text is taken from the file itself; pictures,
  * scanned PDFs and PDFs with undecodable fonts are read by the AI; the result downloads as one .txt in the library
  * format that imports back unchanged. Lecturers manage their own uploads, admins all of them, students none.
  */
@@ -64,7 +64,7 @@ test('every kind of file gets a reading plan', () => {
   assert.equal(parseCard('not json', 'Fallback').title, 'Fallback');
 });
 
-test('a text file is filed at once, without the AI, and Campus can find it', async () => {
+test('a text file is filed at once, without the AI, and Citrus can find it', async () => {
   const app = await startApp();
   try {
     await app.login('admin');
@@ -124,7 +124,7 @@ test('pictures, scans and undecodable PDFs are read by the AI, then download as 
     assert.match(app.db.get("SELECT content FROM institution_knowledge WHERE external_id = ?", `doc${spo.body.document.id}:p2`).content, /Regelstudienzeit/);
     assert.equal(app.db.get('SELECT source FROM knowledge_documents WHERE id = ?', spo.body.document.id).source, null, 'the original PDF is not kept once read');
 
-    // One file with everything, for Campus or any other AI.
+    // One file with everything, for Citrus or any other AI.
     const file = await app.call('prof', 'GET', '/api/library/export.txt', undefined, { raw: true });
     assert.equal(file.status, 200);
     const txt = await file.text();

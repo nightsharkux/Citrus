@@ -1,5 +1,5 @@
 'use strict';
-/** Campus Focus: "do not disturb until". Non-urgent notifications wait quietly in the inbox; urgent ones still get through. */
+/** Citrus Focus: "do not disturb until". Non-urgent notifications wait quietly in the inbox; urgent ones still get through. */
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startApp } = require('./helpers');

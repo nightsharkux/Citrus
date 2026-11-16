@@ -60,3 +60,35 @@ test('the app icons are the new C: four pictures, each a dark tile', () => {
     }
   }
 });
+
+test('the assistant is called Citrus by default, in the interface, its instructions and its voice', async () => {
+  const app = await startApp();
+  try {
+    const boot = await app.call('anon', 'GET', '/api/bootstrap');
+    assert.equal(boot.body.site.assistant, 'Citrus');
+    await app.register('stu');
+    assert.equal((await app.call('stu', 'GET', '/api/assistant')).body.name, 'Citrus');
+    // A name chosen in the settings is kept, and going back to the default gives Citrus again.
+    await app.call('stu', 'PATCH', '/api/me', { preferences: { assistantName: 'Luna' } });
+    assert.equal((await app.call('stu', 'GET', '/api/assistant')).body.name, 'Luna');
+    await app.call('stu', 'PATCH', '/api/me', { preferences: { assistantName: '' } });
+    assert.equal((await app.call('stu', 'GET', '/api/assistant')).body.name, 'Citrus');
+  } finally {
+    await app.close();
+  }
+  const { assistantPrompt } = require('../src/ai/prompts');
+  const prompt = assistantPrompt({ site: { assistant: 'Citrus' }, user: { institution: 'Test University', name: 'Ann Test', preferences: {} }, assistantName: 'Citrus', context: '', sources: [] });
+  assert.match(String(prompt), /You are Citrus, the academic assistant built into Citrus/);
+});
+
+test('no text still calls the assistant Campus ("Ask Campus", "Hey Campus", "Campus explains"); the campus itself keeps its word', () => {
+  const files = [...walk(path.join(root, 'public')), ...walk(path.join(root, 'src')), ...walk(path.join(root, 'config')), path.join(root, 'server.js')]
+    .filter((f) => /\.(js|css|html)$/.test(f));
+  const asAssistant = /\b(?:Ask|Hey|Talk to|Tell) Campus\b|\bCampus (?:is|can|will|reads|writes|explains|listens|knows|keeps|could|would|says|hears|answers)\b/;
+  const found = files.filter((f) => asAssistant.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f));
+  assert.deepEqual(found, []);
+  // ...while the place is still the place.
+  const nav = fs.readFileSync(path.join(root, 'public', 'js', 'nav.js'), 'utf8');
+  assert.match(nav, /Campus life/);
+  assert.match(nav, /Campus map/);
+});

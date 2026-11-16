@@ -204,7 +204,7 @@ export function mountMapTab(root, d, ctx) {
       drawOverlay();
       dest.hidden = false;
       render(dest, html`<div class="map-dest-body"><span class="tile warning">${icon('info', 18)}</span><div class="grow"><strong>${found.unmapped.name}, ${found.campus.name}</strong><p class="small muted">${found.unmapped.note}</p></div>
-        <a class="btn btn-sm" href="${found.campus.plan}" target="_blank" rel="noopener">${icon('file', 14)} Campus plan</a><button type="button" class="btn btn-sm btn-ghost" data-clear>Close</button></div>`);
+        <a class="btn btn-sm" href="${found.campus.plan}" target="_blank" rel="noopener">${icon('file', 14)} Citrus plan</a><button type="button" class="btn btn-sm btn-ghost" data-clear>Close</button></div>`);
       return;
     }
     state.target = found;

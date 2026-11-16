@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Natural voices: Campus's answers read aloud by the AI Gateway's speech models (public/js/features/speaker.js).
+ * Natural voices: Citrus's answers read aloud by the AI Gateway's speech models (public/js/features/speaker.js).
  *
  *   GET  /api/speech   { enabled, model?, voices: [{ id, label, tone, language? }], default }
  *   POST /api/speech   { text, voice?, speed?, lang? } → the audio itself (audio/mpeg or audio/wav)

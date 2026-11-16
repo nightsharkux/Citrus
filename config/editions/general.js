@@ -5,7 +5,7 @@ module.exports = {
   name: 'Citrus',
   shortName: 'Citrus',
   institution: 'Citrus Demonstration University',
-  assistant: 'Campus',
+  assistant: 'Citrus',
   tagline: 'Student project',
   logo: null,
   conceptNotice: 'Institution-managed Citrus pilot.',

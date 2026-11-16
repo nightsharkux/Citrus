@@ -39,7 +39,7 @@ test('Accounts, lecturer approvals, meeting rooms, recording isolation, analysis
  x=await request('student',`/workspaces/${roomId}/analyze`,'POST',{recording_id:recId});assert.equal(x.status,200);
  x=await request('lecturer',`/workspaces/${roomId}/analyze`,'POST',{recording_id:recId});assert.equal(x.status,403);
  x=await request('student','/knowledge');assert.equal(x.status,403);
- x=await request('admin','/knowledge','POST',{title:'Campus rulebook',content:'Exams must follow the course instruction rules.'});assert.equal(x.status,201);
+ x=await request('admin','/knowledge','POST',{title:'Citrus rulebook',content:'Exams must follow the course instruction rules.'});assert.equal(x.status,201);
  x=await request('admin','/knowledge');assert.equal(x.body.knowledge.length,1);
 });
 

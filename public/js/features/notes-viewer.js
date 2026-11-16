@@ -42,7 +42,7 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
   render(el, html`<div class="viewer-stage" data-stage></div>
     <div class="viewer-caption" data-caption></div>
     <aside class="viewer-panel" data-panel hidden>
-      <div class="spread"><strong>Ask Campus</strong><button class="btn btn-ghost btn-icon btn-sm" data-panel-close aria-label="Close">${icon('x', 16)}</button></div>
+      <div class="spread"><strong>Ask Citrus</strong><button class="btn btn-ghost btn-icon btn-sm" data-panel-close aria-label="Close">${icon('x', 16)}</button></div>
       <div class="viewer-answer prose" data-answer><p class="small muted">Ask about these notes or what you just said. The answer stays here and is read aloud.</p></div>
       <form class="composer" data-panel-form><textarea name="q" rows="1" maxlength="600" placeholder="Explain this slide more simply" aria-label="Question"></textarea>
         <div class="composer-actions"><button class="btn btn-primary btn-icon" aria-label="Ask">${icon('arrow-up', 18)}</button></div></form>
@@ -120,7 +120,7 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
       { id: 'all', icon: 'grid', label: 'All notes', onSelect: grid },
       'divider',
       ...tools,
-      { id: 'chat', icon: 'message', label: 'Chat with Campus', onSelect: () => togglePanel() },
+      { id: 'chat', icon: 'message', label: 'Chat with Citrus', onSelect: () => togglePanel() },
       'divider',
       { id: 'exit', icon: 'minimize', label: 'Exit full screen', onSelect: () => close() },
     ],

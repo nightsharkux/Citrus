@@ -2,18 +2,18 @@
  * "What is Citrus?" for presentations: after someone explains Citrus, a line such as
  *
  *   "Now you probably didn't understand that, did you?"
- *   "In case that wasn't clear, hey Campus, could you please elaborate further?"
- *   "Hey Campus, explain what Citrus is."
+ *   "In case that wasn't clear, hey Citrus, could you please elaborate further?"
+ *   "Hey Citrus, explain what Citrus is."
  *
- * makes Campus give its own short explanation of the core features, with an excited face (pitch-show.js). The
+ * makes Citrus give its own short explanation of the core features, with an excited face (pitch-show.js). The
  * explanation is written here, not generated, so it works the same every time, with or without the AI or a network.
  *
  * Rules (tests/pitch.test.js), strict on purpose so that ordinary talk never sets it off:
  *   doubt       "you probably didn't understand that", "you didn't get that, did you": a question to the audience,
  *               enough on its own (in a lecture or meeting microphone only together with the wake word)
- *   unclear     "in case that wasn't clear" + a request to someone ("could you elaborate", "hey Campus")
+ *   unclear     "in case that wasn't clear" + a request to someone ("could you elaborate", "hey Citrus")
  *   about       the wake word + "explain what Citrus is", "introduce yourself", "tell them what you do"
- *   elaborate   the wake word + "elaborate (further)" when Campus has not just answered something else
+ *   elaborate   the wake word + "elaborate (further)" when Citrus has not just answered something else
  *               (then "elaborate" means that answer)
  *
  *   matchPitch(text, { recent, requireWake, answeredRecently, name })  → boolean (pure)
@@ -50,7 +50,7 @@ const ABOUT = [
   /\b(?:erklar|erzahl|beschreib)\w*\b[\s\w]{0,30}\b(?:citrus|campus os|campusos|was du (?:bist|kannst|machst)|was citrus ist|was campus (?:os )?ist)\b/,
 ];
 
-export function matchPitch(text, { recent = '', requireWake = false, answeredRecently = false, name = 'Campus' } = {}) {
+export function matchPitch(text, { recent = '', requireWake = false, answeredRecently = false, name = 'Citrus' } = {}) {
   const now = norm(text);
   if (!now) return false;
   const all = norm(`${recent} ${text}`);
@@ -64,17 +64,17 @@ export function matchPitch(text, { recent = '', requireWake = false, answeredRec
   return false;
 }
 
-// ---- state for the app: the last few phrases, a pause after firing, and what Campus said last
+// ---- state for the app: the last few phrases, a pause after firing, and what Citrus said last
 
 const WINDOW_MS = 12_000;
 const COOLDOWN_MS = 45_000;
 let phrases = [];
 let firedAt = 0;
 let answeredAt = 0;
-let assistant = 'Campus';
+let assistant = 'Citrus';
 
-export const setPitchName = (name) => { assistant = name || 'Campus'; };
-/** Call when Campus finishes saying something, so "elaborate" right after it means that answer. */
+export const setPitchName = (name) => { assistant = name || 'Citrus'; };
+/** Call when Citrus finishes saying something, so "elaborate" right after it means that answer. */
 export const noteAnswered = () => { answeredAt = Date.now(); };
 
 /** Check a heard phrase. Fires the presentation once (event "campus:pitch") and returns true when it matched. */
@@ -103,7 +103,7 @@ export function startPitch() {
 export const PITCH = {
   en: [
     { card: null, mood: 'excited', text: 'Gladly! Citrus is a classroom assistant that follows the lecture together with you.' },
-    { card: 'live', mood: 'speaking', text: 'While you teach, students tell it from their phones whether they are following, unsure or lost, and they can flag the exact moment they need help. Campus turns all of that into one live classroom status. It shows on the Campus Puck on your desk, green, amber or red, so you know straight away when something needs explaining again.' },
+    { card: 'live', mood: 'speaking', text: 'While you teach, students tell it from their phones whether they are following, unsure or lost, and they can flag the exact moment they need help. Citrus turns all of that into one live classroom status. It shows on the Citrus Puck on your desk, green, amber or red, so you know straight away when something needs explaining again.' },
     { card: 'review', mood: 'speaking', text: 'After the lecture, the professor gets a summary of where the class struggled, minute by minute, together with what was being said at that moment, so it is clear which explanations to improve. And every student gets a private recap: where they got stuck, an explanation of each moment they flagged, and a quick quiz on it.' },
     { card: 'nfc', mood: 'speaking', text: 'Citrus also tracks participation securely. Students tap the student ID they already carry, using its built-in NFC chip, on a reader, and the lecturer confirms the session. No lists, no paperwork.' },
     { card: 'ask', mood: 'happy', text: 'And on the side, anyone can simply ask me about their courses, timetables and the university, instead of digging through documents.' },
@@ -111,7 +111,7 @@ export const PITCH = {
   ],
   de: [
     { card: null, mood: 'excited', text: 'Sehr gern! Citrus ist ein Assistent für den Hörsaal, der die Vorlesung mit dir zusammen verfolgt.' },
-    { card: 'live', mood: 'speaking', text: 'Während der Vorlesung sagen die Studierenden über ihr Handy, ob sie mitkommen, unsicher sind oder den Faden verloren haben, und sie können genau die Stelle markieren, an der sie Hilfe brauchen. Daraus macht Campus einen Live-Status der ganzen Klasse. Er leuchtet auf dem Campus Puck am Pult, grün, gelb oder rot, damit man sofort sieht, wann etwas noch einmal erklärt werden sollte.' },
+    { card: 'live', mood: 'speaking', text: 'Während der Vorlesung sagen die Studierenden über ihr Handy, ob sie mitkommen, unsicher sind oder den Faden verloren haben, und sie können genau die Stelle markieren, an der sie Hilfe brauchen. Daraus macht Citrus einen Live-Status der ganzen Klasse. Er leuchtet auf dem Citrus Puck am Pult, grün, gelb oder rot, damit man sofort sieht, wann etwas noch einmal erklärt werden sollte.' },
     { card: 'review', mood: 'speaking', text: 'Nach der Vorlesung bekommt die Professorin oder der Professor eine Übersicht, wo es Minute für Minute schwierig wurde und was in dem Moment gesagt wurde. So ist klar, welche Erklärungen besser werden können. Und alle Studierenden bekommen eine private Zusammenfassung: wo sie hängen geblieben sind, eine Erklärung zu jeder markierten Stelle und ein kurzes Quiz.' },
     { card: 'nfc', mood: 'speaking', text: 'Außerdem erfasst Citrus die Teilnahme sicher. Die Studierenden halten ihren Studierendenausweis mit dem eingebauten NFC-Chip an ein Lesegerät, und die Lehrperson bestätigt die Sitzung. Keine Listen, kein Papier.' },
     { card: 'ask', mood: 'happy', text: 'Und nebenbei kann man mich einfach alles zu Kursen, Stundenplänen und der Hochschule fragen, statt in Dokumenten zu suchen.' },
@@ -121,12 +121,12 @@ export const PITCH = {
 
 export const PITCH_CARDS = {
   en: [
-    ['live', 'activity', 'Live classroom status', 'Students say how they follow and flag moments; the class status shows on the Campus Puck.'],
+    ['live', 'activity', 'Live classroom status', 'Students say how they follow and flag moments; the class status shows on the Citrus Puck.'],
     ['review', 'trending', 'Better teaching and learning', 'Where the class struggled for the professor, a private recap and quiz for each student.'],
     ['nfc', 'nfc', 'Participation with your student ID', 'Tap the NFC chip already in the card; the lecturer confirms.'],
   ],
   de: [
-    ['live', 'activity', 'Live-Status der Klasse', 'Studierende sagen, wie sie mitkommen, und markieren Stellen; der Status leuchtet auf dem Campus Puck.'],
+    ['live', 'activity', 'Live-Status der Klasse', 'Studierende sagen, wie sie mitkommen, und markieren Stellen; der Status leuchtet auf dem Citrus Puck.'],
     ['review', 'trending', 'Besser lehren und lernen', 'Wo es schwierig war, für die Lehrperson; eine private Zusammenfassung mit Quiz für alle Studierenden.'],
     ['nfc', 'nfc', 'Teilnahme mit dem Studierendenausweis', 'Den NFC-Chip im Ausweis antippen; die Lehrperson bestätigt.'],
   ],

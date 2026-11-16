@@ -93,8 +93,8 @@ function register(router, { db, ai, site, audit }) {
   async function make(user, system, prompt) {
     if (!ai.status(user).aiEnabled) throw unavailable('Tools are made by the AI, which is not connected yet.');
     const tool = readTool(await ai.complete({ user, system, prompt, maxTokens: 8000, task: 'chat' }));
-    if (!tool) throw unavailable('Campus could not make that tool. Try describing it differently.');
-    if (tool.refused) throw badRequest(`Campus won’t make this tool: ${tool.refused}`);
+    if (!tool) throw unavailable('Citrus could not make that tool. Try describing it differently.');
+    if (tool.refused) throw badRequest(`Citrus won’t make this tool: ${tool.refused}`);
     return tool;
   }
 

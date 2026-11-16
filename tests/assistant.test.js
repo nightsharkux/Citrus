@@ -160,7 +160,7 @@ test('brand mark and manifest follow the edition', async () => {
     const manifest = await app.call('anon', 'GET', '/manifest.webmanifest');
     assert.equal(manifest.body.short_name, 'Citrus');
     assert.equal(manifest.body.icons[0].src, '/icons/general-192.png');
-    assert.equal((await app.call('anon', 'GET', '/api/bootstrap')).body.site.assistant, 'Campus');
+    assert.equal((await app.call('anon', 'GET', '/api/bootstrap')).body.site.assistant, 'Citrus');
   } finally {
     await app.close();
   }

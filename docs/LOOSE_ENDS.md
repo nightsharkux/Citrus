@@ -51,8 +51,8 @@ The turn-taking rules have automated tests. The browser parts (microphone, speec
 
 | Item | What to do |
 |---|---|
-| Real devices | Hold a conversation in Chrome or Edge on Windows through laptop speakers (not headphones), in Safari on an iPhone and in Chrome on Android. Check that Campus does not cut itself off, that a spoken "wait" stops it, and that a question asked right after it stops is heard. |
-| Echo through loud speakers | If Campus still interrupts itself, raise the thresholds in `isInterruption` (`public/js/features/turns.js`). Headphones avoid echo entirely. |
+| Real devices | Hold a conversation in Chrome or Edge on Windows through laptop speakers (not headphones), in Safari on an iPhone and in Chrome on Android. Check that Citrus does not cut itself off, that a spoken "wait" stops it, and that a question asked right after it stops is heard. |
+| Echo through loud speakers | If Citrus still interrupts itself, raise the thresholds in `isInterruption` (`public/js/features/turns.js`). Headphones avoid echo entirely. |
 | On-device speech | Chrome and Edge send audio to their speech service. For a privacy-first deployment, replace `Recognition` in `voice.js` with an on-device engine. |
 
 ## Classroom, meetings and documents
@@ -64,14 +64,14 @@ These are tested against a stand-in gateway, not the real one yet.
 | PDFs sent to the model | Upload one of the PDFs whose text cannot be decoded (for example the SPO for Industrial Engineering) in *Documents* and check that its pages come back. If the gateway refuses the `file` part for the lookup model, set `CAMPUS_AI_SEARCH_MODEL` to a model that accepts PDFs, or export the pages as pictures. |
 | Request size on Vercel | Vercel functions accept about 4.5 MB per request, so uploads larger than about 3 MB fail there although the app allows 10 MB. Move uploads to object storage (see *File storage*) or run on a server. |
 | Reading on Vercel | A document is read a few pages per request while the *Documents* page is open. Leaving pauses it; coming back resumes it. A background job would remove that need. |
-| "Hit Campus" | Try it on a real microphone in German and English. If false wakes happen, remove the word from `MISHEARD` in `features/wake-phrase.js`; if a mishearing is missing, add it there and to the tests. |
+| "Hit Citrus" | Try it on a real microphone in German and English. If false wakes happen, remove the word from `MISHEARD` in `features/wake-phrase.js`; if a mishearing is missing, add it there and to the tests. |
 | Transcript retention | Kept lecture transcripts stay until the lecturer deletes them. Add them to the retention clean-up once the university sets a period. |
 
 ## Presentation, graphs, tools and meetings
 
 | Item | What to do |
 |---|---|
-| The presentation line | Rehearse it once on the presentation laptop with *Listen for "Hey Campus"* on: say the line and check the explanation starts. Keep Ctrl/⌘+Shift+E as the fallback. Speech recognition must hear "you probably didn't understand that" or "in case that wasn't clear"; very noisy rooms may need a headset. |
+| The presentation line | Rehearse it once on the presentation laptop with *Listen for "Hey Citrus"* on: say the line and check the explanation starts. Keep Ctrl/⌘+Shift+E as the fallback. Speech recognition must hear "you probably didn't understand that" or "in case that wasn't clear"; very noisy rooms may need a headset. |
 | Graphs from the real model | Ask for two or three graphs (a function, data, a bar chart) and check the model writes a ```chart block. If it describes graphs instead, strengthen `CHART_GUIDE`. |
 | Made tools | Make a clock, a timer and a group picker with the real model and try each look. Check the CSP sandbox in Chrome, Edge and Safari (the tool must run, and `fetch` from inside it must fail). |
 | Meeting speech | The browser's speech recognition misses names and numbers. For minutes that keep the details, configure Deepgram or Wispr (see `SPEECH.md`). |

@@ -38,9 +38,9 @@ test('the assistant name is per account, validated, and used in the prompt', asy
     await app.call('ana', 'POST', '/api/assistant/messages', { prompt: 'hallo' });
     assert.match(fixture.seen.at(-1).messages[0].content, /You are Claudia,/);
     await app.call('ben', 'POST', '/api/assistant/messages', { prompt: 'hallo' });
-    assert.match(fixture.seen.at(-1).messages[0].content, /You are Campus,/, 'another account keeps the default name');
+    assert.match(fixture.seen.at(-1).messages[0].content, /You are Citrus,/, 'another account keeps the default name');
     assert.equal((await app.call('ana', 'GET', '/api/assistant')).body.name, 'Claudia');
-    assert.equal((await app.call('ben', 'GET', '/api/assistant')).body.name, 'Campus');
+    assert.equal((await app.call('ben', 'GET', '/api/assistant')).body.name, 'Citrus');
 
     assert.equal((await app.call('ana', 'PATCH', '/api/me', { preferences: { assistantName: '' } })).body.user.preferences.assistantName, undefined, 'an empty name restores the default');
     assert.equal((await app.call('anon', 'PATCH', '/api/me', { preferences: { assistantName: 'X' } })).status, 401);

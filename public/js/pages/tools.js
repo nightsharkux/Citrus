@@ -4,7 +4,7 @@ import { icon } from '../core/icons.js';
 import { pageHead, statusChip } from '../core/components.js';
 import { sheet } from '../core/ui.js';
 
-const GROUP_ICON = { 'The classroom': 'presentation', Study: 'graduation', 'Assistant and collaboration': 'sparkle', Campus: 'compass', 'Classrooms and devices': 'door', Administration: 'shield', 'Your own tools': 'layers' };
+const GROUP_ICON = { 'The classroom': 'presentation', Study: 'graduation', 'Assistant and collaboration': 'sparkle', Citrus: 'compass', 'Classrooms and devices': 'door', Administration: 'shield', 'Your own tools': 'layers' };
 const ITEM_ICON = { 'live-lecture': 'presentation', checkin: 'clipboard', nfc: 'nfc', 'lecture-review': 'trending', puck: 'radio', meetings: 'message', 'make-a-tool': 'sparkle', 'more-tools': 'layers', graphs: 'activity' };
 const FILTERS = [['all', 'All'], ['available', 'Available'], ['limited', 'Pilot'], ['configuration', 'Setup required'], ['planned', 'In development']];
 

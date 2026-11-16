@@ -1,6 +1,6 @@
 'use strict';
 /**
- * The lecture record: every result tagged with its second and section, instructions any AI can follow, notes Campus
+ * The lecture record: every result tagged with its second and section, instructions any AI can follow, notes Citrus
  * writes from it, the lecturer's review conversation, and a student's own results. Who sees what.
  */
 const test = require('node:test');
@@ -92,7 +92,7 @@ async function setup(fixture) {
   return { app, courseId: course.body.id };
 }
 
-test('lecturer and students download their record, Campus writes notes from it, and the lecturer talks it through', async () => {
+test('lecturer and students download their record, Citrus writes notes from it, and the lecturer talks it through', async () => {
   const fixture = gateway();
   const { app, courseId } = await setup(fixture);
   try {
@@ -138,7 +138,7 @@ test('lecturer and students download their record, Campus writes notes from it, 
     assert.deepEqual(recap.body.record.targets, ['P2']);
     assert.equal(recap.body.record.sections[1].youWorst, 3);
 
-    // Campus writes the lecturer's notes from the record, with the same instructions any AI gets.
+    // Citrus writes the lecturer's notes from the record, with the same instructions any AI gets.
     const notes = await app.call('prof', 'POST', `/api/live/sessions/${sid}/ai-notes`);
     assert.equal(notes.status, 200);
     assert.match(notes.body.markdown, /Explain it better/);
@@ -147,7 +147,7 @@ test('lecturer and students download their record, Campus writes notes from it, 
     assert.match(call.messages[0].content, /Explain it better · 12:34 · P3/, 'the layout the PDF colours');
     assert.match(JSON.stringify(call.messages.at(-1).content), /<RECORD>[\s\S]*INSTRUCTIONS FOR ANY AI[\s\S]*\[SAY t=00:00:30 P1\]/);
 
-    // A student's notes: Campus may read the transcript to explain, the file never contains it.
+    // A student's notes: Citrus may read the transcript to explain, the file never contains it.
     const study = await app.call('ann', 'POST', `/api/live/sessions/${sid}/ai-notes`);
     assert.equal(study.status, 200);
     assert.match(study.body.markdown, /Target/);
@@ -167,7 +167,7 @@ test('lecturer and students download their record, Campus writes notes from it, 
     await app.call('ann', 'POST', `/api/live/sessions/${sid}/student-ask`, { question: 'What should I review?' });
     assert.match(JSON.stringify(fixture.state.calls.at(-1).messages.at(-1).content), /<MY_RESULTS>[\s\S]*target=P2/);
 
-    // Ask Campus, the general assistant, knows the lecture when it is named or linked.
+    // Ask Citrus, the general assistant, knows the lecture when it is named or linked.
     const before = fixture.state.calls.length;
     assert.equal((await app.call('prof', 'POST', '/api/assistant/messages', { prompt: 'What went wrong in my last lecture?' })).status, 200);
     const asked = fixture.state.calls.slice(before).map((c) => c.messages[0].content).find((c) => /LECTURE RECORD/.test(c));

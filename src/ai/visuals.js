@@ -1,10 +1,10 @@
 'use strict';
 /**
- * Visual cues for Campus's animated explanations.
+ * Visual cues for Citrus's animated explanations.
  *
  * The model may begin an answer with one line:  [visual: KIND | CONTENT]
  * The cue is removed from the text the user reads and sent separately, so the
- * front end can turn Campus's eye into a small animation (formula, bars,
+ * front end can turn Citrus's eye into a small animation (formula, bars,
  * stick figures, …). Anything malformed is simply left as normal text.
  */
 const KINDS = ['formula', 'numbers', 'chart', 'sort', 'steps', 'people', 'cycle', 'clock', 'code', 'idea', 'trend'];
