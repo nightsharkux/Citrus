@@ -11,6 +11,7 @@ import { pageHead, empty, courseTile } from '../core/components.js';
 import { dayLabel, dayKey, time, shortDate } from '../core/format.js';
 import { toast, toastError, busy } from '../core/ui.js';
 import { joinForm, mountJoinForm } from './live.js';
+import { openLectureQr } from '../features/lecture-qr.js';
 
 const isLecturer = () => session.user.role !== 'student';
 
@@ -30,6 +31,8 @@ function lectureRow(l) {
     action = live ? html`<a class="btn btn-sm btn-primary" href="/live/${l.course.id}">Resume</a>`
       : l.state === 'upcoming' || l.state === 'open' ? html`<a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}" data-start="${l.id}" data-course="${l.course.id}">Start</a>`
         : l.lastSession ? html`<a class="btn btn-sm btn-ghost" href="/lectures/review/${l.lastSession}">Review</a> <a class="btn btn-sm" href="/live/${l.course.id}?lecture=${l.id}" data-start="${l.id}" data-course="${l.course.id}">Go live again</a>` : '';
+    // Every lecture has its own QR code: on a slide or a printed sheet before, on the projector during.
+    if (l.teaches) action = html`<button class="btn btn-sm btn-ghost" data-qr="${l.id}" title="QR code for this lecture" aria-label="QR code for ${l.topic}">${icon('qr', 15)} QR</button> ${action}`;
   } else if (l.state === 'past' && l.enrolled && l.lastSession) {
     action = html`<a class="btn btn-sm" href="/lectures/review/${l.lastSession}">Recap</a>`;
   } else if (!l.enrolled) {
@@ -107,6 +110,7 @@ export default {
       }
     }));
     const offCode = mountJoinForm(root, ctx.navigate);
+    const offQr = on(root, 'click', '[data-qr]', (e, button) => openLectureQr({ lectureId: Number(button.dataset.qr) }));
     const offGo = on(root, 'submit', '[data-go-live]', (e, form) => {
       e.preventDefault();
       ctx.navigate(`/live/${form.course.value}`);
@@ -115,6 +119,7 @@ export default {
       offStart();
       offJoin();
       offCode();
+      offQr();
       offGo();
     };
   },

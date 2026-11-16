@@ -148,6 +148,61 @@ a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: var(-
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--ring); background: var(--glass-strong); }
 .textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
 .select { padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238C8AA3' stroke-width='2' stroke-linecap='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; }
+/* ---------- Dates (features/date-picker.js): a field that opens a calendar in the app's own look ---------- */
+.date-field-wrap { position: relative; display: block; }
+.date-field { display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; }
+.date-field > .icon { flex: none; color: var(--accent); }
+.date-field:hover { border-color: var(--hairline-strong); }
+.date-field[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--ring); background: var(--glass-strong); }
+.date-field.is-invalid { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+.date-field-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.date-field-text.is-empty { color: var(--text-3); }
+.date-field-wrap:has(.date-field-clear:not([hidden])) .date-field { padding-right: 42px; }
+.date-field-clear { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-3); cursor: pointer; }
+.date-field-clear:hover { background: var(--fill-2); color: var(--text); }
+.date-field-clear[hidden] { display: none; }
+
+.date-pop {
+  position: fixed; z-index: 96; width: 320px; padding: 14px;
+  background: var(--glass-strong); -webkit-backdrop-filter: var(--blur); backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  animation: pop var(--fast) var(--ease);
+}
+.date-pop-backdrop { display: none; }
+.date-pop-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.date-pop-month { font-family: var(--font-display); font-size: 16px; font-weight: 650; text-transform: capitalize; }
+.date-pop-quick, .date-time-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.date-pop-quick { margin-bottom: 10px; }
+.date-time-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.chip-button { min-height: 30px; padding: 4px 12px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); background: var(--fill); color: var(--text-2); font: 600 13px/1 var(--font); font-variant-numeric: tabular-nums; cursor: pointer; transition: background var(--fast), color var(--fast), border-color var(--fast); }
+.chip-button:hover:not(:disabled) { background: var(--accent-softer); color: var(--accent); }
+.chip-button.is-on { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.chip-button:disabled { opacity: .4; cursor: default; }
+.chip-button:focus-visible { outline: none; box-shadow: var(--ring); }
+.date-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.date-dow { padding: 4px 0 6px; text-align: center; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+.date-day { aspect-ratio: 1; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text); font: 500 14px/1 var(--font); font-variant-numeric: tabular-nums; cursor: pointer; transition: background var(--fast), color var(--fast), box-shadow var(--fast); }
+.date-day:hover:not(:disabled) { background: var(--fill-2); }
+.date-day.is-other { color: var(--text-3); }
+.date-day.is-today { color: var(--accent); font-weight: 700; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent); }
+.date-day[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); font-weight: 700; box-shadow: 0 6px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.date-day:disabled { opacity: .28; cursor: default; }
+.date-day:focus-visible { outline: none; box-shadow: var(--ring); }
+.date-day[aria-pressed="true"]:focus-visible { box-shadow: var(--ring), 0 6px 14px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.date-pop-time { display: grid; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline); }
+.date-time-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.date-time-field > span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--text-2); }
+.date-time-field .input { width: 128px; min-height: 38px; padding: 6px 12px; font-variant-numeric: tabular-nums; }
+.date-pop-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+@media (max-width: 559px) {
+  .date-pop.is-sheet { inset: auto 0 0 0; width: auto; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); border-radius: var(--radius-xl) var(--radius-xl) 0 0; animation: sheet-up var(--dur) var(--ease); }
+  .date-pop-backdrop { display: block; position: fixed; inset: 0; z-index: 95; background: var(--overlay); animation: fade var(--fast) var(--ease); }
+  .date-pop.is-sheet .date-day { width: 44px; height: 44px; aspect-ratio: auto; justify-self: center; font-size: 16px; }
+}
+/* Times keep the browser's field (it is typed, not a pop-up), in the same style. */
+.input[type="time"] { font-variant-numeric: tabular-nums; }
+.input[type="time"]::-webkit-calendar-picker-indicator { opacity: .55; cursor: pointer; }
+.input[type="time"]:hover::-webkit-calendar-picker-indicator { opacity: .9; }
 .input-row { display: flex; gap: 10px; }
 .input-row > * { flex: 1; min-width: 0; }
 .form { display: flex; flex-direction: column; gap: 16px; }

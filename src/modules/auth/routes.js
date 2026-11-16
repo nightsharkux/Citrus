@@ -2,9 +2,10 @@
 /** Sign-in, registration, sign-out, bootstrap and university SSO. */
 const { hashPassword, verifyPassword, randomToken } = require('../../lib/crypto');
 const { text, email, id } = require('../../lib/validate');
-const { badRequest, unauthorized, forbidden, conflict, tooMany } = require('../../http/errors');
+const { badRequest, unauthorized, forbidden, notFound, conflict, tooMany } = require('../../http/errors');
 const { createRateLimiter } = require('../../http/rate-limit');
 const { publicSite } = require('../../../config/site');
+const { createLinks } = require('../live/links');
 
 const LOCK_AFTER = 8;
 const LOCK_MS = 15 * 60_000;
@@ -28,6 +29,8 @@ function publicUser(u) {
 function register(router, { db, config, sessions, oidc, settings, ai, notifier, audit }) {
   // Generous per-IP cap (classrooms share NAT addresses); per-account lockout stops guessing.
   const ipLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 100 });
+  const hallLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 600 });
+  const links = createLinks({ db });
 
   const institutionOrDefault = (value) => {
     if (value !== undefined && value !== null && value !== '') return id(value, 'University');
@@ -83,14 +86,21 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
   }, { auth: 'public' });
 
   // Guests: try the app without an account. A guest is a student with a throwaway account, retired after a month idle.
+  //   { lecture, name }  from a lecture's QR code (live/links.js): the guest belongs to that lecture's university and
+  //   may give a name. A whole lecture hall shares one network address, so those have a limit per lecture instead.
   const guestsAllowed = () => !['off', '0', 'false', 'no'].includes(String(process.env.CAMPUS_GUESTS || '').toLowerCase()) && !!db.get('SELECT id FROM institutions LIMIT 1');
-  router.post('/api/guest', (ctx) => {
+  router.post('/api/guest', async (ctx) => {
     if (!guestsAllowed()) throw forbidden('Guest access is switched off.');
-    if (!ipLimiter.hit(`guest:${ctx.ip}`)) throw tooMany('Too many guest sessions from this network. Please wait a few minutes.');
-    const institutionId = institutionOrDefault(null);
+    const b = await ctx.json();
+    const lecture = b.lecture ? links.lectureOf(b.lecture) : null;
+    if (b.lecture && !lecture) throw notFound('This QR code no longer works. Ask your lecturer for the current one.');
+    const allowed = lecture ? hallLimiter.hit(`guest:${ctx.ip}:${lecture.id}`) : ipLimiter.hit(`guest:${ctx.ip}`);
+    if (!allowed) throw tooMany('Too many guest sessions from this network. Please wait a few minutes.');
+    const institutionId = lecture ? lecture.institution_id : institutionOrDefault(null);
+    const name = text(b.name, { max: 60, optional: true, label: 'Name' }).replace(/\s+/g, ' ') || 'Guest';
     const userId = db.insert(
       "INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
-      institutionId, 'Guest', `guest-${randomToken(6)}@guest.invalid`, new Date().toISOString(),
+      institutionId, name, `guest-${randomToken(6)}@guest.invalid`, new Date().toISOString(),
     );
     const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
     sessions.start(user, ctx.req, ctx.res);

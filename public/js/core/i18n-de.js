@@ -106,6 +106,8 @@ const value = (v) => VALUES[v] ?? v;
 
 /** [regex, builder]. The first match wins. */
 export const PATTERNS = [
+  [/^Show the QR code and the code (\d{3} \d{3}) on the projector\.$/, (code) => `Zeig den QR-Code und den Code ${code} am Beamer.`],
+  [/^QR code for (.+)$/, (title) => `QR-Code für ${title}`],
   [/^AI-generated voice · (.+?)( · streaming audio)?$/, (model, streaming) => `KI-generierte Stimme · ${model}${streaming ? ' · Audiostream' : ''}`],
   [/^Partly right · (\d+)%$/, (n) => `Teilweise richtig · ${n} %`],
   [/^Practise my (?:(\d+) )?mistakes?$/, (n) => (n ? `Meine ${n} Fehler üben` : 'Meinen Fehler üben')],

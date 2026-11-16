@@ -10,7 +10,9 @@
  *   about the lecture privately, during it and afterwards, and get each of their flags explained.
  *
  *   POST /api/live/sessions                     { course_id, lecture_id?, title?, notes?, keep_transcript? }  (lecturer)
- *   POST /api/live/join                         { code }  join the running lecture with its code             (student)
+ *   POST /api/live/join                         { code } or { token }  join the running lecture with its code, or
+ *                                               the lecture with the link behind its QR code (links.js); before it
+ *                                               starts that joins the course, and the lecture opens when it starts
  *   GET  /api/live/courses/:id/active           the running session of a course, or null                   (members)
  *   GET  /api/live/sessions/:id                 state; the lecturer also gets pulse, timeline, flags, notes
  *   POST /api/live/sessions/:id/signal          { level: 1|2|3 }                                (enrolled student)
@@ -53,6 +55,7 @@ const { createTranscripts } = require('./transcript');
 const { pulse, timeline, roughPatches, personalTimeline } = require('./pulse');
 const { createMoments } = require('./moments');
 const { buildFeed } = require('./lectures');
+const { registerLinks, isToken } = require('./links');
 
 const SIGNAL_GAP_MS = 15_000;
 const FLAG_GAP_MS = 8_000;
@@ -80,6 +83,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
   const moments = createMoments({ db, ai, bus, transcripts });
+  const links = registerLinks(router, { db, access }); // the QR code of each lecture
   const joinAttempts = createRateLimiter({ windowMs: 60_000, max: 12 });
   const notesWriting = createRateLimiter({ windowMs: 60_000, max: 4 });
   const isoNow = () => new Date().toISOString();
@@ -196,7 +200,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const line = timeline(signals, s.started, { now: s.ended ? Date.parse(s.ended) : Date.now() });
     const flags = flagsOf(s.id);
     return {
-      session: { ...publicSession(s), joinCode: s.ended ? null : s.join_code },
+      // The QR code opens the lecture's own link (the same on a slide made before); old sessions have only the code.
+      session: { ...publicSession(s), joinCode: s.ended ? null : s.join_code, joinLink: s.lecture_id ? links.pathFor(s.lecture_id) : `/join/${s.join_code}` },
       pulse: pulse(signals, { enrolled: enrolledCount(s.course_id) }),
       timeline: line,
       roughPatches: roughPatches(line),
@@ -295,6 +300,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const user = ctx.user;
     if (!joinAttempts.hit(user.id)) throw tooMany('Too many tries. Wait a minute and check the code on the screen.');
     const b = await ctx.json();
+    if (b.token !== undefined) return joinByLink(user, b.token);
     const code = String(b.code ?? '').replace(/\D/g, '');
     if (code.length !== 6) throw badRequest('The code has six digits');
     const s = db.get('SELECT * FROM live_sessions WHERE institution_id = ? AND join_code = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', user.institution_id, code);
@@ -302,8 +308,22 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (user.role === 'student') db.run('INSERT OR IGNORE INTO enrollments(course_id, user_id) VALUES(?, ?)', s.course_id, user.id);
     else if (!access.course(user, s.course_id)) throw forbidden('This code is for students of the course');
     arrive(s, user);
-    return { session: s.id, course_id: s.course_id, title: s.title };
+    return { session: s.id, course_id: s.course_id, title: s.title, live: true };
   });
+
+  /**
+   * The QR code of a lecture: join it now when it is live. Before it starts (a code on a slide or a sheet) the
+   * student joins the course, so the lecture opens on their phone by itself when it starts.
+   */
+  function joinByLink(user, token) {
+    const lecture = isToken(token) ? links.lectureOf(token) : null;
+    if (!lecture || lecture.institution_id !== user.institution_id) throw notFound('This QR code no longer works. Ask your lecturer for the current one.');
+    if (user.role === 'student') db.run('INSERT OR IGNORE INTO enrollments(course_id, user_id) VALUES(?, ?)', lecture.course_id, user.id);
+    else if (!access.course(user, lecture.course_id)) throw forbidden('This QR code is for students of the course');
+    const s = links.runningOf(lecture.id);
+    if (s) arrive(s, user);
+    return { session: s?.id || null, course_id: lecture.course_id, title: s?.title || lecture.topic, live: !!s };
+  }
 
   /** For the home screen: lectures running now in the user's courses, and (for a lecturer) their courses to start one in. */
   router.get('/api/live/mine', (ctx) => {

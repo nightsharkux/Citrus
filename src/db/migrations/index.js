@@ -26,4 +26,5 @@ module.exports = [
   require('./023-share-names'),
   require('./024-course-sections'),
   require('./025-file-storage'),
+  require('./026-lecture-links'),
 ];
