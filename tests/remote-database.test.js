@@ -243,3 +243,58 @@ test('a closed connection fails at once instead of waiting for an answer that ne
     fake.child.kill();
   }
 });
+
+test('writes that arrive together are committed together; one caller\'s error does not touch the others', async () => {
+  const { spawn } = require('node:child_process');
+  const fake = await startFakeTurso();
+  // Records each pipeline the driver sends (the driver blocks this process while it waits, so the proxy is its own).
+  const script = `const http = require('node:http'); const sent = [];
+    const s = http.createServer(async (req, res) => {
+      if (req.url === '/__sent') { res.end(JSON.stringify(sent.splice(0))); return; }
+      const chunks = []; for await (const c of req) chunks.push(c); const body = Buffer.concat(chunks).toString(); sent.push(body);
+      const r = await fetch(process.argv[1] + req.url, { method: req.method, headers: { 'content-type': 'application/json', authorization: req.headers.authorization || '' }, body: req.method === 'GET' ? undefined : body });
+      res.writeHead(r.status, { 'content-type': 'application/json' }); res.end(await r.text());
+    });
+    s.listen(0, '127.0.0.1', () => console.log(s.address().port));`;
+  const child = spawn(process.execPath, ['-e', script, fake.url], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve) => child.stdout.once('data', (chunk) => resolve(String(chunk).trim())));
+  const proxy = `http://127.0.0.1:${port}`;
+  const db = openRemoteDatabase({ url: proxy, authToken: TURSO_TOKEN });
+  const sent = async () => (await (await fetch(`${proxy}/__sent`)).json()).map((b) => JSON.stringify(JSON.parse(b)));
+  try {
+    db.exec('CREATE TABLE g(id INTEGER PRIMARY KEY, who TEXT UNIQUE, parent INTEGER REFERENCES g(id))');
+    await sent();
+
+    // Fifteen writers at once, each with a write and a read of its own row.
+    const done = await Promise.all(Array.from({ length: 15 }, (_, i) => db.batchAsync([
+      ['INSERT INTO g(who) VALUES(?)', `student ${i}`],
+      ['SELECT id, who FROM g WHERE who = ?', `student ${i}`],
+    ])));
+    done.forEach(([, rows], i) => assert.equal(rows[0].who, `student ${i}`, 'each gets its own answer'));
+    const pipelines = (await sent()).filter((b) => b.includes('BEGIN IMMEDIATE'));
+    assert.ok(pipelines.length <= 2, `${pipelines.length} transactions for fifteen writers`);
+    assert.equal(db.get('SELECT COUNT(*) AS n FROM g').n, 15);
+
+    // One of them fails (a duplicate): only that caller hears of it; the others are committed.
+    const mixed = await Promise.allSettled([
+      db.batchAsync([['INSERT INTO g(who) VALUES(?)', 'late one']]),
+      db.batchAsync([['INSERT INTO g(who) VALUES(?)', 'student 3']]), // already there
+      db.batchAsync([['INSERT INTO g(who) VALUES(?)', 'late two'], ['SELECT COUNT(*) AS n FROM g']]),
+      db.batchAsync([['INSERT INTO g(who, parent) VALUES(?, ?)', 'orphan', 9999]]), // a foreign key that does not exist
+    ]);
+    assert.deepEqual(mixed.map((m) => m.status), ['fulfilled', 'rejected', 'fulfilled', 'rejected']);
+    assert.match(mixed[1].reason.message, /UNIQUE/);
+    assert.match(mixed[3].reason.message, /FOREIGN KEY/);
+    assert.equal(db.all("SELECT who FROM g WHERE who LIKE 'late%' ORDER BY who").length, 2);
+    assert.equal(db.get("SELECT COUNT(*) AS n FROM g WHERE who = 'orphan'").n, 0);
+
+    // A read does not wait behind writes, and a write after a quiet moment is its own transaction.
+    await sent();
+    await db.batchAsync([['INSERT INTO g(who) VALUES(?)', 'alone']]);
+    assert.equal((await sent()).filter((b) => b.includes('BEGIN IMMEDIATE')).length, 1);
+  } finally {
+    db.close();
+    child.kill();
+    fake.child.kill();
+  }
+});

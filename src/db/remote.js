@@ -186,6 +186,75 @@ function openRemoteDatabase({ url, authToken }) {
   // Queries sent with batchAsync, waiting for their answer: id → { resolve, reject, timer }.
   const waiting = new Map();
 
+  /** Send requests on a stream of their own without blocking; resolves with the raw result of each request. */
+  function send(requests, retry) {
+    const id = nextId++;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        waiting.delete(id);
+        reject(new Error('The database did not answer in time'));
+      }, TIMEOUT_MS);
+      timer.unref?.();
+      waiting.set(id, { timer, reject, resolve });
+      port.postMessage({ id, requests, keep: false, retry, isolated: true });
+    });
+  }
+
+  // Group commit. Turso accepts one write at a time and each commit costs a few hundred milliseconds, so writes
+  // that arrive together (a class signing in, answering) are sent as ONE transaction and committed once: fifteen
+  // students cost about as much as one. While a group is on its way the next one collects behind it.
+  const GROUP_WINDOW_MS = 8;
+  const MAX_GROUP = 200;
+  const writeQueue = [];
+  let writing = false;
+  let writeTimer = null;
+
+  async function flushWrites() {
+    writeTimer = null;
+    if (writing || !writeQueue.length) return;
+    writing = true;
+    const group = writeQueue.splice(0, MAX_GROUP);
+    try {
+      const statements = group.flatMap((g) => g.queries.map(([sql, ...args]) => ({ stmt: execute(sql, args).stmt, condition: { type: 'ok', step: 0 } })));
+      const last = statements.length + 1; // the COMMIT step
+      const [, batchResult] = await send([
+        execute('PRAGMA foreign_keys = ON', [], false),
+        {
+          type: 'batch',
+          batch: {
+            steps: [
+              { stmt: { sql: 'BEGIN IMMEDIATE', want_rows: false } },
+              ...statements,
+              { stmt: { sql: 'COMMIT', want_rows: false }, condition: { type: 'ok', step: 0 } },
+              { stmt: { sql: 'ROLLBACK', want_rows: false }, condition: { type: 'error', step: last } },
+            ],
+          },
+        },
+      ], false);
+      const { step_results: results, step_errors: errors } = unwrap(batchResult).result;
+      // The group is one transaction: when it did not begin or commit, nobody's writes happened.
+      if (errors[0] || errors[last]) throw databaseError(errors[0] || errors[last]);
+      let offset = 1; // step 0 is BEGIN
+      for (const g of group) {
+        const first = offset;
+        offset += g.queries.length;
+        try {
+          g.resolve(g.queries.map((_, i) => {
+            if (errors[first + i]) throw databaseError(errors[first + i]);
+            return rowsOf(results[first + i]);
+          }));
+        } catch (error) {
+          g.reject(error); // that caller's own statement failed (a duplicate, say): the others are not affected
+        }
+      }
+    } catch (error) {
+      for (const g of group) g.reject(error);
+    } finally {
+      writing = false;
+      if (writeQueue.length) flushWrites();
+    }
+  }
+
   /** Hand an answer to the query waiting for it. False when nobody is (it timed out). */
   function settle(reply) {
     const w = waiting.get(reply.id);
@@ -361,29 +430,15 @@ function openRemoteDatabase({ url, authToken }) {
       if (!queries.length) return Promise.resolve([]);
       if (closed) return Promise.reject(new Error('The database connection is closed'));
       if (depth > 0) return Promise.resolve(db.batch(queries));
-      const writes = queries.some(([sql]) => !isRead(sql));
-      const prelude = writes ? [execute('PRAGMA foreign_keys = ON', [], false)] : [];
-      const requests = prelude.concat(queries.map(([sql, ...args]) => execute(sql, args)));
-      const id = nextId++;
-      return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          waiting.delete(id);
-          reject(new Error('The database did not answer in time'));
-        }, TIMEOUT_MS);
-        timer.unref?.();
-        waiting.set(id, {
-          timer,
-          reject,
-          resolve: (results) => {
-            try {
-              resolve(results.slice(prelude.length, prelude.length + queries.length).map((r) => rowsOf(unwrap(r).result)));
-            } catch (error) {
-              reject(error);
-            }
-          },
+      // Writes wait for the others that arrive with them and are committed together (see flushWrites).
+      if (queries.some(([sql]) => !isRead(sql))) {
+        return new Promise((resolve, reject) => {
+          writeQueue.push({ queries, resolve, reject });
+          if (!writing && !writeTimer) writeTimer = setTimeout(flushWrites, GROUP_WINDOW_MS);
         });
-        port.postMessage({ id, requests, keep: false, retry: !writes, isolated: true });
-      });
+      }
+      return send(queries.map(([sql, ...args]) => execute(sql, args)), true)
+        .then((results) => results.slice(0, queries.length).map((r) => rowsOf(unwrap(r).result)));
     },
 
     /** Run one or more statements that return nothing. Inside a transaction they are sent with the next query. */
@@ -424,6 +479,7 @@ function openRemoteDatabase({ url, authToken }) {
 
     close() {
       closed = true;
+      for (const g of writeQueue.splice(0)) g.reject(new Error('The database connection is closed'));
       for (const [id, w] of waiting) {
         clearTimeout(w.timer);
         w.reject(new Error('The database connection is closed'));

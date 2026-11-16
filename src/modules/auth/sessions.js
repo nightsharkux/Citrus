@@ -87,17 +87,20 @@ function createSessions({ db, config }) {
     return shape(row);
   }
 
-  /** start() without blocking the server while the database answers. */
-  async function startAsync(user, req, res) {
+  /**
+   * The statement that starts a session for a user not yet known by id (found by `userSql` with `userArgs`), to go in
+   * the same batch as the statement that creates them; the cookie follows with sendCookie() once it was committed.
+   */
+  function startStatement(req, userSql, userArgs = []) {
     const token = randomToken();
     const now = Date.now();
-    await db.batchAsync([
-      ['INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES(?, ?, ?, ?, ?, ?)',
-        sha256(token), user.id, now + maxAgeSeconds * 1000, now, now, String(req.headers['user-agent'] || '').slice(0, 200)],
-      ['UPDATE users SET last_login = ?, failed_logins = 0, locked_until = NULL WHERE id = ?', new Date(now).toISOString(), user.id],
-    ]);
-    res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
+    return {
+      token,
+      query: [`INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES(?, (${userSql}), ?, ?, ?, ?)`,
+        sha256(token), ...userArgs, now + maxAgeSeconds * 1000, now, now, String(req.headers['user-agent'] || '').slice(0, 200)],
+    };
   }
+  const sendCookie = (res, token) => res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
 
   function end(req, res) {
     const token = readCookie(req);
@@ -122,7 +125,7 @@ function createSessions({ db, config }) {
     db.run('DELETE FROM sessions WHERE user_id = ? AND token != ?', user.id, user.session_digest || '');
   }
 
-  return { start, startAsync, identify, identifyAsync, end, list, revoke, revokeOthers };
+  return { start, startStatement, sendCookie, identify, identifyAsync, end, list, revoke, revokeOthers };
 }
 
 module.exports = { createSessions, readCookie };

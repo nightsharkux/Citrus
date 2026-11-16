@@ -16,6 +16,7 @@ const { DatabaseSync } = require('node:sqlite');
 const token = process.argv[2] || 'test-token';
 const db = new DatabaseSync(':memory:');
 const batons = new Set();
+let writeFreeAt = 0; // when the database is done with the writes accepted so far
 // Like a real server, closing a stream ends the transaction it started (here there is one connection for all).
 let transactionOf = null;
 let counter = 0;
@@ -60,6 +61,34 @@ function execute(stmt) {
   return { cols: [], rows: [], affected_row_count: Number(info.changes), last_insert_rowid: info.changes ? String(info.lastInsertRowid) : null };
 }
 
+/** Hrana's conditional batch: steps run in order; a step with a condition runs only when the condition holds. */
+function runBatch(batch) {
+  const stepResults = [];
+  const stepErrors = [];
+  const holds = (c) => {
+    if (!c) return true;
+    switch (c.type) {
+      case 'ok': return stepResults[c.step] != null && stepErrors[c.step] == null;
+      case 'error': return stepErrors[c.step] != null;
+      case 'not': return !holds(c.cond);
+      case 'and': return c.conds.every(holds);
+      case 'or': return c.conds.some(holds);
+      default: return false;
+    }
+  };
+  batch.steps.forEach((step, i) => {
+    stepResults[i] = null;
+    stepErrors[i] = null;
+    if (!holds(step.condition)) return;
+    try {
+      stepResults[i] = execute(step.stmt);
+    } catch (error) {
+      stepErrors[i] = { message: `SQLite error: ${error.message}`, code: error.code || 'SQLITE_ERROR' };
+    }
+  });
+  return { step_results: stepResults, step_errors: stepErrors };
+}
+
 function handle(body) {
   let baton = body.baton || null;
   if (baton && !batons.has(baton)) return { status: 400, body: { error: 'The stream has expired' } };
@@ -75,7 +104,8 @@ function handle(body) {
         }
         transactionOf = baton;
       }
-      if (request.type === 'execute') results.push({ type: 'ok', response: { type: 'execute', result: execute(request.stmt) } });
+      if (request.type === 'batch') results.push({ type: 'ok', response: { type: 'batch', result: runBatch(request.batch) } });
+      else if (request.type === 'execute') results.push({ type: 'ok', response: { type: 'execute', result: execute(request.stmt) } });
       else if (request.type === 'sequence') {
         db.exec(request.sql);
         results.push({ type: 'ok', response: { type: 'sequence' } });
@@ -122,9 +152,18 @@ const server = http.createServer((req, res) => {
       // A real database is a network round trip away. FAKE_TURSO_DELAY_MS makes this one answer that much later
       // (the work itself is done at once, in arrival order), so tests can tell a server that waits for each answer
       // from one that serves others meanwhile.
-      const { status, body } = handle(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      const delay = Number(process.env.FAKE_TURSO_DELAY_MS || 0);
-      if (delay > 0) return void setTimeout(() => send(status, body), delay);
+      const text = Buffer.concat(chunks).toString('utf8');
+      const { status, body } = handle(JSON.parse(text));
+      // Like Turso, one write at a time: a request that writes waits for the writes before it and then takes
+      // FAKE_TURSO_COMMIT_MS to commit (everyone who writes at once queues; reads are not held up).
+      let wait = Number(process.env.FAKE_TURSO_DELAY_MS || 0);
+      const commit = Number(process.env.FAKE_TURSO_COMMIT_MS || 0);
+      if (commit > 0 && /"sql":"\s*(INSERT|UPDATE|DELETE|REPLACE|CREATE|DROP|ALTER|COMMIT)/i.test(text)) {
+        const start = Math.max(Date.now(), writeFreeAt);
+        writeFreeAt = start + commit;
+        wait += writeFreeAt - Date.now();
+      }
+      if (wait > 0) return void setTimeout(() => send(status, body), wait);
       send(status, body);
     } catch (error) {
       send(500, { error: error.message });

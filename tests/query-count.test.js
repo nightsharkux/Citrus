@@ -196,10 +196,12 @@ test('a student scanning the QR code and answering costs a handful of database c
 });
 
 test('on a hosted database a class scanning the QR code together is served in parallel, not one student after another', async () => {
-  // Each answer from the (stand-in) hosted database takes 60 ms, like the real one. A server that waits for every
-  // answer with its thread blocked needs about 5 round trips x 60 ms x 15 students = 4.5 s for the class; one that
-  // serves the others meanwhile needs about what one student needs.
-  const app = await startApp({ remote: true, databaseDelayMs: 60 });
+  // Each answer from the (stand-in) hosted database takes 60 ms and each write is committed on its own, one at a
+  // time, taking 150 ms more, like the real one. A server that waits for every answer with its thread blocked needs
+  // seconds for the class, and so does one that commits each student's writes separately (three commits each: 15 x 3 x
+  // 150 ms = 6.8 s); one that serves the others meanwhile and commits what arrives together needs about what one
+  // student needs.
+  const app = await startApp({ remote: true, databaseDelayMs: 60, databaseCommitMs: 150 });
   try {
     await app.login('admin');
     const lecturerId = await app.lecturer('prof');

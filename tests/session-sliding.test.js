@@ -13,7 +13,13 @@ test('using the app pushes the end of the session forward and renews the cookie'
     app.db.run('UPDATE sessions SET last_seen = ?, expires = ? WHERE token = ?', Date.now() - 600_000, Date.now() + 60_000, before.token);
     const res = await app.call('stu', 'GET', '/api/me');
     assert.equal(res.status, 200);
-    const after = app.db.get('SELECT expires FROM sessions WHERE token = ?', before.token);
+    // Renewing the session is written in the background (nobody waits for it), so give it a moment to land.
+    let after;
+    for (let i = 0; i < 40; i += 1) {
+      after = app.db.get('SELECT expires FROM sessions WHERE token = ?', before.token);
+      if (after.expires > Date.now() + 20 * 86_400_000) break;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     assert.ok(after.expires > Date.now() + 20 * 86_400_000, 'the session now lasts weeks again');
     assert.match(res.headers.get('set-cookie') || '', /Max-Age=\d{6,}/, 'the browser cookie is renewed too');
   } finally {

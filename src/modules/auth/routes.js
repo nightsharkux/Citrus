@@ -109,13 +109,18 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     const name = text(b.name, { max: 60, optional: true, label: 'Name' }).replace(/\s+/g, ' ') || 'Guest';
     // Without blocking the server while the database answers: a class scanning the QR code together is served at once.
     const email = `guest-${randomToken(6)}@guest.invalid`;
-    const [, rows] = await db.batchAsync([
+    // One transaction: the account, its session and the account as the page needs it. (Writes that arrive together
+    // are committed together by the database client, so a class signing in costs about what one student costs.)
+    const find = 'SELECT id FROM users WHERE institution_id = ? AND email = ?';
+    const session = sessions.startStatement(ctx.req, find, [institutionId, email]);
+    const [, , rows] = await db.batchAsync([
       ["INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
         institutionId, name, email, new Date().toISOString()],
+      session.query,
       ['SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.institution_id = ? AND u.email = ?', institutionId, email],
     ]);
     const user = rows[0];
-    await sessions.startAsync(user, ctx.req, ctx.res);
+    sessions.sendCookie(ctx.res, session.token);
     ctx.status = 201;
     return { user: publicUser({ ...user, preferences: {} }) };
   }, { auth: 'public' });
