@@ -182,3 +182,64 @@ test('after a transaction fails on the way to the database, the next query start
     fake.child.kill();
   }
 });
+
+test('queries that do not block the caller run side by side, and never disturb a blocking call or a transaction', async () => {
+  const fake = await startFakeTurso();
+  const db = openRemoteDatabase({ url: fake.url, authToken: TURSO_TOKEN });
+  try {
+    db.exec('CREATE TABLE n(id INTEGER PRIMARY KEY, v TEXT)');
+    for (let i = 1; i <= 20; i += 1) db.insert('INSERT INTO n(v) VALUES(?)', `row ${i}`);
+
+    // Many at once: each gets its own answer.
+    const answers = await Promise.all(Array.from({ length: 20 }, (_, i) => db.batchAsync([['SELECT v FROM n WHERE id = ?', i + 1], ['SELECT COUNT(*) AS n FROM n']])));
+    answers.forEach(([one, count], i) => {
+      assert.equal(one[0].v, `row ${i + 1}`);
+      assert.equal(count[0].n, 20);
+    });
+
+    // Blocking calls in the middle of them (answers that arrive meanwhile are handed to the right caller).
+    const pending = Array.from({ length: 10 }, (_, i) => db.batchAsync([['SELECT v FROM n WHERE id = ?', i + 1]]));
+    for (let i = 0; i < 5; i += 1) assert.equal(db.get('SELECT COUNT(*) AS n FROM n').n, 20);
+    const settled = await Promise.all(pending);
+    settled.forEach(([rows], i) => assert.equal(rows[0].v, `row ${i + 1}`));
+
+    // Writes, in order inside one batch, are seen by the next read; constraint errors reject only their own batch.
+    const [, afterWrite] = await db.batchAsync([['INSERT INTO n(v) VALUES(?)', 'late'], ['SELECT COUNT(*) AS n FROM n']]);
+    assert.equal(afterWrite[0].n, 21);
+    await assert.rejects(db.batchAsync([['INSERT INTO n(id, v) VALUES(1, ?)', 'dup']]), /UNIQUE/);
+    assert.equal((await db.batchAsync([['SELECT COUNT(*) AS n FROM n']]))[0][0].n, 21, 'still works after an error');
+
+    // A transaction is not joined by queries sent without blocking, and they do not break it.
+    const during = [];
+    const racing = Array.from({ length: 5 }, () => db.batchAsync([['SELECT COUNT(*) AS n FROM n']]).then(([rows]) => during.push(rows[0].n)));
+    db.transaction(() => {
+      db.run("INSERT INTO n(v) VALUES('in transaction')");
+      assert.equal(db.get('SELECT COUNT(*) AS n FROM n').n, 22);
+      // Inside a transaction batchAsync runs on its stream, so it sees the transaction's own changes.
+      return db.batchAsync([['SELECT COUNT(*) AS n FROM n']]).then(([rows]) => during.push(`inside:${rows[0].n}`));
+    });
+    await Promise.all(racing);
+    assert.equal(db.get('SELECT COUNT(*) AS n FROM n').n, 22);
+    assert.ok(during.filter((n) => typeof n === 'number').every((n) => n === 21 || n === 22), 'outside queries saw the data before or after, never half');
+  } finally {
+    db.close();
+    fake.child.kill();
+  }
+});
+
+test('a closed connection fails at once instead of waiting for an answer that never comes', async () => {
+  const fake = await startFakeTurso();
+  const db = openRemoteDatabase({ url: fake.url, authToken: TURSO_TOKEN });
+  try {
+    db.exec('CREATE TABLE c(id INTEGER)');
+    const waitingForAnswer = db.batchAsync([['SELECT COUNT(*) AS n FROM c']]);
+    db.close();
+    await assert.rejects(waitingForAnswer, /closed/);
+    const started = Date.now();
+    assert.throws(() => db.get('SELECT 1'), /closed/);
+    await assert.rejects(db.batchAsync([['SELECT 1']]), /closed/);
+    assert.ok(Date.now() - started < 1000, 'no waiting');
+  } finally {
+    fake.child.kill();
+  }
+});

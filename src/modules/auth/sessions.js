@@ -36,24 +36,14 @@ function createSessions({ db, config }) {
     res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
   }
 
-  /** Resolve the signed-in user (or null). Touches last_seen at most every 5 minutes. */
-  function identify(req, res) {
-    const token = readCookie(req);
-    if (!token) return null;
-    const digest = sha256(token);
-    const row = db.get(
-      `SELECT u.id, u.institution_id, u.name, u.email, u.role, u.requested_role, u.can_publish, u.preferences,
+  const IDENTIFY_SQL = `SELECT u.id, u.institution_id, u.name, u.email, u.role, u.requested_role, u.can_publish, u.preferences,
               u.auth_provider, i.name AS institution, s.last_seen, s.token AS session_digest
        FROM sessions s JOIN users u ON u.id = s.user_id JOIN institutions i ON i.id = u.institution_id
-       WHERE s.token = ? AND s.expires > ? AND u.deleted = 0`,
-      digest, Date.now(),
-    );
-    if (!row) return null;
-    if (!row.last_seen || Date.now() - row.last_seen > 300_000) {
-      const now = Date.now();
-      db.run('UPDATE sessions SET last_seen = ?, expires = ? WHERE token = ?', now, now + maxAgeSeconds * 1000, digest);
-      if (res && !res.headersSent) res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
-    }
+       WHERE s.token = ? AND s.expires > ? AND u.deleted = 0`;
+  const TOUCH_SQL = 'UPDATE sessions SET last_seen = ?, expires = ? WHERE token = ?';
+  const stale = (row) => !row.last_seen || Date.now() - row.last_seen > 300_000;
+
+  function shape(row) {
     let preferences = {};
     try {
       preferences = JSON.parse(row.preferences || '{}');
@@ -62,6 +52,51 @@ function createSessions({ db, config }) {
     }
     const { last_seen, preferences: _p, ...user } = row;
     return { ...user, can_publish: !!row.can_publish, preferences };
+  }
+
+  /** Resolve the signed-in user (or null). Touches last_seen at most every 5 minutes. */
+  function identify(req, res) {
+    const token = readCookie(req);
+    if (!token) return null;
+    const digest = sha256(token);
+    const row = db.get(IDENTIFY_SQL, digest, Date.now());
+    if (!row) return null;
+    if (stale(row)) {
+      const now = Date.now();
+      db.run(TOUCH_SQL, now, now + maxAgeSeconds * 1000, digest);
+      if (res && !res.headersSent) res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
+    }
+    return shape(row);
+  }
+
+  /**
+   * The same without blocking the server while the database answers, so other requests are served meanwhile (this
+   * runs for every request; a blocking call held up all the others for a full round trip each).
+   */
+  async function identifyAsync(req, res) {
+    const token = readCookie(req);
+    if (!token) return null;
+    const digest = sha256(token);
+    const [[row]] = await db.batchAsync([[IDENTIFY_SQL, digest, Date.now()]]);
+    if (!row) return null;
+    if (stale(row)) {
+      const now = Date.now();
+      db.batchAsync([[TOUCH_SQL, now, now + maxAgeSeconds * 1000, digest]]).catch(() => {}); // nobody waits for this
+      if (res && !res.headersSent) res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
+    }
+    return shape(row);
+  }
+
+  /** start() without blocking the server while the database answers. */
+  async function startAsync(user, req, res) {
+    const token = randomToken();
+    const now = Date.now();
+    await db.batchAsync([
+      ['INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES(?, ?, ?, ?, ?, ?)',
+        sha256(token), user.id, now + maxAgeSeconds * 1000, now, now, String(req.headers['user-agent'] || '').slice(0, 200)],
+      ['UPDATE users SET last_login = ?, failed_logins = 0, locked_until = NULL WHERE id = ?', new Date(now).toISOString(), user.id],
+    ]);
+    res.setHeader('Set-Cookie', cookieHeader(token, maxAgeSeconds));
   }
 
   function end(req, res) {
@@ -87,7 +122,7 @@ function createSessions({ db, config }) {
     db.run('DELETE FROM sessions WHERE user_id = ? AND token != ?', user.id, user.session_digest || '');
   }
 
-  return { start, identify, end, list, revoke, revokeOthers };
+  return { start, startAsync, identify, identifyAsync, end, list, revoke, revokeOthers };
 }
 
 module.exports = { createSessions, readCookie };

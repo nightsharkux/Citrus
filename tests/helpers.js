@@ -29,8 +29,8 @@ const FAKE_TURSO = path.join(__dirname, 'support', 'fake-turso.cjs');
 const TURSO_TOKEN = 'test-token';
 
 /** Start the stand-in hosted database in its own process; resolves with its address. */
-async function startFakeTurso() {
-  const child = spawn(process.execPath, [FAKE_TURSO, TURSO_TOKEN], { stdio: ['ignore', 'pipe', 'inherit'] });
+async function startFakeTurso({ delayMs = 0 } = {}) {
+  const child = spawn(process.execPath, [FAKE_TURSO, TURSO_TOKEN], { stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, FAKE_TURSO_DELAY_MS: String(delayMs) } });
   const port = await new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('exit', () => reject(new Error('The stand-in database stopped before it was ready')));
@@ -40,8 +40,8 @@ async function startFakeTurso() {
   return { child, url: `http://127.0.0.1:${port}` };
 }
 
-async function startApp({ env = {}, fetchImpl, remote = process.env.CAMPUS_TEST_DB === 'turso' } = {}) {
-  const fake = remote ? await startFakeTurso() : null;
+async function startApp({ env = {}, fetchImpl, remote = process.env.CAMPUS_TEST_DB === 'turso', databaseDelayMs = 0 } = {}) {
+  const fake = remote ? await startFakeTurso({ delayMs: databaseDelayMs }) : null;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-test-'));
   const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', CAMPUS_BUNDLED_KNOWLEDGE: 'off', ...(fake ? { TURSO_DATABASE_URL: fake.url, TURSO_AUTH_TOKEN: TURSO_TOKEN } : {}), ...env };
   const config = loadConfig(fullEnv);

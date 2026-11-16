@@ -194,3 +194,51 @@ test('a student scanning the QR code and answering costs a handful of database c
     await app.close();
   }
 });
+
+test('on a hosted database a class scanning the QR code together is served in parallel, not one student after another', async () => {
+  // Each answer from the (stand-in) hosted database takes 60 ms, like the real one. A server that waits for every
+  // answer with its thread blocked needs about 5 round trips x 60 ms x 15 students = 4.5 s for the class; one that
+  // serves the others meanwhile needs about what one student needs.
+  const app = await startApp({ remote: true, databaseDelayMs: 60 });
+  try {
+    await app.login('admin');
+    const lecturerId = await app.lecturer('prof');
+    const course = await app.call('admin', 'POST', '/api/courses', { title: 'Neural Networks', code: 'NN201' });
+    const courseId = course.body.id;
+    await app.call('admin', 'POST', '/api/admin/assign', { course_id: courseId, lecturer_id: lecturerId });
+    const lecture = await app.call('prof', 'POST', `/api/courses/${courseId}/lectures`, { topic: 'Week 1' });
+    const link = await app.call('prof', 'GET', `/api/live/lectures/${lecture.body.id}/link`);
+    const started = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, lecture_id: lecture.body.id });
+    const sid = started.body.session.id;
+
+    const student = async (n) => {
+      const who = `s${n}`;
+      const steps = [
+        ['POST', '/api/guest', { lecture: link.body.token, name: `Student ${n}` }],
+        ['GET', '/api/bootstrap'],
+        ['POST', '/api/live/join', { token: link.body.token }],
+        ['GET', `/api/live/courses/${courseId}/active`],
+        ['POST', `/api/live/sessions/${sid}/signal`, { level: 1 + (n % 3) }],
+      ];
+      for (const [method, url, body] of steps) {
+        const r = await app.call(who, method, url, body);
+        assert.ok(r.status < 300, `${who} ${method} ${url}: ${r.status} ${JSON.stringify(r.body)}`);
+      }
+    };
+    const started1 = Date.now();
+    await student(0);
+    const one = Date.now() - started1;
+    const startedAll = Date.now();
+    await Promise.all(Array.from({ length: 15 }, (_, i) => student(i + 1)));
+    const all = Date.now() - startedAll;
+    assert.ok(all < one * 4 + 800, `15 students took ${all} ms, one alone ${one} ms: they were served one after another`);
+
+    // And everyone is in: signed up, in the room, answered.
+    const view = await app.call('prof', 'GET', `/api/live/sessions/${sid}`);
+    assert.equal(view.body.present, 16);
+    await new Promise((resolve) => setTimeout(resolve, 1_700));
+    assert.equal((await app.call('prof', 'GET', `/api/live/sessions/${sid}`)).body.pulse.answered, 16);
+  } finally {
+    await app.close();
+  }
+});

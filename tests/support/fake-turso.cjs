@@ -119,7 +119,12 @@ const server = http.createServer((req, res) => {
     if (req.headers.authorization !== `Bearer ${token}`) return send(401, { error: 'Unauthorized' });
     if (req.method !== 'POST' || req.url !== '/v2/pipeline') return send(404, { error: 'Not found' });
     try {
+      // A real database is a network round trip away. FAKE_TURSO_DELAY_MS makes this one answer that much later
+      // (the work itself is done at once, in arrival order), so tests can tell a server that waits for each answer
+      // from one that serves others meanwhile.
       const { status, body } = handle(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+      const delay = Number(process.env.FAKE_TURSO_DELAY_MS || 0);
+      if (delay > 0) return void setTimeout(() => send(status, body), delay);
       send(status, body);
     } catch (error) {
       send(500, { error: error.message });

@@ -49,7 +49,31 @@ async function post(body, at = base, limitMs = timeoutMs - 3000) {
   return JSON.parse(text);
 }
 
+/**
+ * A query the caller does not wait for with its thread blocked (batchAsync): its own stream, closed at the end,
+ * and none of the shared state below, so it can run while another caller's transaction is open.
+ */
+async function handleIsolated(message) {
+  const { id, requests, retry } = message;
+  const body = JSON.stringify({ baton: null, requests: requests.concat([{ type: 'close' }]) });
+  try {
+    let data;
+    try {
+      data = await post(body, url);
+    } catch (error) {
+      const transient = !error.status || error.status >= 500;
+      if (!retry || !transient) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      data = await post(body, url);
+    }
+    return { id, ok: true, results: data.results, streamLost: false };
+  } catch (error) {
+    return { id, ok: false, message: error && error.message ? error.message : String(error) };
+  }
+}
+
 async function handle(message) {
+  if (message.isolated) return handleIsolated(message);
   const { id, requests, keep, retry } = message;
   const body = JSON.stringify({ baton, requests: keep ? requests : requests.concat([{ type: 'close' }]) });
   let data;
@@ -149,6 +173,7 @@ function openRemoteDatabase({ url, authToken }) {
   const endpoint = normalizeUrl(url);
   const token = String(authToken || '');
 
+  let closed = false;
   let worker = null;
   let port = null;
   let signal = null;
@@ -158,11 +183,27 @@ function openRemoteDatabase({ url, authToken }) {
   let pending = [];
   let nextId = 1;
 
+  // Queries sent with batchAsync, waiting for their answer: id → { resolve, reject, timer }.
+  const waiting = new Map();
+
+  /** Hand an answer to the query waiting for it. False when nobody is (it timed out). */
+  function settle(reply) {
+    const w = waiting.get(reply.id);
+    if (!w) return false;
+    waiting.delete(reply.id);
+    clearTimeout(w.timer);
+    if (reply.ok) w.resolve(reply.results);
+    else w.reject(new Error(reply.message));
+    return true;
+  }
+
   function start() {
     const channel = new MessageChannel();
     const flag = new SharedArrayBuffer(4);
     signal = new Int32Array(flag);
     port = channel.port1;
+    port.on('message', settle); // answers to batchAsync arrive here, whenever this thread is free
+    port.unref();
     worker = new Worker(WORKER_SOURCE, {
       eval: true,
       workerData: { port: channel.port2, flag, url: endpoint, authToken: token, timeoutMs: TIMEOUT_MS },
@@ -182,24 +223,38 @@ function openRemoteDatabase({ url, authToken }) {
     }
     old.terminate().catch(() => {});
     pending = [];
+    for (const [id, w] of waiting) {
+      clearTimeout(w.timer);
+      w.reject(new Error('The database connection was reset'));
+      waiting.delete(id);
+    }
     start();
   }
 
-  /** Send requests and block until the worker has the reply. */
+  /**
+   * Send requests and block until the worker has the reply. Answers to queries that were sent without blocking
+   * (batchAsync) may arrive meanwhile: they are handed to their callers, and this keeps waiting for its own.
+   */
   function call(requests, keep, retry) {
+    if (closed) throw new Error('The database connection is closed');
     const id = nextId++;
+    const deadline = Date.now() + TIMEOUT_MS;
     Atomics.store(signal, 0, 0);
     port.postMessage({ id, requests, keep, retry });
-    if (Atomics.wait(signal, 0, 0, TIMEOUT_MS) === 'timed-out') {
-      restart();
-      throw new Error('The database did not answer in time');
+    for (;;) {
+      const left = deadline - Date.now();
+      if (left <= 0) {
+        restart();
+        throw new Error('The database did not answer in time');
+      }
+      Atomics.wait(signal, 0, 0, Math.min(left, 25)); // woken by any answer; the short limit covers a missed wake-up
+      let reply;
+      while ((reply = receiveMessageOnPort(port)?.message)) {
+        if (reply.id === id) return reply;
+        settle(reply);
+      }
+      Atomics.store(signal, 0, 0);
     }
-    let reply;
-    do {
-      reply = receiveMessageOnPort(port)?.message;
-    } while (reply && reply.id !== id);
-    if (!reply) throw new Error('The database connection returned no answer');
-    return reply;
   }
 
   /**
@@ -297,6 +352,40 @@ function openRemoteDatabase({ url, authToken }) {
       return results.map((result) => rowsOf(unwrap(result).result));
     },
 
+    /**
+     * Like batch(), but the caller does not block: other requests are served while the database answers. This is
+     * what lets a whole class arrive at once (a blocking call holds up every other request of the server instance
+     * for its full round trip). Inside a transaction it runs in turn on the transaction's stream.
+     */
+    batchAsync(queries) {
+      if (!queries.length) return Promise.resolve([]);
+      if (closed) return Promise.reject(new Error('The database connection is closed'));
+      if (depth > 0) return Promise.resolve(db.batch(queries));
+      const writes = queries.some(([sql]) => !isRead(sql));
+      const prelude = writes ? [execute('PRAGMA foreign_keys = ON', [], false)] : [];
+      const requests = prelude.concat(queries.map(([sql, ...args]) => execute(sql, args)));
+      const id = nextId++;
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          waiting.delete(id);
+          reject(new Error('The database did not answer in time'));
+        }, TIMEOUT_MS);
+        timer.unref?.();
+        waiting.set(id, {
+          timer,
+          reject,
+          resolve: (results) => {
+            try {
+              resolve(results.slice(prelude.length, prelude.length + queries.length).map((r) => rowsOf(unwrap(r).result)));
+            } catch (error) {
+              reject(error);
+            }
+          },
+        });
+        port.postMessage({ id, requests, keep: false, retry: !writes, isolated: true });
+      });
+    },
+
     /** Run one or more statements that return nothing. Inside a transaction they are sent with the next query. */
     exec(sql) {
       if (depth > 0) {
@@ -334,6 +423,12 @@ function openRemoteDatabase({ url, authToken }) {
     },
 
     close() {
+      closed = true;
+      for (const [id, w] of waiting) {
+        clearTimeout(w.timer);
+        w.reject(new Error('The database connection is closed'));
+        waiting.delete(id);
+      }
       try {
         port.close();
       } catch {

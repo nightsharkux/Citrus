@@ -17,15 +17,19 @@ function createAccess(db) {
   /** Does this user teach (or administer) this course? Decided from the course row, without a query. */
   const teaches = (user, c) => !!c && (user.role === 'admin' || (user.role === 'lecturer' && c.lecturer_id === user.id));
 
-  /** Any course in the user's institution that they teach, administer or are enrolled in. One query. */
-  function course(user, courseId) {
-    const row = db.get(
-      'SELECT c.*, EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = ?) AS access_enrolled FROM courses c WHERE c.id = ? AND c.institution_id = ?',
-      user.id, Number(courseId), user.institution_id,
-    );
+  // The course with whether this user is enrolled in it, in one query (`COURSE_ACCESS_SQL` + 'c.id = ? AND ...').
+  const COURSE_ACCESS_SQL = 'SELECT c.*, EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = ?) AS access_enrolled FROM courses c WHERE ';
+
+  /** The decision of course() for a row read with COURSE_ACCESS_SQL (for callers that wait on the database without blocking). */
+  function courseFromRow(user, row) {
     if (!row) return null;
     const { access_enrolled: enrolled, ...c } = row;
     return teaches(user, c) || enrolled ? c : null;
+  }
+
+  /** Any course in the user's institution that they teach, administer or are enrolled in. One query. */
+  function course(user, courseId) {
+    return courseFromRow(user, db.get(`${COURSE_ACCESS_SQL}c.id = ? AND c.institution_id = ?`, user.id, Number(courseId), user.institution_id));
   }
 
   /** A course the user may manage (its lecturer, or any admin). */
@@ -96,7 +100,7 @@ function createAccess(db) {
     }
   }
 
-  return { isStaff, assistantMessage, course, teachingCourse, teaches, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
+  return { isStaff, assistantMessage, course, courseFromRow, COURSE_ACCESS_SQL, teachingCourse, teaches, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
 }
 
 module.exports = { createAccess };

@@ -55,7 +55,11 @@ const { createTranscripts } = require('./transcript');
 const { pulse, timeline, roughPatches, personalTimeline } = require('./pulse');
 const { createMoments } = require('./moments');
 const { buildFeed } = require('./lectures');
-const { registerLinks, isToken } = require('./links');
+const { registerLinks, isToken, LECTURE_BY_TOKEN, RUNNING_BY_TOKEN } = require('./links');
+
+// The student is in the room: counted once. Whether they show their name starts as they chose in their last lecture.
+const ARRIVE_SQL = 'INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, COALESCE((SELECT CASE WHEN share_name THEN 1 ELSE 0 END FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1), 0))';
+const PRESENT_SQL = 'SELECT COUNT(*) AS n FROM live_attendees WHERE session_id = ?';
 
 const SIGNAL_GAP_MS = 15_000;
 const FLAG_GAP_MS = 8_000;
@@ -296,10 +300,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   function arrive(s, user) {
     if (s.ended || user.role !== 'student') return;
     // One statement: whether to show their name starts as they chose in their last lecture.
-    const r = db.run(
-      'INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, COALESCE((SELECT CASE WHEN share_name THEN 1 ELSE 0 END FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1), 0))',
-      s.id, user.id, isoNow(), user.id,
-    );
+    const r = db.run(ARRIVE_SQL, s.id, user.id, isoNow(), user.id);
     if (r?.changes) bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present: presentCount(s.id) });
   }
   const sharesName = (sessionId, userId) => !!db.get('SELECT share_name FROM live_attendees WHERE session_id = ? AND user_id = ?', sessionId, userId)?.share_name;
@@ -371,7 +372,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const user = ctx.user;
     if (!joinAttempts.hit(user.id)) throw tooMany('Too many tries. Wait a minute and check the code on the screen.');
     const b = await ctx.json();
-    if (b.token !== undefined) return joinByLink(user, b.token);
+    if (b.token !== undefined) return joinByLinkAsync(user, b.token);
     const code = String(b.code ?? '').replace(/\D/g, '');
     if (code.length !== 6) throw badRequest('The code has six digits');
     const s = db.get('SELECT * FROM live_sessions WHERE institution_id = ? AND join_code = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', user.institution_id, code);
@@ -393,6 +394,29 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     else if (!access.course(user, lecture.course_id)) throw forbidden('This QR code is for students of the course');
     const s = links.runningOf(lecture.id);
     if (s) arrive(s, user);
+    return { session: s?.id || null, course_id: lecture.course_id, title: s?.title || lecture.topic, live: !!s };
+  }
+
+  /** joinByLink() without blocking the server while the database answers: two round trips, however many join at once. */
+  async function joinByLinkAsync(user, token) {
+    const gone = () => notFound('This QR code no longer works. Ask your lecturer for the current one.');
+    if (!isToken(token)) throw gone();
+    const [lectures, courses, running] = await db.batchAsync([
+      [LECTURE_BY_TOKEN, String(token)],
+      ['SELECT * FROM courses WHERE id = (SELECT course_id FROM lectures WHERE join_token = ?)', String(token)],
+      [RUNNING_BY_TOKEN, String(token)],
+    ]);
+    const lecture = lectures[0];
+    if (!lecture || lecture.institution_id !== user.institution_id) throw gone();
+    const s = running[0] || null;
+    if (user.role !== 'student') {
+      if (!access.teaches(user, courses[0])) throw forbidden('This QR code is for students of the course');
+    } else {
+      const writes = [['INSERT OR IGNORE INTO enrollments(course_id, user_id) VALUES(?, ?)', lecture.course_id, user.id]];
+      if (s) writes.push([ARRIVE_SQL, s.id, user.id, isoNow(), user.id], [PRESENT_SQL, s.id]);
+      const out = await db.batchAsync(writes);
+      if (s) bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present: out.at(-1)[0].n });
+    }
     return { session: s?.id || null, course_id: lecture.course_id, title: s?.title || lecture.topic, live: !!s };
   }
 
@@ -475,13 +499,43 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     lectures: buildFeed(db, ctx.user, { scope: ctx.query.get('scope') === 'mine' ? 'mine' : 'all' }),
   }));
 
-  router.get('/api/live/courses/:id/active', (ctx) => {
-    const course = access.course(ctx.user, id(ctx.params.id, 'Course'));
+  /**
+   * The lecture of a course that is running now, and for a student their own screen of it (also counting them in the
+   * room the first time). One round trip to the database, without blocking the server: a whole class opens this at
+   * once, and again every few seconds while waiting for the lecture to start.
+   */
+  router.get('/api/live/courses/:id/active', async (ctx) => {
+    const user = ctx.user;
+    const courseId = id(ctx.params.id, 'Course');
+    const running = '(SELECT id FROM live_sessions WHERE course_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1)';
+    const [courseRows, sessionRows, mineRows, flags, presentRows, noteRows, hereRows] = await db.batchAsync([
+      [`${access.COURSE_ACCESS_SQL}c.id = ? AND c.institution_id = ?`, user.id, courseId, user.institution_id],
+      ['SELECT * FROM live_sessions WHERE course_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', courseId],
+      [`SELECT level, created FROM live_signals WHERE session_id = ${running} AND user_id = ? ORDER BY id DESC LIMIT 1`, courseId, user.id],
+      [`SELECT id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ${running} AND user_id = ? ORDER BY id`, courseId, user.id],
+      [`SELECT COUNT(*) AS n FROM live_attendees WHERE session_id = ${running}`, courseId],
+      [`SELECT COUNT(*) AS n FROM live_notes WHERE session_id = ${running}`, courseId],
+      [`SELECT share_name FROM live_attendees WHERE session_id = ${running} AND user_id = ?`, courseId, user.id],
+    ]);
+    const course = access.courseFromRow(user, courseRows[0]);
     if (!course) throw forbidden('Join this course first');
-    const s = activeOf(course.id);
-    if (!s) return { session: null, course: { id: course.id, code: course.code, title: course.title } };
-    const lecturer = access.teaches(ctx.user, course);
-    return { session: publicSession(s), course: { id: course.id, code: course.code, title: course.title }, ...(lecturer ? {} : studentView(s, ctx.user, { arriving: true })) };
+    const head = { id: course.id, code: course.code, title: course.title };
+    const s = sessionRows[0];
+    if (!s) return { session: null, course: head };
+    if (access.teaches(user, course)) return { session: publicSession(s), course: head };
+    let present = presentRows[0].n;
+    let here = hereRows[0] || null;
+    if (!here && !s.ended && user.role === 'student') {
+      const [, count, mine] = await db.batchAsync([
+        [ARRIVE_SQL, s.id, user.id, isoNow(), user.id],
+        [PRESENT_SQL, s.id],
+        ['SELECT share_name FROM live_attendees WHERE session_id = ? AND user_id = ?', s.id, user.id],
+      ]);
+      present = count[0].n;
+      here = mine[0] || null;
+      bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present });
+    }
+    return { session: publicSession(s), course: head, mine: mineRows[0] || null, flags, listening: listening(s), minute: minuteOf(s), present, notes: noteRows[0].n, shareName: !!here?.share_name };
   });
 
   router.get('/api/live/sessions/:id', (ctx) => {
@@ -491,17 +545,31 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     return access.teaches(ctx.user, course) ? lecturerView(s) : studentView(s, ctx.user);
   });
 
+  // Without blocking the server while the database answers, in two round trips: a whole class answers together.
   router.post('/api/live/sessions/:id/signal', async (ctx) => {
     const user = ctx.user;
-    const s = attending(user, ctx.params.id);
+    const sessionId = id(ctx.params.id, 'Lecture');
+    const [sessionRows, courseRows, lastRows] = await db.batchAsync([
+      ['SELECT * FROM live_sessions WHERE id = ? AND institution_id = ?', sessionId, user.institution_id],
+      [`${access.COURSE_ACCESS_SQL}c.id = (SELECT course_id FROM live_sessions WHERE id = ?) AND c.institution_id = ?`, user.id, sessionId, user.institution_id],
+      ['SELECT created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', sessionId, user.id],
+    ]);
+    const s = sessionRows[0];
+    if (!s) throw notFound('Lecture not found');
+    if (!access.courseFromRow(user, courseRows[0])) throw forbidden('Join this course first');
+    if (user.role !== 'student') throw forbidden('Only students of this course can do this');
     if (s.ended) throw conflict('This lecture has ended');
     const b = await ctx.json();
     const level = integer(b.level, { min: 1, max: 3, label: 'Signal' });
-    const last = db.get('SELECT created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', s.id, user.id);
+    const last = lastRows[0];
     if (last && Date.now() - Date.parse(last.created) < SIGNAL_GAP_MS) throw conflict('Wait a few seconds before changing your answer.');
     const created = isoNow();
-    db.insert('INSERT INTO live_signals(session_id, user_id, level, created) VALUES(?, ?, ?, ?)', s.id, user.id, level, created);
-    arrive(s, user);
+    const out = await db.batchAsync([
+      ['INSERT INTO live_signals(session_id, user_id, level, created) VALUES(?, ?, ?, ?)', s.id, user.id, level, created],
+      [ARRIVE_SQL, s.id, user.id, isoNow(), user.id],
+      [PRESENT_SQL, s.id],
+    ]);
+    bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present: out[2][0].n });
     announce(s);
     return { level, label: LEVELS[level], created };
   });

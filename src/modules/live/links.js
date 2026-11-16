@@ -18,6 +18,10 @@ const { forbidden, notFound, tooMany } = require('../../http/errors');
 const { createRateLimiter } = require('../../http/rate-limit');
 
 const TOKEN = /^[A-Za-z0-9_-]{12}$/;
+// The lecture behind a link (with its course and university), and the lecture's running session, by the token alone.
+const LECTURE_BY_TOKEN = `SELECT l.*, c.code AS course_code, c.title AS course_title, c.institution_id FROM lectures l JOIN courses c ON c.id = l.course_id
+       WHERE l.join_token = ?`;
+const RUNNING_BY_TOKEN = 'SELECT * FROM live_sessions WHERE lecture_id = (SELECT id FROM lectures WHERE join_token = ?) AND ended IS NULL ORDER BY id DESC LIMIT 1';
 const newToken = () => crypto.randomBytes(9).toString('base64url');
 const isToken = (value) => TOKEN.test(String(value || ''));
 
@@ -25,11 +29,13 @@ function createLinks({ db }) {
   /** The lecture behind a link, with its course and university, or null. */
   function lectureOf(token) {
     if (!isToken(token)) return null;
-    return db.get(
-      `SELECT l.*, c.code AS course_code, c.title AS course_title, c.institution_id FROM lectures l JOIN courses c ON c.id = l.course_id
-       WHERE l.join_token = ?`,
-      String(token),
-    ) || null;
+    return db.get(LECTURE_BY_TOKEN, String(token)) || null;
+  }
+
+  /** lectureOf() without blocking the server while the database answers. */
+  async function lectureOfAsync(token) {
+    if (!isToken(token)) return null;
+    return (await db.batchAsync([[LECTURE_BY_TOKEN, String(token)]]))[0][0] || null;
   }
 
   /** The lecture's link token, made now when it has none yet. */
@@ -50,7 +56,7 @@ function createLinks({ db }) {
   const pathFor = (lectureId) => `/join/${tokenFor(lectureId)}`;
   const runningOf = (lectureId) => db.get('SELECT * FROM live_sessions WHERE lecture_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', lectureId);
 
-  return { lectureOf, tokenFor, pathFor, runningOf };
+  return { lectureOf, lectureOfAsync, tokenFor, pathFor, runningOf };
 }
 
 function registerLinks(router, { db, access }) {
@@ -83,18 +89,20 @@ function registerLinks(router, { db, access }) {
   });
 
   /** For the join page before anyone signs in: only what the QR code's own screen shows. */
-  router.get('/api/live/links/:token', (ctx) => {
+  router.get('/api/live/links/:token', async (ctx) => {
     if (!lookups.hit(`link:${ctx.ip}`)) throw tooMany('Too many tries. Wait a minute and scan the code again.');
-    const lecture = links.lectureOf(ctx.params.token);
+    const token = String(ctx.params.token);
+    const [lectures, running] = isToken(token) ? await db.batchAsync([[LECTURE_BY_TOKEN, token], [RUNNING_BY_TOKEN, token]]) : [[], []];
+    const lecture = lectures[0];
     if (!lecture) throw notFound('This QR code no longer works. Ask your lecturer for the current one.');
     return {
       lecture: { title: lecture.topic, starts: lecture.starts || null, ends: lecture.ends || null, room: lecture.room || '' },
       course: { code: lecture.course_code, title: lecture.course_title },
-      live: !!links.runningOf(lecture.id),
+      live: running.length > 0,
     };
   }, { auth: 'public' });
 
   return links;
 }
 
-module.exports = { createLinks, registerLinks, isToken };
+module.exports = { createLinks, registerLinks, isToken, LECTURE_BY_TOKEN, RUNNING_BY_TOKEN };

@@ -38,9 +38,9 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
   };
 
   // The first request of every visit: its reads go together in one round trip to the database.
-  router.get('/api/bootstrap', (ctx) => {
+  router.get('/api/bootstrap', async (ctx) => {
     const user = ctx.user;
-    const [institutions, admins, unread] = db.batch([
+    const [institutions, admins, unread] = await db.batchAsync([
       ['SELECT id, name, slug FROM institutions ORDER BY id'],
       ["SELECT 1 AS yes FROM users WHERE role = 'admin' LIMIT 1"],
       ['SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0', user?.id || 0],
@@ -100,19 +100,22 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     const b = await ctx.json();
     // A lecture's own university is known from the lecture; otherwise the first one (one lookup that also tells
     // whether there is a university at all).
-    const lecture = b.lecture ? links.lectureOf(b.lecture) : null;
+    const lecture = b.lecture ? await links.lectureOfAsync(b.lecture) : null;
     if (b.lecture && !lecture) throw notFound('This QR code no longer works. Ask your lecturer for the current one.');
-    const institutionId = lecture ? lecture.institution_id : db.get('SELECT id FROM institutions ORDER BY id LIMIT 1')?.id;
+    const institutionId = lecture ? lecture.institution_id : (await db.batchAsync([['SELECT id FROM institutions ORDER BY id LIMIT 1']]))[0][0]?.id;
     if (!institutionId) throw forbidden('Guest access is switched off.');
     const allowed = lecture ? hallLimiter.hit(`guest:${ctx.ip}:${lecture.id}`) : ipLimiter.hit(`guest:${ctx.ip}`);
     if (!allowed) throw tooMany('Too many guest sessions from this network. Please wait a few minutes.');
     const name = text(b.name, { max: 60, optional: true, label: 'Name' }).replace(/\s+/g, ' ') || 'Guest';
-    const userId = db.insert(
-      "INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
-      institutionId, name, `guest-${randomToken(6)}@guest.invalid`, new Date().toISOString(),
-    );
-    const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
-    sessions.start(user, ctx.req, ctx.res);
+    // Without blocking the server while the database answers: a class scanning the QR code together is served at once.
+    const email = `guest-${randomToken(6)}@guest.invalid`;
+    const [, rows] = await db.batchAsync([
+      ["INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
+        institutionId, name, email, new Date().toISOString()],
+      ['SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.institution_id = ? AND u.email = ?', institutionId, email],
+    ]);
+    const user = rows[0];
+    await sessions.startAsync(user, ctx.req, ctx.res);
     ctx.status = 201;
     return { user: publicUser({ ...user, preferences: {} }) };
   }, { auth: 'public' });
