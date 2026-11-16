@@ -22,6 +22,7 @@ import { createCaptioner, speak, stopSpeaking, voiceProblem, setRecognitionLectu
 import { wakeMatcher } from '../features/wake-phrase.js';
 import { notePitch } from '../features/pitch.js';
 import { time } from '../core/format.js';
+import { openLectureQr, showProjector } from '../features/lecture-qr.js';
 
 const SIGNALS = [
   [1, 'Following', 'I understand', 'check-circle'],
@@ -43,7 +44,6 @@ const STATUS = {
 const isLecturer = () => session.user.role !== 'student';
 const minutesSince = (iso) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
 const spacedCode = (code) => (code ? `${code.slice(0, 3)} ${code.slice(3)}` : '');
-const joinLink = (code) => `${location.origin}/join/${code}`;
 
 export default {
   title: 'Live lecture',
@@ -306,7 +306,7 @@ function start(d) {
   return html`${pageHead({ back: { href: `/courses/${d.courseId}`, label: 'Course' }, title: 'Start a live lecture', subtitle: course ? `${course.code} · ${course.title}` : '' })}
     <div class="live-start">
       <ol class="live-steps">
-        <li><span class="step-n">1</span><div><strong>Start and show the code</strong><p class="small muted">A six-digit code appears. Put it on the projector; students type it on their phones.</p></div></li>
+        <li><span class="step-n">1</span><div><strong>Start and show the code</strong><p class="small muted">A QR code and a six-digit code appear. Put them on the projector: students scan the QR code with their phone camera, no account needed, or type the code.</p></div></li>
         <li><span class="step-n">2</span><div><strong>Students tell you how it’s going</strong><p class="small muted">Following, unsure or lost, and flags on the moments they need help with. You see totals, never names.</p></div></li>
         <li><span class="step-n">3</span><div><strong>${name} listens and helps</strong><p class="small muted">Turn on listening. Ask “Hey ${name}, explain the last thing I said”, and students can ask ${name} privately.</p></div></li>
       </ol>
@@ -384,6 +384,7 @@ function liveBar(view) {
     <button class="live-code" data-show-code title="Show the code full screen" aria-label="Join code ${s.joinCode}. Show full screen">${icon('maximize', 15)} Code <b class="mono">${spacedCode(s.joinCode)}</b></button>
     <span class="chip" data-present>${icon('users', 13)} <span data-present-n>${view.present}</span> in the room</span>
     <span class="live-bar-actions">
+      <button class="btn btn-sm" data-qr title="The QR code to scan, print or download">${icon('qr', 15)} <span>QR code</span></button>
       <button class="btn btn-sm" data-present-notes title="Show your notes full screen, with the tools at the bottom">${icon('maximize', 15)} <span>Full screen</span></button>
       <button class="btn btn-sm btn-primary" data-listen ${voiceProblem() ? 'disabled' : ''}>${icon('mic', 15)} <span>Start listening</span></button>
       <button class="btn btn-sm btn-ghost" data-end>${icon('stop', 15)} End</button>
@@ -395,7 +396,7 @@ function lecturerScreen(view) {
   const name = assistantName();
   const quiet = !view.present && !view.pulse.answered && !view.flags.length;
   return html`${liveBar(view)}
-    ${quiet ? html`<div class="notice accent live-first" data-first>${icon('presentation', 18)}<span><strong>Show the code ${spacedCode(view.session.joinCode)} on the projector.</strong> Students open Campus OS, tap <b>Join lecture</b> and type it, or go to <span class="mono">${location.host}/join</span>. Then turn on listening so ${name} can follow.</span><button class="btn btn-sm" data-show-code>Show full screen</button></div>` : ''}
+    ${quiet ? html`<div class="notice accent live-first" data-first>${icon('presentation', 18)}<span><strong>Show the QR code and the code ${spacedCode(view.session.joinCode)} on the projector.</strong> Students scan it with their phone camera, no account needed, or tap <b>Join lecture</b> in Campus OS and type the code. Then turn on listening so ${name} can follow.</span><button class="btn btn-sm" data-show-code>Show full screen</button></div>` : ''}
     <div class="live-grid">
       <div class="stack">
         <section class="card">
@@ -436,29 +437,9 @@ function islandStatus(p, flagCount) {
   return html`<span class="dot is-${p.status}"></span><span>${p.answered ? `${p.following} following · ${p.unsure} unsure · ${p.lost} lost` : 'Waiting for answers'}</span>${flagCount ? html`<span class="chip accent">${icon('flag', 12)} ${flagCount}</span>` : ''}`;
 }
 
-/** The join code, big enough for the back row. */
+/** The lecture's QR code and the join code, big enough for the back row. */
 function showCode(view, present, parent = document.body) {
-  const code = view.session.joinCode;
-  const el = document.createElement('div');
-  el.className = 'live-projector';
-  el.setAttribute('role', 'dialog');
-  el.setAttribute('aria-label', 'Join code');
-  render(el, html`<button class="btn btn-ghost live-projector-close" data-close aria-label="Close">${icon('x', 22)}</button>
-    <p class="live-projector-title">${view.session.title}</p>
-    <p class="live-projector-lead">Join on your phone: open Campus OS, tap <b>Join lecture</b> and type</p>
-    <p class="live-projector-code mono">${spacedCode(code)}</p>
-    <p class="live-projector-lead">or go to <b class="mono">${location.host}/join/${code}</b></p>
-    <p class="live-projector-count"><span data-projector-n>${present}</span> in the room</p>`);
-  parent.append(el);
-  const close = () => {
-    el.remove();
-    document.removeEventListener('keydown', key);
-  };
-  const key = (e) => e.key === 'Escape' && close();
-  document.addEventListener('keydown', key);
-  el.addEventListener('click', (e) => e.target.closest('[data-close]') && close());
-  if (parent === document.body) el.requestFullscreen?.().catch(() => {}); // inside the notes viewer it already is
-  return { el, close };
+  return showProjector({ title: view.session.title, url: `${location.origin}${view.session.joinLink}`, code: view.session.joinCode, present, parent });
 }
 
 function mountLecturer(root, d, ctx) {
@@ -694,6 +675,15 @@ function mountLecturer(root, d, ctx) {
     on(root, 'click', '[data-show-code]', () => {
       projector?.close();
       projector = showCode(view, present);
+    }),
+    on(root, 'click', '[data-qr]', () => {
+      const project = () => {
+        projector?.close();
+        projector = showCode(view, present);
+      };
+      // Sessions from before lectures had links have only the six-digit code.
+      if (!view.session.lecture_id) project();
+      else openLectureQr({ lectureId: view.session.lecture_id, onShow: project, onChange: (link) => { view.session.joinLink = link.path; } });
     }),
     on(root, 'click', '[data-stuck]', () => ask.ask('What are students stuck on so far? Group the flags and tell me what to re-explain first.')),
     on(root, 'click', '[data-add-notes]', () => picker.click()),

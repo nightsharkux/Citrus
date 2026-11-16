@@ -5,7 +5,7 @@
  *   title: string | (data, ctx) => string,
  *   roles?: ['student' | 'lecturer' | 'admin'],
  *   public?: true,                   // reachable when signed out
- *   layout?: 'wide' | 'full',
+ *   layout?: 'wide' | 'full' | (session) => 'wide' | 'full' | '',
  *   load?(ctx) => Promise<data>,
  *   render(data, ctx) => template,
  *   mount?(root, data, ctx) => cleanup?,
@@ -89,7 +89,7 @@ async function renderRoute({ scroll = false, soft = false } = {}) {
 
   viewEl = document.getElementById('view');
   if (!viewEl) return;
-  viewEl.className = `view ${module.layout || ''}`;
+  viewEl.className = `view ${(typeof module.layout === 'function' ? module.layout(session) : module.layout) || ''}`;
 
   const offs = [];
   const ctx = {

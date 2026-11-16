@@ -31,7 +31,7 @@ export default {
             <button class="btn ${session.sso.enabled ? '' : 'btn-primary'} btn-lg btn-block">Sign in</button>
           </form>
           ${session.guests ? html`<button type="button" class="btn btn-block mt-16" id="guest-btn">Continue as guest</button>` : ''}
-          ${session.registration ? html`<p class="center small muted mt-24">New here? <a href="/register">Create an account</a></p>` : ''}
+          ${session.registration ? html`<p class="center small muted mt-24">New here? <a href="/register${ctx.query.get('return') ? `?return=${encodeURIComponent(ret)}` : ''}">Create an account</a></p>` : ''}
         </div>
       </div>`;
   },

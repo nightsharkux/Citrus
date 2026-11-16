@@ -38,13 +38,13 @@ export default {
         </div>
       </div>`;
   },
-  mount(root) {
+  mount(root, _, ctx) {
     const form = $('#register-form', root);
     if (!form) return;
     onSubmit(form, async (values) => {
       await api.post('/register', { ...values, institution_id: values.institution_id ? Number(values.institution_id) : undefined });
       if (values.role === 'lecturer') toast('Lecturer access requested — an administrator will review it.', 'info', { duration: 5000 });
-      await enterApp('/home');
+      await enterApp(ctx.query.get('return') || '/home'); // back to the lecture a QR code opened
     });
   },
 };

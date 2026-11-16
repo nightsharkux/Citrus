@@ -6,9 +6,11 @@ import { live } from './core/live.js';
 import { registerRoutes } from './routes.js';
 import { mountApp, mountPublic, setTheme } from './shell.js';
 import { startTranslating, syncFromUser } from './core/i18n.js';
+import { watchDates } from './features/date-picker.js';
 
 async function boot() {
   registerRoutes();
+  watchDates(document.body); // dates are picked in the Campus OS look, not the browser's
 
   let data = {};
   try {

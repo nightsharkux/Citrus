@@ -263,6 +263,9 @@ State-changing browser requests must be same-origin (CSRF protection).
 
 | Method | Path | Auth | Roles |
 |---|---|---|---|
+| GET | `/api/live/lectures/:id/link` | user | any |
+| POST | `/api/live/lectures/:id/link` | user | any |
+| GET | `/api/live/links/:token` | public | any |
 | POST | `/api/live/sessions` | user | any |
 | POST | `/api/live/join` | user | any |
 | GET | `/api/live/mine` | user | any |
