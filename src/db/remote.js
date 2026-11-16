@@ -31,12 +31,12 @@ const signal = new Int32Array(flag);
 let baton = null;
 let base = url;
 
-async function post(body) {
-  const response = await fetch(base + '/v2/pipeline', {
+async function post(body, at = base, limitMs = timeoutMs - 3000) {
+  const response = await fetch(at + '/v2/pipeline', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + authToken },
     body,
-    signal: AbortSignal.timeout(timeoutMs - 3000),
+    signal: AbortSignal.timeout(limitMs),
   });
   const text = await response.text();
   if (!response.ok) {
@@ -63,7 +63,16 @@ async function handle(message) {
       data = await post(body);
     }
   } catch (error) {
-    if (!keep) { baton = null; base = url; }
+    // The caller treats the stream as gone after any failure, so forget it here too: a stale baton would send the
+    // next request into a stream that no longer exists ("stream not found"), or into an unfinished transaction.
+    // And close it on the server: closing a stream ends its unfinished transaction, which would otherwise hold the
+    // write lock (and make every other instance wait) until the server gave up on it.
+    const staleBaton = baton;
+    const staleBase = base;
+    baton = null; base = url;
+    if (staleBaton) {
+      try { await post(JSON.stringify({ baton: staleBaton, requests: [{ type: 'close' }] }), staleBase, 3000); } catch {}
+    }
     return { id, ok: false, message: error && error.message ? error.message : String(error) };
   }
   let streamLost = false;

@@ -16,6 +16,8 @@ const { DatabaseSync } = require('node:sqlite');
 const token = process.argv[2] || 'test-token';
 const db = new DatabaseSync(':memory:');
 const batons = new Set();
+// Like a real server, closing a stream ends the transaction it started (here there is one connection for all).
+let transactionOf = null;
 let counter = 0;
 
 function decode(value) {
@@ -65,6 +67,14 @@ function handle(body) {
   let closed = false;
   for (const request of body.requests) {
     try {
+      if (request.type === 'execute' && /^\s*BEGIN\b/i.test(request.stmt.sql)) {
+        if (!baton) {
+          counter += 1;
+          baton = `baton-${counter}`;
+          batons.add(baton);
+        }
+        transactionOf = baton;
+      }
       if (request.type === 'execute') results.push({ type: 'ok', response: { type: 'execute', result: execute(request.stmt) } });
       else if (request.type === 'sequence') {
         db.exec(request.sql);
@@ -79,6 +89,14 @@ function handle(body) {
   }
   if (closed) {
     if (baton) batons.delete(baton);
+    if (baton && transactionOf === baton) {
+      transactionOf = null;
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        /* it was committed */
+      }
+    }
     baton = null;
   } else {
     if (!baton) {

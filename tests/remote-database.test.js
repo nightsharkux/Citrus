@@ -148,3 +148,37 @@ test('reads go without the foreign key setting (it doubled every query on Turso)
     fake.child.kill();
   }
 });
+
+test('after a transaction fails on the way to the database, the next query starts a new stream', async () => {
+  const { spawn } = require('node:child_process');
+  const fake = await startFakeTurso();
+  // Fails the request that writes 'boom' (inside a transaction) with a server error; passes everything else on.
+  const script = `const http = require('node:http'); const sent = [];
+    const s = http.createServer(async (req, res) => {
+      if (req.url === '/__sent') { res.end(JSON.stringify(sent.splice(0))); return; }
+      const chunks = []; for await (const c of req) chunks.push(c); const body = Buffer.concat(chunks).toString(); sent.push(body);
+      if (body.includes('boom')) { res.writeHead(502, { 'content-type': 'application/json' }); res.end('{"error":"bad gateway"}'); return; }
+      const r = await fetch(process.argv[1] + req.url, { method: req.method, headers: { 'content-type': 'application/json', authorization: req.headers.authorization || '' }, body: req.method === 'GET' ? undefined : body });
+      res.writeHead(r.status, { 'content-type': 'application/json' }); res.end(await r.text());
+    });
+    s.listen(0, '127.0.0.1', () => console.log(s.address().port));`;
+  const child = spawn(process.execPath, ['-e', script, fake.url], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const port = await new Promise((resolve) => child.stdout.once('data', (chunk) => resolve(String(chunk).trim())));
+  const proxy = `http://127.0.0.1:${port}`;
+  const db = openRemoteDatabase({ url: proxy, authToken: TURSO_TOKEN });
+  try {
+    db.exec('CREATE TABLE t(name TEXT)');
+    assert.throws(() => db.transaction(() => {
+      db.run("INSERT INTO t(name) VALUES('fine')");
+      db.run("INSERT INTO t(name) VALUES('boom')");
+    }), /502/);
+    await (await fetch(`${proxy}/__sent`)).json();
+    assert.equal(db.get('SELECT COUNT(*) AS n FROM t').n, 0, 'the failed transaction left nothing, and the next query works');
+    const [next] = await (await fetch(`${proxy}/__sent`)).json();
+    assert.equal(JSON.parse(next).baton, null, 'on a new stream, not the one that failed');
+  } finally {
+    db.close();
+    child.kill();
+    fake.child.kill();
+  }
+});
