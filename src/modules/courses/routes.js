@@ -9,7 +9,7 @@
 const { text, id, integer, oneOf, clamp } = require('../../lib/validate');
 const { badRequest, forbidden, notFound, conflict } = require('../../http/errors');
 const { ROOM_STATUSES } = require('../../services/rooms');
-const { registerSections, sessionsByLecture } = require('./sections');
+const { registerSections, SESSIONS_BY_LECTURE, sessionMap } = require('./sections');
 const { registerProgress } = require('./progress');
 
 /**
@@ -35,31 +35,30 @@ function register(router, { db, access, bus, notifier, audit, rooms, blobs }) {
 
   /** Full course view for one user; polls hide the correct answer from students until they answer. */
   function snapshot(user, course) {
-    const isTeacher = !!access.teachingCourse(user, course.id);
-    const lectures = db.all('SELECT * FROM lectures WHERE course_id = ? ORDER BY id DESC', course.id);
-    const topics = db.all('SELECT t.* FROM topics t JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? ORDER BY t.id', course.id);
-    const counts = db.all(
-      `SELECT r.topic_id, r.level, COUNT(*) n FROM responses r JOIN topics t ON t.id = r.topic_id JOIN lectures l ON l.id = t.lecture_id
-       WHERE l.course_id = ? GROUP BY r.topic_id, r.level`, course.id,
-    );
-    const mine = new Map(db.all(
-      'SELECT r.topic_id, r.level FROM responses r JOIN topics t ON t.id = r.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? AND r.user_id = ?',
-      course.id, user.id,
-    ).map((r) => [r.topic_id, r.level]));
-    const polls = db.all('SELECT p.* FROM polls p JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? ORDER BY p.id DESC', course.id);
-    const myAnswers = new Map(db.all(
-      'SELECT pa.poll_id, pa.answer FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? AND pa.user_id = ?',
-      course.id, user.id,
-    ).map((a) => [a.poll_id, a.answer]));
-    const answerStats = new Map(db.all(
-      `SELECT pa.poll_id, COUNT(*) total, SUM(CASE WHEN pa.answer = p.correct THEN 1 ELSE 0 END) correct
-       FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id
-       WHERE l.course_id = ? GROUP BY pa.poll_id`, course.id,
-    ).map((s) => [s.poll_id, s]));
-    const distribution = isTeacher ? db.all(
-      `SELECT pa.poll_id, pa.answer, COUNT(*) n FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id
-       WHERE l.course_id = ? GROUP BY pa.poll_id, pa.answer`, course.id,
-    ) : [];
+    const isTeacher = access.teaches(user, course);
+    // Every read of the page in one round trip to the database (each is about 50 ms on the hosted one).
+    const [lectures, topics, counts, mineRows, polls, answerRows, statRows, distributionRows, lecturerRows, enrolledRows, sessionRows] = db.batch([
+      ['SELECT * FROM lectures WHERE course_id = ? ORDER BY id DESC', course.id],
+      ['SELECT t.* FROM topics t JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? ORDER BY t.id', course.id],
+      [`SELECT r.topic_id, r.level, COUNT(*) n FROM responses r JOIN topics t ON t.id = r.topic_id JOIN lectures l ON l.id = t.lecture_id
+        WHERE l.course_id = ? GROUP BY r.topic_id, r.level`, course.id],
+      ['SELECT r.topic_id, r.level FROM responses r JOIN topics t ON t.id = r.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? AND r.user_id = ?', course.id, user.id],
+      ['SELECT p.* FROM polls p JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? ORDER BY p.id DESC', course.id],
+      ['SELECT pa.poll_id, pa.answer FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id WHERE l.course_id = ? AND pa.user_id = ?', course.id, user.id],
+      [`SELECT pa.poll_id, COUNT(*) total, SUM(CASE WHEN pa.answer = p.correct THEN 1 ELSE 0 END) correct
+        FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id
+        WHERE l.course_id = ? GROUP BY pa.poll_id`, course.id],
+      // How the class answered each poll: for the lecturer only (an empty result for students).
+      [`SELECT pa.poll_id, pa.answer, COUNT(*) n FROM poll_answers pa JOIN polls p ON p.id = pa.poll_id JOIN topics t ON t.id = p.topic_id JOIN lectures l ON l.id = t.lecture_id
+        WHERE l.course_id = ? AND ? GROUP BY pa.poll_id, pa.answer`, course.id, isTeacher ? 1 : 0],
+      ['SELECT name FROM users WHERE id = ?', course.lecturer_id || 0],
+      ['SELECT COUNT(*) n FROM enrollments WHERE course_id = ?', course.id],
+      [SESSIONS_BY_LECTURE, course.id],
+    ]);
+    const mine = new Map(mineRows.map((r) => [r.topic_id, r.level]));
+    const myAnswers = new Map(answerRows.map((a) => [a.poll_id, a.answer]));
+    const answerStats = new Map(statRows.map((s) => [s.poll_id, s]));
+    const distribution = isTeacher ? distributionRows : [];
 
     const shapePoll = (p) => {
       const myAnswer = myAnswers.has(p.id) ? myAnswers.get(p.id) : null;
@@ -84,9 +83,9 @@ function register(router, { db, access, bus, notifier, audit, rooms, blobs }) {
       return { ...t, counts: c, myLevel: mine.get(t.id) || null, polls: polls.filter((p) => p.topic_id === t.id).map(shapePoll) };
     };
 
-    const lecturer = course.lecturer_id ? db.get('SELECT name FROM users WHERE id = ?', course.lecturer_id)?.name : null;
-    const enrolled = db.get('SELECT COUNT(*) n FROM enrollments WHERE course_id = ?', course.id).n;
-    const sessions = sessionsByLecture(db, course.id);
+    const lecturer = course.lecturer_id ? lecturerRows[0]?.name || null : null;
+    const enrolled = enrolledRows[0].n;
+    const sessions = sessionMap(sessionRows);
     return {
       course: { ...course, lecturer, enrolled },
       isTeacher,

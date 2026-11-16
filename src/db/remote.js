@@ -239,15 +239,19 @@ function openRemoteDatabase({ url, authToken }) {
     return result.response;
   }
 
+  const rowsOf = ({ rows, cols }) => {
+    const names = cols.map((c) => c.name);
+    return rows.map((row) => Object.fromEntries(names.map((name, i) => [name, decodeValue(row[i])])));
+  };
+
   function query(sql, args) {
     const queued = pending;
     pending = [];
     const results = exchange(queued.concat(execute(sql, args)), { keep: depth > 0, retry: depth === 0 && isRead(sql) });
     for (const result of results.slice(0, -1)) unwrap(result);
-    const { rows: raw, cols, affected_row_count: changes, last_insert_rowid: lastId } = unwrap(results[results.length - 1]).result;
-    const names = cols.map((c) => c.name);
-    const rows = raw.map((row) => Object.fromEntries(names.map((name, i) => [name, decodeValue(row[i])])));
-    return { rows, changes: Number(changes || 0), lastInsertRowid: lastId == null ? 0 : Number(lastId) };
+    const out = unwrap(results[results.length - 1]).result;
+    const { affected_row_count: changes, last_insert_rowid: lastId } = out;
+    return { rows: rowsOf(out), changes: Number(changes || 0), lastInsertRowid: lastId == null ? 0 : Number(lastId) };
   }
 
   function flush() {
@@ -271,6 +275,18 @@ function openRemoteDatabase({ url, authToken }) {
       all: (...args) => db.all(sql, ...args),
       run: (...args) => db.run(sql, ...args),
     }),
+
+    /**
+     * Several queries in one round trip: [[sql, ...args], …] → the rows of each, in order. Every query is a round
+     * trip to the hosted database (about 50 ms), so the independent reads of a page go together. Inside a
+     * transaction they run in turn on its stream.
+     */
+    batch(queries) {
+      if (!queries.length) return [];
+      if (depth > 0) return queries.map(([sql, ...args]) => query(sql, args).rows);
+      const results = exchange(queries.map(([sql, ...args]) => execute(sql, args)), { retry: queries.every(([sql]) => isRead(sql)) });
+      return results.map((result) => rowsOf(unwrap(result).result));
+    },
 
     /** Run one or more statements that return nothing. Inside a transaction they are sent with the next query. */
     exec(sql) {

@@ -14,13 +14,18 @@ function createAccess(db) {
       WHERE m.id = ? AND m.role = 'assistant' AND t.user_id = ? AND u.institution_id = ?`, Number(messageId), user.id, user.institution_id) || null;
   }
 
-  /** Any course in the user's institution that they teach, administer or are enrolled in. */
+  /** Does this user teach (or administer) this course? Decided from the course row, without a query. */
+  const teaches = (user, c) => !!c && (user.role === 'admin' || (user.role === 'lecturer' && c.lecturer_id === user.id));
+
+  /** Any course in the user's institution that they teach, administer or are enrolled in. One query. */
   function course(user, courseId) {
-    const c = db.get('SELECT * FROM courses WHERE id = ? AND institution_id = ?', Number(courseId), user.institution_id);
-    if (!c) return null;
-    if (user.role === 'admin') return c;
-    if (user.role === 'lecturer' && c.lecturer_id === user.id) return c;
-    return db.get('SELECT 1 FROM enrollments WHERE course_id = ? AND user_id = ?', c.id, user.id) ? c : null;
+    const row = db.get(
+      'SELECT c.*, EXISTS(SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = ?) AS access_enrolled FROM courses c WHERE c.id = ? AND c.institution_id = ?',
+      user.id, Number(courseId), user.institution_id,
+    );
+    if (!row) return null;
+    const { access_enrolled: enrolled, ...c } = row;
+    return teaches(user, c) || enrolled ? c : null;
   }
 
   /** A course the user may manage (its lecturer, or any admin). */
@@ -91,7 +96,7 @@ function createAccess(db) {
     }
   }
 
-  return { isStaff, assistantMessage, course, teachingCourse, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
+  return { isStaff, assistantMessage, course, teachingCourse, teaches, isEnrolled, lecture, topic, workspace, workspaceMember, workspaceOwner, teachesWorkspace, canSee };
 }
 
 module.exports = { createAccess };

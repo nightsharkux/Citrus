@@ -37,20 +37,25 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     return db.get('SELECT id FROM institutions ORDER BY id LIMIT 1')?.id;
   };
 
+  // The first request of every visit: its reads go together in one round trip to the database.
   router.get('/api/bootstrap', (ctx) => {
     const user = ctx.user;
-    const institutions = db.all('SELECT id, name, slug FROM institutions ORDER BY id');
+    const [institutions, admins, unread] = db.batch([
+      ['SELECT id, name, slug FROM institutions ORDER BY id'],
+      ["SELECT 1 AS yes FROM users WHERE role = 'admin' LIMIT 1"],
+      ['SELECT COUNT(*) n FROM notifications WHERE user_id = ? AND read = 0', user?.id || 0],
+    ]);
     const firstInstitution = institutions[0]?.id;
     return {
       user: publicUser(user),
       institutions,
-      configured: !!db.get("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1"),
+      configured: admins.length > 0,
       site: publicSite(config.site),
       sso: { enabled: oidc.enabled(), label: oidc.label() },
       durable: config.persistence.durable,
-      guests: guestsAllowed(),
+      guests: guestsOn() && institutions.length > 0,
       registration: firstInstitution ? settings.get(user?.institution_id || firstInstitution, 'allowRegistration') : false,
-      ...(user ? { ai: ai.status(user), unread: notifier.unread(user.id) } : {}),
+      ...(user ? { ai: ai.status(user), unread: unread[0].n } : {}),
     };
   }, { auth: 'public' });
 
@@ -88,7 +93,8 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
   // Guests: try the app without an account. A guest is a student with a throwaway account, retired after a month idle.
   //   { lecture, name }  from a lecture's QR code (live/links.js): the guest belongs to that lecture's university and
   //   may give a name. A whole lecture hall shares one network address, so those have a limit per lecture instead.
-  const guestsAllowed = () => !['off', '0', 'false', 'no'].includes(String(process.env.CAMPUS_GUESTS || '').toLowerCase()) && !!db.get('SELECT id FROM institutions LIMIT 1');
+  const guestsOn = () => !['off', '0', 'false', 'no'].includes(String(process.env.CAMPUS_GUESTS || '').toLowerCase());
+  const guestsAllowed = () => guestsOn() && !!db.get('SELECT id FROM institutions LIMIT 1');
   router.post('/api/guest', async (ctx) => {
     if (!guestsAllowed()) throw forbidden('Guest access is switched off.');
     const b = await ctx.json();

@@ -39,14 +39,10 @@ const SAFE_TYPES = /^(application\/(pdf|msword|vnd\.[\w.+-]+|zip|json|x-ipynb\+j
  * Each lecture of a course with its running session and its last one, in one query: a query per lecture costs a
  * round trip to the hosted database each, which made the course page slower with every lecture.
  */
-function sessionsByLecture(db, courseId) {
-  const rows = db.all(
-    `SELECT s.lecture_id, MAX(s.id) AS last, MAX(CASE WHEN s.ended IS NULL THEN s.id END) AS live
-     FROM live_sessions s JOIN lectures l ON l.id = s.lecture_id WHERE l.course_id = ? GROUP BY s.lecture_id`,
-    courseId,
-  );
-  return new Map(rows.map((r) => [r.lecture_id, { live: r.live || null, last: r.last || null }]));
-}
+const SESSIONS_BY_LECTURE = `SELECT s.lecture_id, MAX(s.id) AS last, MAX(CASE WHEN s.ended IS NULL THEN s.id END) AS live
+  FROM live_sessions s JOIN lectures l ON l.id = s.lecture_id WHERE l.course_id = ? GROUP BY s.lecture_id`;
+const sessionMap = (rows) => new Map(rows.map((r) => [r.lecture_id, { live: r.live || null, last: r.last || null }]));
+const sessionsByLecture = (db, courseId) => sessionMap(db.all(SESSIONS_BY_LECTURE, courseId));
 
 function registerSections(router, { db, access, bus, blobs = { enabled: false } }) {
   const now = () => new Date().toISOString();
@@ -107,13 +103,18 @@ function registerSections(router, { db, access, bus, blobs = { enabled: false } 
 
   router.get('/api/courses/:id/outline', (ctx) => {
     const courseId = id(ctx.params.id, 'Course');
-    const teaching = access.teachingCourse(ctx.user, courseId);
-    const course = teaching || access.course(ctx.user, courseId);
+    const course = access.course(ctx.user, courseId);
     if (!course) throw forbidden('Join this course to see it');
-    const sections = db.all('SELECT id, parent_id, title, summary, position FROM course_sections WHERE course_id = ? ORDER BY position, id', course.id);
-    const items = db.all('SELECT id, section_id, kind, title, url, mime, size, created FROM course_items WHERE course_id = ? ORDER BY position, id', course.id);
-    const sessions = sessionsByLecture(db, course.id);
-    const lectures = db.all('SELECT id, topic, section_id, status, starts, room FROM lectures WHERE course_id = ? ORDER BY COALESCE(starts, created), id', course.id).map((l) => {
+    const teaching = access.teaches(ctx.user, course);
+    // One round trip to the database for everything the outline shows.
+    const [sections, items, lectureRows, sessionRows] = db.batch([
+      ['SELECT id, parent_id, title, summary, position FROM course_sections WHERE course_id = ? ORDER BY position, id', course.id],
+      ['SELECT id, section_id, kind, title, url, mime, size, created FROM course_items WHERE course_id = ? ORDER BY position, id', course.id],
+      ['SELECT id, topic, section_id, status, starts, room FROM lectures WHERE course_id = ? ORDER BY COALESCE(starts, created), id', course.id],
+      [SESSIONS_BY_LECTURE, course.id],
+    ]);
+    const sessions = sessionMap(sessionRows);
+    const lectures = lectureRows.map((l) => {
       const s = sessions.get(l.id);
       return { ...l, live: !!s?.live, lastSession: s?.last || null };
     });
@@ -428,4 +429,4 @@ function excerptAround(text, words, size) {
   return `${best ? '…' : ''}${text.slice(best, best + size)}${best + size < text.length ? '…' : ''}`;
 }
 
-module.exports = { registerSections, sessionsByLecture, topicFilesText, findCourseFiles, MAX_FILE, MAX_STORED_FILE };
+module.exports = { registerSections, sessionsByLecture, SESSIONS_BY_LECTURE, sessionMap, topicFilesText, findCourseFiles, MAX_FILE, MAX_STORED_FILE };

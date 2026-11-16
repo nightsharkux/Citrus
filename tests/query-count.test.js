@@ -11,7 +11,8 @@ const { createRecordSource } = require('../src/modules/live/record-source');
 
 function countCalls(db) {
   let n = 0;
-  for (const m of ['get', 'all', 'run', 'insert', 'exec']) {
+  // A batch is one round trip to the hosted database, so it counts once.
+  for (const m of ['get', 'all', 'run', 'insert', 'exec', 'batch']) {
     const original = db[m].bind(db);
     db[m] = (...args) => {
       n += 1;
@@ -49,7 +50,8 @@ test('the course page, its content and the term make a fixed number of database 
       await app.call(who, 'POST', `/api/courses/${courseId}/enroll`);
     }
     const pages = [['prof', `/api/courses/${courseId}`], ['prof', `/api/courses/${courseId}/outline`], ['prof', `/api/courses/${courseId}/progress`],
-      ['ann', `/api/courses/${courseId}`], ['ann', `/api/courses/${courseId}/outline`], ['ann', `/api/courses/${courseId}/progress`], ['prof', '/api/live/mine']];
+      ['ann', `/api/courses/${courseId}`], ['ann', `/api/courses/${courseId}/outline`], ['ann', `/api/courses/${courseId}/progress`], ['prof', '/api/live/mine'],
+      ['ann', '/api/bootstrap']];
     const calls = countCalls(app.db);
     const measure = async () => {
       const out = {};
@@ -65,7 +67,11 @@ test('the course page, its content and the term make a fixed number of database 
     await lectures(app, courseId, 4);
     const many = await measure();
     assert.deepEqual(many, few, 'six lectures cost as many calls as two');
-    for (const [page, n] of Object.entries(many)) assert.ok(n <= 20, `${page}: ${n} calls`);
+    for (const [page, n] of Object.entries(many)) assert.ok(n <= 15, `${page}: ${n} calls`);
+    // The pages people wait on most: a round trip for who is asking, one for the course, one for everything else.
+    assert.ok(many[`prof /api/courses/${courseId}`] <= 3, `course page: ${many[`prof /api/courses/${courseId}`]}`);
+    assert.ok(many[`ann /api/courses/${courseId}`] <= 3);
+    assert.ok(many[`ann /api/courses/${courseId}/outline`] <= 3);
   } finally {
     await app.close();
   }
@@ -90,6 +96,43 @@ test('loading a whole term at once gives exactly the records of loading each lec
     assert.deepEqual(records.loadMany(sessions, { audience: 'student', studentId: ann }), sessions.map((s) => records.load(s, { audience: 'student', studentId: ann })));
     assert.match(JSON.stringify(records.loadMany(sessions, { audience: 'lecturer' })), /Ann Person/, 'with the student who chose to show her name');
     assert.deepEqual(records.loadMany([], {}), []);
+  } finally {
+    await app.close();
+  }
+});
+
+test('the live lecture screens take a few round trips, and the lecturer screen does not download the notes', async () => {
+  const app = await startApp();
+  try {
+    await app.login('admin');
+    const lecturerId = await app.lecturer('prof');
+    const course = await app.call('admin', 'POST', '/api/courses', { title: 'Signals', code: 'SIG1' });
+    const courseId = course.body.id;
+    await app.call('admin', 'POST', '/api/admin/assign', { course_id: courseId, lecturer_id: lecturerId });
+    await app.register('ann');
+    await app.call('ann', 'POST', `/api/courses/${courseId}/enroll`);
+    const note = await app.call('prof', 'POST', '/api/assistant/attachments', { name: 'week1.txt', mime: 'text/plain', data: Buffer.from('Week 1 notes: '.repeat(2000)).toString('base64') });
+    const s = await app.call('prof', 'POST', '/api/live/sessions', { course_id: courseId, notes: [note.body.attachment.id] });
+    const sid = s.body.session.id;
+    const calls = countCalls(app.db);
+    const cost = async (who, url) => {
+      const before = calls();
+      const r = await app.call(who, 'GET', url);
+      assert.equal(r.status, 200, url);
+      return { n: calls() - before, body: r.body };
+    };
+    const first = await cost('ann', `/api/live/courses/${courseId}/active`);
+    assert.equal(first.body.present, 1, 'she is counted in the room');
+    assert.equal(first.body.notes, 1);
+    const again = await cost('ann', `/api/live/courses/${courseId}/active`);
+    assert.ok(again.n <= 4, `student screen: ${again.n} round trips`);
+    assert.equal(again.body.present, 1, 'once');
+    const lecturer = await cost('prof', `/api/live/sessions/${sid}`);
+    assert.ok(lecturer.n <= 4, `lecturer screen: ${lecturer.n} round trips`);
+    assert.deepEqual(Object.keys(lecturer.body.notes[0]).sort(), ['id', 'kind', 'mime', 'name', 'size']);
+    assert.ok(JSON.stringify(lecturer.body).length < 5000, 'the notes themselves are not sent with every refresh');
+    assert.equal(lecturer.body.present, 1);
+    assert.match(lecturer.body.session.joinLink, /^\/join\/[A-Za-z0-9_-]{12}$/);
   } finally {
     await app.close();
   }

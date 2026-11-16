@@ -111,8 +111,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   };
   /** A session an enrolled student takes part in. */
   const attending = (user, sessionId) => {
-    const s = joined(user, sessionId);
-    if (user.role !== 'student' || !access.isEnrolled(user.id, s.course_id)) throw forbidden('Only students of this course can do this');
+    const s = joined(user, sessionId); // for a student, joining the course already means being enrolled in it
+    if (user.role !== 'student') throw forbidden('Only students of this course can do this');
     return s;
   };
   const activeOf = (courseId) => db.get('SELECT * FROM live_sessions WHERE course_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', courseId);
@@ -195,30 +195,64 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     moments.onPulse(s, p); // when the class tips into trouble, keep that moment for the lecturer's review
   }
 
+  /**
+   * The lecturer's screen, refreshed whenever the class answers: everything in one round trip to the database, and
+   * the notes by name only (their contents are fetched when one is opened).
+   */
   function lecturerView(s) {
-    const signals = signalsOf(s.id);
+    const [signals, flags, enrolledRows, notes, presentRows, storedRows, tokenRows] = db.batch([
+      ['SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', s.id],
+      ['SELECT id, kind, minute, note, created FROM live_flags WHERE session_id = ? ORDER BY id', s.id],
+      ['SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', s.course_id],
+      ['SELECT a.id, a.kind, a.name, a.mime, a.size FROM live_notes n JOIN assistant_attachments a ON a.id = n.attachment_id WHERE n.session_id = ?', s.id],
+      ['SELECT COUNT(*) AS n FROM live_attendees WHERE session_id = ?', s.id],
+      ['SELECT COUNT(*) AS n FROM live_transcript WHERE session_id = ?', s.id],
+      ['SELECT join_token FROM lectures WHERE id = ?', s.lecture_id || 0],
+    ]);
     const line = timeline(signals, s.started, { now: s.ended ? Date.parse(s.ended) : Date.now() });
-    const flags = flagsOf(s.id);
+    const token = tokenRows[0]?.join_token;
+    // The QR code opens the lecture's own link (the same on a slide made before); old sessions have only the code.
+    const joinLink = !s.lecture_id ? `/join/${s.join_code}` : token ? `/join/${token}` : links.pathFor(s.lecture_id);
     return {
-      // The QR code opens the lecture's own link (the same on a slide made before); old sessions have only the code.
-      session: { ...publicSession(s), joinCode: s.ended ? null : s.join_code, joinLink: s.lecture_id ? links.pathFor(s.lecture_id) : `/join/${s.join_code}` },
-      pulse: pulse(signals, { enrolled: enrolledCount(s.course_id) }),
+      session: { ...publicSession(s), joinCode: s.ended ? null : s.join_code, joinLink },
+      pulse: pulse(signals, { enrolled: enrolledRows[0].n }),
       timeline: line,
       roughPatches: roughPatches(line),
-      notes: notesOf(s.id).map(({ id: noteId, kind, name, mime, size }) => ({ id: noteId, kind, name, mime, size })),
+      notes,
       flags: flags.slice(-60).map(({ id: flagId, kind, minute, note }) => ({ id: flagId, kind, minute, note })),
       flagCounts: flagCounts(flags),
-      present: presentCount(s.id),
+      present: presentRows[0].n,
       heard: transcripts.size(s.id),
-      stored: s.keep_transcript ? storedLines(s.id) : 0,
+      stored: s.keep_transcript ? storedRows[0].n : 0,
       listening: listening(s),
     };
   }
 
-  function studentView(s, user) {
-    const mine = db.get('SELECT level, created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', s.id, user.id);
-    const flags = db.all('SELECT id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, user.id);
-    return { session: publicSession(s), mine: mine || null, flags, listening: listening(s), minute: minuteOf(s), present: presentCount(s.id), notes: notesOf(s.id).length, shareName: sharesName(s.id, user.id) };
+  /**
+   * The student's screen in one round trip. `arriving` also counts them in the room the first time (arrive()),
+   * writing only when they are not counted yet.
+   */
+  function studentView(s, user, { arriving = false } = {}) {
+    const [mineRows, flags, presentRows, noteRows, hereRows, lastRows] = db.batch([
+      ['SELECT level, created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1', s.id, user.id],
+      ['SELECT id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, user.id],
+      ['SELECT COUNT(*) AS n FROM live_attendees WHERE session_id = ?', s.id],
+      ['SELECT COUNT(*) AS n FROM live_notes WHERE session_id = ?', s.id],
+      ['SELECT share_name FROM live_attendees WHERE session_id = ? AND user_id = ?', s.id, user.id],
+      ['SELECT share_name FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1', user.id],
+    ]);
+    let present = presentRows[0].n;
+    let here = hereRows[0] || null;
+    if (arriving && !here && !s.ended && user.role === 'student') {
+      const share = lastRows[0]?.share_name ? 1 : 0;
+      const r = db.run('INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, ?)', s.id, user.id, isoNow(), share);
+      if (r?.changes) {
+        present += 1;
+        bus.publish(`user:${s.lecturer_id}`, 'live.presence', { session: s.id, present });
+      }
+      here = { share_name: share };
+    }
+    return { session: publicSession(s), mine: mineRows[0] || null, flags, listening: listening(s), minute: minuteOf(s), present, notes: noteRows[0].n, shareName: !!here?.share_name };
   }
 
   /**
@@ -409,15 +443,15 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (!course) throw forbidden('Join this course first');
     const s = activeOf(course.id);
     if (!s) return { session: null, course: { id: course.id, code: course.code, title: course.title } };
-    const lecturer = access.teachingCourse(ctx.user, s.course_id);
-    if (!lecturer) arrive(s, ctx.user);
-    return { session: publicSession(s), course: { id: course.id, code: course.code, title: course.title }, ...(lecturer ? {} : studentView(s, ctx.user)) };
+    const lecturer = access.teaches(ctx.user, course);
+    return { session: publicSession(s), course: { id: course.id, code: course.code, title: course.title }, ...(lecturer ? {} : studentView(s, ctx.user, { arriving: true })) };
   });
 
   router.get('/api/live/sessions/:id', (ctx) => {
-    const s = joined(ctx.user, ctx.params.id);
-    if (access.teachingCourse(ctx.user, s.course_id)) return lecturerView(s);
-    return studentView(s, ctx.user);
+    const s = sessionFor(ctx.user, ctx.params.id);
+    const course = access.course(ctx.user, s.course_id);
+    if (!course) throw forbidden('Join this course first');
+    return access.teaches(ctx.user, course) ? lecturerView(s) : studentView(s, ctx.user);
   });
 
   router.post('/api/live/sessions/:id/signal', async (ctx) => {

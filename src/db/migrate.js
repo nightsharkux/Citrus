@@ -9,11 +9,15 @@
 const migrations = require('./migrations');
 
 function runMigrations(db, { log = () => {} } = {}) {
-  db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations(
-    version INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    applied_at TEXT NOT NULL
-  )`);
+  // Only a new database gets the table: a write on every start of every server instance was slow on a hosted
+  // database, and waited behind any other instance that was writing.
+  if (!db.hasTable('schema_migrations')) {
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations(
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at TEXT NOT NULL
+    )`);
+  }
 
   const applied = new Set(db.all('SELECT version FROM schema_migrations').map((r) => r.version));
   const pending = migrations.filter((m) => !applied.has(m.version)).sort((a, b) => a.version - b.version);

@@ -47,6 +47,8 @@ function withHelpers(db) {
   db.all = (sql, ...args) => prepare(sql).all(...args);
   db.run = (sql, ...args) => prepare(sql).run(...args);
   db.insert = (sql, ...args) => Number(prepare(sql).run(...args).lastInsertRowid);
+  /** Several queries at once ([[sql, ...args], …] → rows of each). One round trip on a hosted database; here, in turn. */
+  db.batch = (queries) => queries.map(([sql, ...args]) => prepare(sql).all(...args));
 
   /**
    * Run `fn` inside a transaction; rolls back if it throws. Nested calls join the
