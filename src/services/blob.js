@@ -127,7 +127,10 @@ function createBlobStore({ env = process.env, fetchImpl = globalThis.fetch, secr
     if (!res.ok && res.status !== 404) throw await failure(res, 'delete the file');
   }
 
-  const putHeaders = { 'x-api-version': API_VERSION, 'x-vercel-blob-store-id': storeId, 'x-vercel-blob-access': 'private', 'x-add-random-suffix': '0', 'x-allow-overwrite': '0' };
+  // What the browser sends with its upload: only headers Vercel Blob allows from another site (its CORS preflight
+  // lists them). Anything else and the browser refuses to send the file at all ("The upload was interrupted").
+  // No random suffix and no overwriting are part of the pass itself (token payload or signed address).
+  const putHeaders = { 'x-api-version': API_VERSION, 'x-vercel-blob-store-id': storeId, 'x-vercel-blob-access': 'private' };
 
   /**
    * A pass that lets the browser upload one file straight to the store: only this path, at most this size, only

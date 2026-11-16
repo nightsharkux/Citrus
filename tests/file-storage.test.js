@@ -16,6 +16,10 @@ const TOKEN = 'vercel_blob_rw_teststore123_s3cretpart';
 const OIDC = 'oidc.jwt.from-vercel';
 const SIGNING_SECRET = 'fake-store-signing-secret';
 const b64url = (s) => Buffer.from(s).toString('base64url');
+// The headers Vercel Blob allows from a browser on another site (its answer to the CORS preflight, 16 Nov 2026).
+// A browser upload with any other header never leaves the browser.
+const CORS_HEADERS = 'authorization,content-type,x-api-version,x-mpu-action,x-mpu-key,x-mpu-upload-id,x-mpu-part-number,x-content-type,x-proxy-through-alternative-api,x-api-blob-request-id,x-api-blob-request-attempt,x-content-length,x-vercel-blob-access,x-vercel-blob-store-kind,x-vercel-blob-store-id,x-vercel-blob-team-id,x-if-match'.split(',');
+const NOT_FROM_A_BROWSER = new Set(['host', 'connection', 'content-length', 'accept', 'accept-encoding', 'accept-language', 'user-agent', 'sec-fetch-mode', 'origin']);
 
 /**
  * A stand-in Blob store: PUT /api/blob/?pathname=…, GET /<pathname> (with the token), POST /api/blob/delete, and for
@@ -46,6 +50,11 @@ async function startFakeBlob() {
     }
     if (req.method === 'PUT' && url.pathname === '/api/blob/') {
       const pathname = url.searchParams.get('pathname');
+      // Uploads from the browser (a client token or a signed address) may only carry the allowed headers.
+      if (presigned || auth.startsWith('vercel_blob_client_')) {
+        const extra = Object.keys(req.headers).filter((h) => !CORS_HEADERS.includes(h) && !NOT_FROM_A_BROWSER.has(h));
+        if (extra.length) return fail(400, `a browser could not send these headers (CORS): ${extra.join(', ')}`);
+      }
       if (req.headers['x-vercel-blob-access'] !== 'private') return fail(400, 'access must be private here');
       if (presigned) {
         const delegation = url.searchParams.get('vercel-blob-delegation');
