@@ -71,8 +71,9 @@ const requests = [];
 let failFrom = Infinity; // natural speech fails from this request on
 let failOnce = 0; // the next this many requests fail, then speech works again
 class FakeAudio {
-  constructor() {
+  constructor(options = {}) {
     FakeAudio.last = this;
+    this.requestedRate = options.sampleRate;
     this.state = 'running';
     this.t0 = performance.now();
     this.destination = {};
@@ -361,4 +362,17 @@ test('cancelling a streaming answer aborts the grant and ignores late responses'
     resolveGrant(Response.json({ token: 'vcst_late' })); await wait(2);
     assert.equal(sockets, 0); assert.equal(speaker.active, false);
   } finally { speaker.cancel(); globalThis.fetch = savedFetch; globalThis.WebSocket = savedSocket; }
+});
+
+test('streamed voices play on a 24 kHz context, so no piece is resampled on its own', async () => {
+  const { createSpeaker, stopSpeaking } = await load('features/speaker.js');
+  const { setSession } = await load('core/store.js');
+  setSession({ ai: { speech: true } });
+  const t = track();
+  const speaker = createSpeaker({ ...t.options, options: { engine: 'natural' } });
+  assert.equal(speaker.engine, 'natural');
+  await wait(5);
+  assert.equal(FakeAudio.last.requestedRate, 24000, 'the audio context runs at the rate of the streamed PCM');
+  stopSpeaking();
+  setSession({ ai: { speech: false } });
 });

@@ -26,6 +26,8 @@ import { StreamingSpeech } from './gateway-audio.js';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 const hasDevice = 'speechSynthesis' in window;
+/** The rate of every streamed voice (the gateway's PCM and GPT-Live). */
+const STREAM_RATE = 24000;
 
 // ------------------------------------------------------------------ shared state
 
@@ -74,7 +76,16 @@ function audioGraph() {
   if (!AudioCtx) return null;
   if (!audio) {
     try {
-      const ctx = new AudioCtx();
+      // Streamed voices (and GPT-Live) arrive as 24 kHz PCM in many small pieces. On a context running at the
+      // computer's own rate (44.1 or 48 kHz on Windows) every piece is resampled on its own, which leaves a small
+      // click at each seam and roughens the voice. A 24 kHz context plays the pieces exactly as they arrive and the
+      // browser converts to the speakers once, for the whole stream. Phones already ran at 24 or 48 kHz.
+      let ctx;
+      try {
+        ctx = new AudioCtx({ sampleRate: STREAM_RATE });
+      } catch {
+        ctx = new AudioCtx();
+      }
       const gain = ctx.createGain();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
@@ -608,8 +619,9 @@ export function createLivePlayer({ onSpeaking } = {}) {
       const src = graph.ctx.createBufferSource();
       src.buffer = buffer;
       src.connect(graph.gain);
-      // A small cushion absorbs network jitter without delaying the reply noticeably.
-      const at = Math.max(graph.ctx.currentTime + 0.06, sp.scheduledUntil);
+      // A cushion absorbs network jitter without delaying the reply noticeably. Arriving late would leave a gap and
+      // the speech would stutter, so each new stretch of speech (and each recovery from a gap) starts a little ahead.
+      const at = Math.max(graph.ctx.currentTime + 0.12, sp.scheduledUntil);
       src.onended = () => {
         src.disconnect?.();
         sp.sources.delete(src);
