@@ -81,3 +81,50 @@ test('on Vercel, an instance that could not start tries again on a later request
     fake.child.kill();
   }
 });
+
+test('a starting server only reads the database; housekeeping runs once an hour for all instances, in a few round trips', async () => {
+  const { runMigrations } = require('../src/db/migrate');
+  const { createKeys } = require('../src/services/keys');
+  const app = await startApp();
+  try {
+    const writes = [];
+    let calls = 0;
+    const watched = { ...app.db };
+    for (const m of ['get', 'all', 'run', 'insert', 'exec', 'batch']) {
+      watched[m] = (...args) => {
+        calls += 1;
+        if (m === 'run' || m === 'insert' || m === 'exec') writes.push(String(args[0]).slice(0, 60));
+        return app.db[m](...args);
+      };
+    }
+    // The first server on a hosted database creates its keys; every later one only reads them.
+    const hosted = { ...app.config, database: { url: 'libsql://pretend' } };
+    const first = createKeys({ config: hosted, db: app.db, env: {} });
+    first.master();
+    first.nfc();
+    first.vapid();
+    // What every new server instance does before it answers anyone.
+    runMigrations(watched);
+    seed(watched, app.config, () => {});
+    const keys = createKeys({ config: hosted, db: watched, env: {} });
+    keys.master();
+    keys.nfc();
+    keys.vapid();
+    assert.deepEqual(writes, [], 'no writes when everything exists');
+    assert.ok(calls <= 4, `${calls} round trips`);
+
+    // Housekeeping: removes what expired, in a few round trips, and the next instance leaves it for an hour.
+    const userId = app.db.get('SELECT id FROM users LIMIT 1').id;
+    app.db.run("INSERT INTO sessions(token, user_id, expires, created, last_seen, user_agent) VALUES('old-session', ?, 1, '2026-01-01T00:00:00Z', 1, 'test')", userId);
+    const maintenance = app.app.maintenance;
+    assert.equal(maintenance.doneRecently(), false);
+    calls = 0;
+    const { createMaintenance } = require('../src/services/maintenance');
+    createMaintenance({ db: watched, config: app.config, settings: app.app.deps.settings }).run();
+    assert.ok(calls <= 4, `housekeeping: ${calls} round trips`);
+    assert.equal(app.db.get("SELECT COUNT(*) AS n FROM sessions WHERE token = 'old-session'").n, 0);
+    assert.equal(maintenance.doneRecently(), true, 'another instance now skips it');
+  } finally {
+    await app.close();
+  }
+});

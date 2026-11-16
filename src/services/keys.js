@@ -23,10 +23,18 @@ function parseKey(value, variable) {
 function createKeys({ config, db, env = process.env }) {
   const hosted = !!config.database.url;
 
+  // Every server instance reads the keys when it starts. On a hosted database each query is a round trip, so they
+  // are read together, once; a key is only written the first time it is needed.
+  let known = null;
+  const loaded = () => (known ||= new Map(db.all('SELECT name, value FROM app_keys').map((r) => [r.name, r.value])));
+
   /** Read a value from app_keys, creating it with `make()` the first time. Safe if two instances race. */
   function stored(name, make) {
+    if (loaded().has(name)) return known.get(name);
     db.run('INSERT OR IGNORE INTO app_keys(name, value, created) VALUES(?, ?, ?)', name, make(), new Date().toISOString());
-    return db.get('SELECT value FROM app_keys WHERE name = ?', name).value;
+    const value = db.get('SELECT value FROM app_keys WHERE name = ?', name).value; // another instance may have won
+    known.set(name, value);
+    return value;
   }
 
   const random32 = () => crypto.randomBytes(32).toString('base64');
