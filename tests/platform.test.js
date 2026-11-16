@@ -60,7 +60,9 @@ test('security headers, CSRF protection, SPA routing and versioned API alias', a
 
     assert.equal((await app.call('anon', 'GET', '/api/nope')).status, 404);
     assert.equal((await app.call('anon', 'GET', '/api/courses')).status, 401);
-    assert.equal((await app.call('anon', 'GET', '/api/v1/health')).body.ok, true);
+    const health = (await app.call('anon', 'GET', '/api/v1/health')).body;
+    assert.equal(health.ok, true);
+    assert.ok(health.databaseMs >= 0 && health.databaseMs < 1000, 'reports how long one database round trip takes');
 
     await app.login('admin');
     assert.equal((await app.call('admin', 'GET', '/api/v1/courses')).status, 200, '/api/v1 aliases /api');

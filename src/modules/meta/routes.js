@@ -21,14 +21,25 @@ function register(router, { db, config }) {
     return { version: 2, groups };
   }, { auth: 'public' });
 
+  /**
+   * databaseMs: one round trip to the database, measured here (the middle of three). With a hosted database it
+   * should be a few milliseconds; much more means the database is far from the server's region (vercel.json),
+   * and every page pays it once per query.
+   */
   router.get('/api/v1/health', () => {
     let database = 'ok';
+    let databaseMs = null;
     try {
-      db.get('SELECT 1');
+      const times = [0, 1, 2].map(() => {
+        const t = process.hrtime.bigint();
+        db.get('SELECT 1');
+        return Number(process.hrtime.bigint() - t) / 1e6;
+      }).sort((a, b) => a - b);
+      databaseMs = Math.round(times[1] * 10) / 10;
     } catch {
       database = 'error';
     }
-    return { ok: database === 'ok', version: config.site.version, database, uptimeSeconds: Math.round((Date.now() - started) / 1000) };
+    return { ok: database === 'ok', version: config.site.version, database, databaseMs, region: process.env.VERCEL_REGION || null, uptimeSeconds: Math.round((Date.now() - started) / 1000) };
   }, { auth: 'public' });
 
   /** The ring logo in this edition's colours (browser tab icon, social previews). */
