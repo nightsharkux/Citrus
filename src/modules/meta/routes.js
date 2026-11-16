@@ -29,7 +29,10 @@ function register(router, { db, config }) {
   router.get('/api/v1/health', () => {
     let database = 'ok';
     let databaseMs = null;
+    let databaseSince = null;
     try {
+      // When this database was set up: it should not change between deploys (a new date means a fresh, empty one).
+      databaseSince = db.get('SELECT applied_at FROM schema_migrations WHERE version = 1')?.applied_at || null;
       const times = [0, 1, 2].map(() => {
         const t = process.hrtime.bigint();
         db.get('SELECT 1');
@@ -39,7 +42,7 @@ function register(router, { db, config }) {
     } catch {
       database = 'error';
     }
-    return { ok: database === 'ok', version: config.site.version, database, databaseMs, region: process.env.VERCEL_REGION || null, uptimeSeconds: Math.round((Date.now() - started) / 1000) };
+    return { ok: database === 'ok', version: config.site.version, database, databaseMs, databaseSince, region: process.env.VERCEL_REGION || null, uptimeSeconds: Math.round((Date.now() - started) / 1000) };
   }, { auth: 'public' });
 
   /** The ring logo in this edition's colours (browser tab icon, social previews). */

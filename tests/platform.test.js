@@ -63,6 +63,7 @@ test('security headers, CSRF protection, SPA routing and versioned API alias', a
     const health = (await app.call('anon', 'GET', '/api/v1/health')).body;
     assert.equal(health.ok, true);
     assert.ok(health.databaseMs >= 0 && health.databaseMs < 1000, 'reports how long one database round trip takes');
+    assert.match(health.databaseSince, /^\d{4}-\d{2}-\d{2}T/, 'and when the database was set up');
 
     await app.login('admin');
     assert.equal((await app.call('admin', 'GET', '/api/v1/courses')).status, 200, '/api/v1 aliases /api');
