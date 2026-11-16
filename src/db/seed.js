@@ -8,7 +8,11 @@ const { hashPasswordSync: hashPassword } = require('../lib/crypto');
 function seed(db, config, log = console.log) {
   if (db.get('SELECT id FROM institutions LIMIT 1')) return;
   const created = new Date().toISOString();
-  const institutionId = db.insert('INSERT INTO institutions(name, slug, created) VALUES(?, ?, ?)', config.seed.institution || config.site.institution, 'demo-university', created);
+  // Several instances start at once after a deploy, and one may not see the university yet: only the one that
+  // really adds it goes on (the slug is unique), the others leave it as it is instead of failing to start.
+  const added = db.run('INSERT OR IGNORE INTO institutions(name, slug, created) VALUES(?, ?, ?)', config.seed.institution || config.site.institution, 'demo-university', created);
+  if (!Number(added?.changes)) return;
+  const institutionId = Number(added.lastInsertRowid);
 
   const password = config.seed.adminPassword;
   if (!password || password.length < 12) {

@@ -24,28 +24,55 @@ if (!config.persistence.durable) {
   console.warn(`WARNING: running on ${config.persistence.platform} without a hosted database. Accounts and data are lost whenever the server restarts or is redeployed. Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN (see docs/DEPLOYMENT.md), or CAMPUS_PERSISTENT_DISK=1 if the storage folder is on a permanent volume.`);
 }
 
+const RETRY_MS = Number(process.env.CAMPUS_STARTUP_RETRY_MS) || 5_000;
 let db;
 let app;
-let startupError;
-try {
-  db = openConfiguredDatabase(config);
+let startupError = null;
+let triedAt = 0;
+
+/** Open the database, bring it up to date, add first-run data and build the app. */
+function start() {
+  db ||= openConfiguredDatabase(config);
   runMigrations(db, { log });
   seed(db, config, log);
   app = createApp({ config, db });
+  startupError = null;
+}
+
+try {
+  start();
 } catch (error) {
   // Elsewhere a failed start should stop the process. On Vercel a crash leaves no message, so log it
-  // and answer every request with a short explanation instead.
+  // and answer with a short explanation instead.
   if (!process.env.VERCEL) throw error;
   startupError = error;
+  triedAt = Date.now();
   console.error('Campus OS could not start:', error);
 }
 
-const handler = startupError
-  ? (req, res) => {
-    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end('Campus OS could not start. The reason is in the deployment logs.');
+/**
+ * An instance that could not start (say, while another one was updating the database right after a deploy) tries
+ * again on a later request, at most every few seconds, instead of answering 503 for as long as it lives.
+ */
+function handler(req, res) {
+  if (startupError && Date.now() - triedAt >= RETRY_MS) {
+    triedAt = Date.now();
+    try {
+      start();
+      console.log('Campus OS started on a later try');
+      app.maintenance.start();
+    } catch (error) {
+      startupError = error;
+      console.error('Campus OS still could not start:', error);
+    }
   }
-  : app.handler;
+  if (startupError) {
+    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'Retry-After': '5' });
+    res.end('Campus OS could not start. It tries again in a few seconds; the reason is in the deployment logs.');
+    return undefined;
+  }
+  return app.handler(req, res);
+}
 const server = http.createServer(handler);
 
 if (onVercel) app?.maintenance.start();
@@ -89,4 +116,10 @@ if (standalone) {
 
 // Vercel calls the default export as (req, res) for every request. The function also carries the pieces
 // the tests use: const { server, db } = require('./server').
-module.exports = Object.assign((req, res) => handler(req, res), { server, db, handler, app, config });
+module.exports = Object.defineProperties((req, res) => handler(req, res), {
+  server: { value: server, enumerable: true },
+  handler: { value: handler, enumerable: true },
+  config: { value: config, enumerable: true },
+  db: { get: () => db, enumerable: true },
+  app: { get: () => app, enumerable: true },
+});

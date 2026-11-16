@@ -22,6 +22,7 @@
 - **Campus OS for Android** (`android/`). Keeps recording a lecture or meeting with the screen off, in another app or after the app is closed: a recording service sends 30-second pieces to `POST /api/live/sessions/:id/audio` or `/api/workspaces/:id/audio`, which turn them into transcript lines at the times they were said and keep no audio. GitHub builds the APK (*Actions → Android app*). See [android/README.md](../android/README.md).
 
 ### Changed
+- **Starting up after a deploy cannot leave the site down.** When several server instances start at once while one is updating the database, the first-run step no longer fails on a university that already exists, and an instance that could not start tries again a few seconds later instead of answering "Campus OS could not start" for as long as it runs. (Seen once on 16 Nov 2026, right after the QR codes went live; the site recovered within seconds.)
 - The Android app opens the live site (https://campusos-mdu.vercel.app) straight away instead of asking for the address.
 - The inbox bell is centred again and swings when a notification arrives.
 - **Recording never loses audio.** The screen stays awake while Campus listens or records, and listening resumes by itself when the phone is unlocked (the record marks the gap). Meeting recordings are kept on the phone second by second; the server has no storage for audio, so a recording is saved to the phone and stays listed under *On this phone* until deleted.
