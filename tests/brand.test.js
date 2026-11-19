@@ -18,6 +18,17 @@ test('the old name does not appear in the app, its texts, its AI instructions or
   assert.deepEqual(found, []);
 });
 
+test('the old name CampusOS is gone from the code, the exports and the data the assistant reads', () => {
+  // Two places keep it on purpose, so that nothing already installed or saved stops working:
+  //   native.js      Android apps installed before the rename still send "CampusOSApp" in their user agent
+  //   academic-snapshot.js   a copy of the timetable data from before the rename starts with the old header
+  const keep = new Set(['public/js/features/native.js', 'src/ai/academic-snapshot.js'].map((f) => path.join(root, f)));
+  const files = [...walk(path.join(root, 'public')), ...walk(path.join(root, 'src')), ...walk(path.join(root, 'config')), ...walk(path.join(root, 'resources')), path.join(root, 'server.js')]
+    .filter((f) => /\.(js|css|html|json|jsonl|txt|svg|webmanifest)$/.test(f) && !keep.has(f));
+  const found = files.filter((f) => /CampusOS|CAMPUSOS/.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f));
+  assert.deepEqual(found, []);
+});
+
 test('the site, its manifest and its mark say Citrus, and the mark is a C', async () => {
   const app = await startApp();
   try {

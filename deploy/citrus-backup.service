@@ -1,0 +1,10 @@
+# /etc/systemd/system/citrus-backup.service — run by citrus-backup.timer
+[Unit]
+Description=Citrus nightly backup
+
+[Service]
+Type=oneshot
+User=citrus
+Group=citrus
+WorkingDirectory=/opt/citrus
+ExecStart=/usr/bin/node --env-file=/opt/citrus/.env scripts/backup.js

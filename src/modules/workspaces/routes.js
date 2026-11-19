@@ -530,7 +530,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
         ...(upstream.headers.get('content-length') ? { 'Content-Length': upstream.headers.get('content-length') } : {}),
         ...(upstream.headers.get('content-range') ? { 'Content-Range': upstream.headers.get('content-range') } : {}),
         'Accept-Ranges': 'bytes',
-        'Content-Disposition': `${ctx.query.get('download') ? 'attachment' : 'inline'}; filename="campusos-meeting-${rec.id}${extension}"`,
+        'Content-Disposition': `${ctx.query.get('download') ? 'attachment' : 'inline'}; filename="citrus-meeting-${rec.id}${extension}"`,
         'Cache-Control': 'no-store',
       });
       await pipeTo(ctx.res, upstream);
@@ -546,7 +546,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
     ctx.res.writeHead(200, {
       'Content-Type': rec.mime,
       'Content-Length': stat.size,
-      'Content-Disposition': `${ctx.query.get('download') ? 'attachment' : 'inline'}; filename="campusos-meeting-${rec.id}${path.extname(rec.filename)}"`,
+      'Content-Disposition': `${ctx.query.get('download') ? 'attachment' : 'inline'}; filename="citrus-meeting-${rec.id}${path.extname(rec.filename)}"`,
       'Cache-Control': 'no-store',
     });
     fs.createReadStream(file).pipe(ctx.res);

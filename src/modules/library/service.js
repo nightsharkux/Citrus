@@ -317,7 +317,7 @@ function createLibrary({ db, ai }) {
 
   function corpusText(institution, docs) {
     return [
-      `CAMPUSOS | ${String(institution || '').toUpperCase()} | UPLOADED DOCUMENTS`,
+      `CITRUS | ${String(institution || '').toUpperCase()} | UPLOADED DOCUMENTS`,
       'schema_version: 1.0',
       `exported: ${isoNow().slice(0, 10)}`,
       `documents: ${docs.length}`,

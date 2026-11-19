@@ -93,7 +93,7 @@ function register(router, { db, config, sessions, audit }) {
     };
     ctx.res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="campusos-my-data.json"',
+      'Content-Disposition': 'attachment; filename="citrus-my-data.json"',
       'Cache-Control': 'no-store',
     });
     ctx.res.end(JSON.stringify(data, null, 2));

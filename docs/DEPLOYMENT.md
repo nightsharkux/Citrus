@@ -16,8 +16,8 @@ Citrus runs on a machine that keeps its `storage/` folder (a SQLite database plu
 
 Citrus is built for one machine with its own disk. On a VPS that is the fast setup:
 
-- **Use the local SQLite file, not Turso.** Every Turso query is an HTTPS round trip that the server waits for, so a page that runs ten queries pays ten network trips. A VPS has a permanent disk, so leave `TURSO_DATABASE_URL` unset, keep `storage/` on the VPS (back it up with `npm run backup`, see `deploy/campusos-backup.timer`) and set `CAMPUS_PERSISTENT_DISK=1` so the storage warning stays off. SQLite runs with WAL, `synchronous=NORMAL`, a 32 MB page cache and memory-mapped reads.
-- **Run it as a service behind Caddy**: `deploy/campusos.service` and `deploy/Caddyfile` give automatic HTTPS, HTTP/2 and compression. Set `TRUST_PROXY=1` and `COOKIE_SECURE=1`.
+- **Use the local SQLite file, not Turso.** Every Turso query is an HTTPS round trip that the server waits for, so a page that runs ten queries pays ten network trips. A VPS has a permanent disk, so leave `TURSO_DATABASE_URL` unset, keep `storage/` on the VPS (back it up with `npm run backup`, see `deploy/citrus-backup.timer`) and set `CAMPUS_PERSISTENT_DISK=1` so the storage warning stays off. SQLite runs with WAL, `synchronous=NORMAL`, a 32 MB page cache and memory-mapped reads.
+- **Run it as a service behind Caddy**: `deploy/citrus.service` and `deploy/Caddyfile` give automatic HTTPS, HTTP/2 and compression. Set `TRUST_PROXY=1` and `COOKIE_SECURE=1`.
 - **Scripts and styles are cached for a year.** The server stamps their URLs with a hash of the files (`/js/app.js?v=…`), so a browser downloads each file once and never asks about it again; a deploy changes the hash and everyone fetches the new files once. Nothing to configure and no build step. Do not add your own caching rules for `/js` or `/css` in the proxy.
 - **Logins no longer freeze the server.** Password hashing runs on a worker thread, so a burst of sign-ins does not stall everyone else.
 - One process is enough for a faculty. The live updates, rate limiting and long-polling live in that process (see ARCHITECTURE.md, known limits); do not run several copies behind a load balancer.
@@ -39,7 +39,7 @@ Vercel Functions have no persistent disk, so the SQLite file cannot live there. 
 3. Set `CAMPUS_ADMIN_EMAIL` and `CAMPUS_ADMIN_PASSWORD`, then redeploy. On the first request Citrus creates its tables and the administrator. Deploying again never repeats this.
 4. Optional but recommended: set `CAMPUS_MASTER_KEY` and `CAMPUS_NFC_KEY` as Secrets (each 32 random bytes; generate with `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`). Without them, Citrus generates the keys once and keeps them in the database's `app_keys` table, which works but puts the key next to the data it protects. Set them before you store Moodle tokens or register devices, because changing a key later makes existing device secrets and Moodle tokens unreadable. Set `CAMPUS_MASTER_KEY` before the first deploy, or keep the generated key from `app_keys`.
 
-5. Optional, for files over 4 MB and recordings: in the project's **Storage** tab, create a **Blob** store with **Private** access (it cannot be changed later; a public store lets anyone with a file's link open it) in the Dublin region, next to the functions, and connect it to Production and Preview. Vercel adds `BLOB_READ_WRITE_TOKEN` (the live store, made in November 2026, got this) or `BLOB_STORE_ID`; redeploy and Citrus uses either by itself. With only `BLOB_STORE_ID` it signs in with the OIDC token Vercel sends with every request, so OIDC must be on (Settings → Security, on by default). From the command line: `vercel blob create-store campusos-files --access private --region dub1 --yes -e production -e preview`. Note that this command also downloads the Development variables into `.env.local` in the folder it runs in (git ignores that file). Course files then go straight from the browser to the store (up to 100 MB each), meeting recordings are kept on the server whatever their length, and the Android app's lecture audio is kept when the lecturer keeps the transcript. Files are private: they are never readable by their address, only through Citrus after it has checked who is asking (`src/services/blob.js`). Without a store, files up to 4 MB live in the database and recordings stay on the phone.
+5. Optional, for files over 4 MB and recordings: in the project's **Storage** tab, create a **Blob** store with **Private** access (it cannot be changed later; a public store lets anyone with a file's link open it) in the Dublin region, next to the functions, and connect it to Production and Preview. Vercel adds `BLOB_READ_WRITE_TOKEN` (the live store, made in November 2026, got this) or `BLOB_STORE_ID`; redeploy and Citrus uses either by itself. With only `BLOB_STORE_ID` it signs in with the OIDC token Vercel sends with every request, so OIDC must be on (Settings → Security, on by default). From the command line: `vercel blob create-store citrus-files --access private --region dub1 --yes -e production -e preview`. Note that this command also downloads the Development variables into `.env.local` in the folder it runs in (git ignores that file). Course files then go straight from the browser to the store (up to 100 MB each), meeting recordings are kept on the server whatever their length, and the Android app's lecture audio is kept when the lecturer keeps the transcript. Files are private: they are never readable by their address, only through Citrus after it has checked who is asking (`src/services/blob.js`). Without a store, files up to 4 MB live in the database and recordings stay on the phone.
 
 Check the connection from your machine with `TURSO_DATABASE_URL=... TURSO_AUTH_TOKEN=... npm run check`.
 
@@ -86,7 +86,7 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 | `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
 | `BLOB_STORE_ID` or `BLOB_READ_WRITE_TOKEN` | Optional. Set by Vercel when a private Blob store is connected: course files up to 100 MB and recordings kept on the server. A read-write token is a Secret |
 
-When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/campusos` and `/var/lib/campusos/campusos.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
+When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/citrus` and `/var/lib/citrus/citrus.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
 
 ### Entering variables in Vercel
 
@@ -140,7 +140,7 @@ apt install -y caddy    # web server with automatic HTTPS
 ufw allow OpenSSH && ufw allow 80 && ufw allow 443 && ufw --force enable
 
 # A dedicated user with no login shell
-useradd --system --create-home --home-dir /opt/campusos --shell /usr/sbin/nologin campusos
+useradd --system --create-home --home-dir /opt/citrus --shell /usr/sbin/nologin citrus
 ```
 
 ### 3. Upload the code (from your Windows PC)
@@ -148,24 +148,24 @@ useradd --system --create-home --home-dir /opt/campusos --shell /usr/sbin/nologi
 In **PowerShell**, inside the `CampusOS_One` folder. Your `.env`, database and backups stay on your PC:
 
 ```powershell
-tar -czf campusos.tgz --exclude=./storage --exclude=./backups --exclude=./.env --exclude=./node_modules .
-scp campusos.tgz root@YOUR_SERVER_IP:/tmp/
+tar -czf citrus.tgz --exclude=./storage --exclude=./backups --exclude=./.env --exclude=./node_modules .
+scp citrus.tgz root@YOUR_SERVER_IP:/tmp/
 ```
 
 Then on the server:
 
 ```bash
-tar -xzf /tmp/campusos.tgz -C /opt/campusos
-mkdir -p /opt/campusos/storage /opt/campusos/backups
+tar -xzf /tmp/citrus.tgz -C /opt/citrus
+mkdir -p /opt/citrus/storage /opt/citrus/backups
 ```
 
-> If you use Git: create a **private** repository and `git clone` it into `/opt/campusos`. `.gitignore` already keeps `.env`, `storage/` and `backups/` out of the repository.
+> If you use Git: create a **private** repository and `git clone` it into `/opt/citrus`. `.gitignore` already keeps `.env`, `storage/` and `backups/` out of the repository.
 
 ### 4. Configure
 
 ```bash
-cp /opt/campusos/.env.example /opt/campusos/.env
-nano /opt/campusos/.env
+cp /opt/citrus/.env.example /opt/citrus/.env
+nano /opt/citrus/.env
 ```
 
 Set at least:
@@ -189,34 +189,34 @@ CAMPUS_AI_SUMMARY_MODEL=openai/gpt-6-luna/low
 **Option 1 — start fresh:**
 
 ```bash
-chown -R campusos:campusos /opt/campusos && chmod 600 /opt/campusos/.env
-sudo -u campusos node --env-file=/opt/campusos/.env /opt/campusos/setup-admin.js
+chown -R citrus:citrus /opt/citrus && chmod 600 /opt/citrus/.env
+sudo -u citrus node --env-file=/opt/citrus/.env /opt/citrus/setup-admin.js
 ```
 
 **Option 2 — bring your local data along:**
 1. Stop Citrus on your PC.
-2. Upload the whole `storage` folder, including `master.key` and `nfc-hmac.key`: `scp -r storage root@YOUR_SERVER_IP:/opt/campusos/`
-3. On the server, run `chown -R campusos:campusos /opt/campusos && chmod 600 /opt/campusos/.env`.
+2. Upload the whole `storage` folder, including `master.key` and `nfc-hmac.key`: `scp -r storage root@YOUR_SERVER_IP:/opt/citrus/`
+3. On the server, run `chown -R citrus:citrus /opt/citrus && chmod 600 /opt/citrus/.env`.
 
 ### 5. Run it as a service, with nightly backups
 
 ```bash
-cp /opt/campusos/deploy/campusos.service /opt/campusos/deploy/campusos-backup.* /etc/systemd/system/
+cp /opt/citrus/deploy/citrus.service /opt/citrus/deploy/citrus-backup.* /etc/systemd/system/
 systemctl daemon-reload
-systemctl enable --now campusos campusos-backup.timer
-systemctl status campusos        # should say "active (running)"
-journalctl -u campusos -f        # live logs (Ctrl+C to leave)
+systemctl enable --now citrus citrus-backup.timer
+systemctl status citrus        # should say "active (running)"
+journalctl -u citrus -f        # live logs (Ctrl+C to leave)
 ```
 
 ### 6. Turn on HTTPS
 
 ```bash
-cp /opt/campusos/deploy/Caddyfile /etc/caddy/Caddyfile
+cp /opt/citrus/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile        # replace campus.example.edu with your domain
 systemctl reload caddy
 ```
 
-Open `https://campus.example.edu`. Caddy gets the certificate on the first request. Then run `sudo -u campusos node --env-file=/opt/campusos/.env /opt/campusos/scripts/check.js` to confirm the configuration.
+Open `https://campus.example.edu`. Caddy gets the certificate on the first request. Then run `sudo -u citrus node --env-file=/opt/citrus/.env /opt/citrus/scripts/check.js` to confirm the configuration.
 
 ### 7. First things to do in the app
 
@@ -228,26 +228,26 @@ Open `https://campus.example.edu`. Caddy gets the certificate on the first reque
 
 ```powershell
 # on your PC
-tar -czf campusos.tgz --exclude=./storage --exclude=./backups --exclude=./.env --exclude=./node_modules .
-scp campusos.tgz root@YOUR_SERVER_IP:/tmp/
+tar -czf citrus.tgz --exclude=./storage --exclude=./backups --exclude=./.env --exclude=./node_modules .
+scp citrus.tgz root@YOUR_SERVER_IP:/tmp/
 ```
 
 ```bash
 # on the server
-sudo -u campusos node --env-file=/opt/campusos/.env /opt/campusos/scripts/backup.js
-tar -xzf /tmp/campusos.tgz -C /opt/campusos && chown -R campusos:campusos /opt/campusos
-systemctl restart campusos       # database migrations run automatically on start
+sudo -u citrus node --env-file=/opt/citrus/.env /opt/citrus/scripts/backup.js
+tar -xzf /tmp/citrus.tgz -C /opt/citrus && chown -R citrus:citrus /opt/citrus
+systemctl restart citrus       # database migrations run automatically on start
 ```
 
 ### Backups
 
-Every night `backups/campusos-<date>/` gets a consistent database snapshot, the recordings and the key files. The newest 14 are kept; set `BACKUP_KEEP` to change that. **Also copy them off the server** regularly, for example from your PC:
+Every night `backups/citrus-<date>/` gets a consistent database snapshot, the recordings and the key files. The newest 14 are kept; set `BACKUP_KEEP` to change that. **Also copy them off the server** regularly, for example from your PC:
 
 ```powershell
-scp -r root@YOUR_SERVER_IP:/opt/campusos/backups ./server-backups
+scp -r root@YOUR_SERVER_IP:/opt/citrus/backups ./server-backups
 ```
 
-To restore: stop the service (`systemctl stop campusos`), copy a backup's files into `/opt/campusos/storage/`, fix ownership with `chown -R campusos:campusos`, and start the service again.
+To restore: stop the service (`systemctl stop citrus`), copy a backup's files into `/opt/citrus/storage/`, fix ownership with `chown -R citrus:citrus`, and start the service again.
 
 ---
 
@@ -269,7 +269,7 @@ To do the same by hand: run `cloudflared tunnel --url http://localhost:3100`, th
 | Symptom | Fix |
 |---|---|
 | Caddy shows a certificate error | DNS doesn't point at the server yet, or ports 80/443 are blocked. |
-| `502 Bad Gateway` | Citrus isn't running. Check `systemctl status campusos` and `journalctl -u campusos -n 50`. |
+| `502 Bad Gateway` | Citrus isn't running. Check `systemctl status citrus` and `journalctl -u citrus -n 50`. |
 | Everything's locked after a few logins | `TRUST_PROXY=1` is missing, so all visitors share one IP. |
 | Buttons fail with "Cross-site request rejected" | The proxy changes the `Host` header. Pass it through unchanged (`proxy_set_header Host $host` in nginx; Caddy does this by default). |
 | Live updates or AI answers arrive all at once | Your proxy buffers responses. Keep `flush_interval -1` in Caddy; in nginx use `proxy_buffering off`. |

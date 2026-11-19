@@ -37,7 +37,7 @@ function minutesText({ meeting, report, notes = [], said = [] }) {
   const start = meeting.started ? Date.parse(meeting.started) : null;
   const t = (iso) => (start === null ? iso.slice(11, 19) : clock((Date.parse(iso) - start) / 1000));
   return [
-    'CAMPUSOS | MEETING MINUTES',
+    'CITRUS | MEETING MINUTES',
     `meeting: ${meeting.title}`,
     meeting.label ? `file: ${meeting.label}` : '',
     meeting.started ? `started: ${meeting.started}` : `drafted: ${meeting.created}`,

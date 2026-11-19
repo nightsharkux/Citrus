@@ -209,7 +209,7 @@ const TERM_INSTRUCTIONS = [
 
 function termText(term) {
   const out = [
-    `CAMPUSOS | TERM OVERVIEW`,
+    `CITRUS | TERM OVERVIEW`,
     `course: ${term.course.code} ${term.course.title}`.trim(),
     `lectures: ${term.averages.lectures}`,
     term.enrolled ? `enrolled: ${term.enrolled}` : '',
@@ -251,7 +251,7 @@ const PROGRESS_INSTRUCTIONS = [
 
 function progressText(progress) {
   const out = [
-    'CAMPUSOS | MY PROGRESS',
+    'CITRUS | MY PROGRESS',
     `course: ${progress.course.code} ${progress.course.title}`.trim(),
     `lectures: ${progress.averages.lectures}`,
     '',

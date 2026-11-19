@@ -4,7 +4,7 @@
  *
  *   node --env-file-if-exists=.env scripts/backup.js
  *
- * Writes backups/campusos-<timestamp>/ containing a consistent database
+ * Writes backups/citrus-<timestamp>/ containing a consistent database
  * snapshot (SQLite VACUUM INTO), the audio recordings and the key files.
  * Keeps the newest BACKUP_KEEP backups (default 14). Copy the backups folder
  * off the server too — a backup on the same disk is not a backup.
@@ -18,7 +18,7 @@ const config = loadConfig();
 
 if (config.database.url) {
   console.error('The database is hosted (TURSO_DATABASE_URL is set), so there is no local file to copy.');
-  console.error('Back it up from Turso: "turso db shell <name> .dump > campusos.sql". Turso also keeps point-in-time restore points.');
+  console.error('Back it up from Turso: "turso db shell <name> .dump > citrus.sql". Turso also keeps point-in-time restore points.');
   console.error('Keep CAMPUS_MASTER_KEY and CAMPUS_NFC_KEY (or the app_keys table) with that dump: without them, device secrets and Moodle tokens cannot be read.');
   process.exit(1);
 }
@@ -31,7 +31,7 @@ if (!fs.existsSync(config.dbPath)) {
 }
 
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const target = path.join(backupRoot, `campusos-${stamp}`);
+const target = path.join(backupRoot, `citrus-${stamp}`);
 fs.mkdirSync(target, { recursive: true, mode: 0o700 });
 
 // 1. Consistent database snapshot, even with the server writing.
@@ -48,7 +48,7 @@ for (const file of ['master.key', 'nfc-hmac.key', 'vapid.json']) {
 }
 
 // 3. Retention: only touches folders this script created.
-const old = fs.readdirSync(backupRoot).filter((name) => /^campusos-\d{4}-/.test(name)).sort().reverse().slice(keep);
+const old = fs.readdirSync(backupRoot).filter((name) => /^(?:citrus|campusos)-\d{4}-/.test(name)).sort().reverse().slice(keep);
 for (const name of old) fs.rmSync(path.join(backupRoot, name), { recursive: true, force: true });
 
 console.log(`Backup saved: ${target}${old.length ? ` (removed ${old.length} older)` : ''}`);

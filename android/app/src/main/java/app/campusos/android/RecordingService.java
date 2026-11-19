@@ -142,7 +142,7 @@ public class RecordingService extends Service {
         if (capturing || target == null || target.isEmpty()) return;
         capturing = true;
         PowerManager pm = getSystemService(PowerManager.class);
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CampusOS:recording");
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "Citrus:recording");
         wakeLock.acquire(4 * 60 * 60 * 1000L);
         nextPiece();
         refresh();

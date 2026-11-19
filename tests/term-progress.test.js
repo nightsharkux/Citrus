@@ -87,7 +87,7 @@ test('the lecturer sees the term; a student sees only their own progress; both d
     assert.equal(term.body.trend, null, 'a trend needs four lectures');
 
     const txt = await (await app.call('prof', 'GET', `/api/courses/${courseId}/progress.txt`, undefined, { raw: true })).text();
-    assert.match(txt, /^CAMPUSOS \| TERM OVERVIEW/);
+    assert.match(txt, /^CITRUS \| TERM OVERVIEW/);
     assert.ok(txt.indexOf('INSTRUCTIONS FOR ANY AI') < txt.indexOf('=== DATA ==='));
     assert.match(txt, new RegExp(`\\[LECTURE date=\\d{4}-\\d\\d-\\d\\d session=${s2}\\] "Eigenvalues" understood=\\d+% status=\\w+`));
     assert.match(txt, new RegExp(`\\[HARD_PART date=\\S+ session=${s2} P2 t=\\S+\\] "[^"]+" lecture="Eigenvalues" understood=\\d+% status=trouble .*#follow-up`));
@@ -102,7 +102,7 @@ test('the lecturer sees the term; a student sees only their own progress; both d
     assert.deepEqual(mine.body.parts[0].flags.map((f) => f.note), ['what is lambda?']);
     assert.ok(!('students' in mine.body) && !('hardest' in mine.body), 'nothing about other students');
     const annTxt = await (await app.call('ann', 'GET', `/api/courses/${courseId}/progress.txt`, undefined, { raw: true })).text();
-    assert.match(annTxt, /^CAMPUSOS \| MY PROGRESS/);
+    assert.match(annTxt, /^CITRUS \| MY PROGRESS/);
     assert.match(annTxt, new RegExp(`\\[TARGET date=\\S+ session=${s2} P2 t=\\S+\\] .* you=lost .*#target`));
     assert.match(annTxt, /\[FLAG t=\S+\] kind=confused note="what is lambda\?"/);
     const ben = await app.call('ben', 'GET', `/api/courses/${courseId}/progress`);
@@ -142,12 +142,12 @@ test('Ask Citrus answers from the course files at any time, cites them, and know
     await app.call('prof', 'POST', '/api/assistant/messages', { prompt: 'Which parts should I revisit?', course_id: courseId });
     const lect = fixture.state.calls.at(-1).messages[0].content;
     assert.match(lect, /COURSE OVERVIEW: the user is talking about MA2 Linear Algebra/);
-    assert.match(lect, /CAMPUSOS \| TERM OVERVIEW/);
+    assert.match(lect, /CITRUS \| TERM OVERVIEW/);
     assert.match(lect, /roots of det/, 'all of the course files when asked about the course');
     // A student naming the course by its code gets their own progress, never the term overview.
     await app.call('ben', 'POST', '/api/assistant/messages', { prompt: 'How am I doing in MA2?' });
     const benSystem = fixture.state.calls.at(-1).messages[0].content;
-    assert.match(benSystem, /CAMPUSOS \| MY PROGRESS/);
+    assert.match(benSystem, /CITRUS \| MY PROGRESS/);
     assert.doesNotMatch(benSystem, /TERM OVERVIEW|Ann Person/);
     // A course id that is not theirs is ignored.
     await app.call('newbie', 'POST', '/api/assistant/messages', { prompt: 'Tell me about it', course_id: courseId });

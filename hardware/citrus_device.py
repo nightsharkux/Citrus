@@ -3,7 +3,7 @@
 Runs on a Raspberry Pi or any Linux/Windows box. Standard library only;
 card reading uses the optional `pyscard` package with any PC/SC NFC reader.
 
-    python3 hardware/campusos_device.py --url https://campus.example.edu \
+    python3 hardware/citrus_device.py --url https://campus.example.edu \
         --id dev_3 --secret <secret> [--nfc]
 
 What it does
@@ -60,7 +60,7 @@ class CampusDevice:
             raise RuntimeError(f"HTTP {error.code}: {detail}") from None
 
     def heartbeat(self, wait=25):
-        return self.call("heartbeat", {"firmware": "campusos-py-1.0", "capabilities": CAPABILITIES, "wait": wait})
+        return self.call("heartbeat", {"firmware": "citrus-py-1.0", "capabilities": CAPABILITIES, "wait": wait})
 
     def event(self, kind, data):
         return self.call("events", {"type": kind, "data": data}, timeout=90)

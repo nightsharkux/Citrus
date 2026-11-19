@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
-        s.setUserAgentString(s.getUserAgentString() + " CampusOSApp/" + BuildConfig.VERSION_NAME);
+        s.setUserAgentString(s.getUserAgentString() + " CitrusApp/" + BuildConfig.VERSION_NAME);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
 
@@ -397,7 +397,7 @@ public class MainActivity extends Activity {
                     endRecording();
                     break;
                 case "save": {
-                    String name = o.optString("name", "campus-os-file");
+                    String name = o.optString("name", "citrus-file");
                     String mime = o.optString("mime", "application/octet-stream");
                     byte[] bytes = Base64.decode(o.optString("data", ""), Base64.DEFAULT);
                     new Thread(() -> {

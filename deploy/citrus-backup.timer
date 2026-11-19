@@ -1,4 +1,4 @@
-# /etc/systemd/system/campusos-backup.timer — backs up every night at 03:15
+# /etc/systemd/system/citrus-backup.timer — backs up every night at 03:15
 [Unit]
 Description=Nightly Citrus backup
 

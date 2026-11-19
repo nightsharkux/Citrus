@@ -16,7 +16,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const OUT = path.join(__dirname, '..', 'resources', 'oth-campus-map.json');
-const UA = 'CampusOS-OTH-pack/1.0 (student project; https://github.com/nightsharkux/CampusOS_One)';
+const UA = 'Citrus-OTH-pack/1.0 (student project; https://github.com/nightsharkux/CampusOS_One)';
 
 const CAMPUSES = [
   {

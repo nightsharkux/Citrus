@@ -24,7 +24,7 @@ Citrus has a signed **device API** for classroom hardware: voice pucks, NFC card
 ## Real device (Raspberry Pi or similar)
 
 ```bash
-python3 hardware/campusos_device.py --url https://campus.example.edu --id dev_3 --secret <secret> --nfc
+python3 hardware/citrus_device.py --url https://campus.example.edu --id dev_3 --secret <secret> --nfc
 ```
 
 The script uses the standard library only. Card reading uses `pyscard` with any PC/SC reader, for example an ACR122U. Replace the `on_room_status`, `on_speak` and `on_message` hooks with your GPIO, LED and speaker code.
@@ -44,7 +44,7 @@ Base path: `/api/v1/device/`. Every request is `POST` with a JSON body and these
 canonical = METHOD + "\n" + PATH + "\n" + TIMESTAMP + "\n" + NONCE + "\n" + hex(SHA-256(body))
 ```
 
-`PATH` is the exact request path without the query string, e.g. `/api/v1/device/heartbeat`. Reference implementations: `src/modules/devices/protocol.js` (Node) and `sign()` in `hardware/campusos_device.py`.
+`PATH` is the exact request path without the query string, e.g. `/api/v1/device/heartbeat`. Reference implementations: `src/modules/devices/protocol.js` (Node) and `sign()` in `hardware/citrus_device.py`.
 
 ### `POST heartbeat`
 

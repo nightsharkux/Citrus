@@ -199,7 +199,7 @@ function register(router, deps) {
       audit: db.all('SELECT * FROM audit WHERE institution_id = ? ORDER BY id DESC LIMIT 5000', inst),
     };
     audit(ctx.user, 'institution_exported', '');
-    ctx.res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="campusos-export.json"', 'Cache-Control': 'no-store' });
+    ctx.res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': 'attachment; filename="citrus-export.json"', 'Cache-Control': 'no-store' });
     ctx.res.end(JSON.stringify(data, null, 2));
   }, ADMIN);
 }

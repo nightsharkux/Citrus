@@ -11,7 +11,7 @@ const { openDatabase } = require('../src/db/database');
 const { runMigrations } = require('../src/db/migrate');
 const { createApp } = require('../src/app');
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-routes-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citrus-routes-'));
 const env = { DB_PATH: path.join(dir, 'routes.db') };
 const config = loadConfig(env);
 const db = openDatabase(config.dbPath);

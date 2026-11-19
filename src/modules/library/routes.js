@@ -90,7 +90,7 @@ function register(router, { db, ai, audit }) {
     const docs = mine(ctx.user).filter((d) => d.status === 'ready').reverse();
     if (!docs.length) throw notFound('No documents are ready yet');
     const institution = db.get('SELECT name FROM institutions WHERE id = ?', ctx.user.institution_id)?.name;
-    ctx.res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="campusos-documents-${new Date().toISOString().slice(0, 10)}.txt"`, 'Cache-Control': 'no-store' });
+    ctx.res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="citrus-documents-${new Date().toISOString().slice(0, 10)}.txt"`, 'Cache-Control': 'no-store' });
     ctx.res.end(library.corpusText(institution, docs));
   }, STAFF);
 

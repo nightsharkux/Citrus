@@ -1,4 +1,4 @@
-# /etc/systemd/system/campusos.service
+# /etc/systemd/system/citrus.service
 # Starts Citrus on boot and restarts it if it crashes.
 [Unit]
 Description=Citrus
@@ -7,10 +7,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=campusos
-Group=campusos
-WorkingDirectory=/opt/campusos
-ExecStart=/usr/bin/node --env-file=/opt/campusos/.env server.js
+User=citrus
+Group=citrus
+WorkingDirectory=/opt/citrus
+ExecStart=/usr/bin/node --env-file=/opt/citrus/.env server.js
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=10
@@ -20,7 +20,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/opt/campusos/storage /opt/campusos/backups
+ReadWritePaths=/opt/citrus/storage /opt/citrus/backups
 
 [Install]
 WantedBy=multi-user.target

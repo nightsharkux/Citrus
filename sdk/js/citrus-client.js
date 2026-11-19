@@ -2,14 +2,14 @@
  * Citrus API client for web apps, native shells (Capacitor/React Native web
  * views) and scripts. Framework-free; uses fetch.
  *
- *   const campus = new CampusOSClient('https://campus.example.edu');
+ *   const campus = new CitrusClient('https://campus.example.edu');
  *   await campus.login('me@uni.edu', 'password');
  *   for await (const text of campus.ask('What’s on my schedule?')) process.stdout.write(text);
  *
  * Browsers send the session cookie automatically (same origin). Native apps
  * should use university SSO in a system browser and a secure cookie store.
  */
-export class CampusOSClient {
+export class CitrusClient {
   constructor(baseURL = '') {
     this.base = baseURL.replace(/\/$/, '');
   }

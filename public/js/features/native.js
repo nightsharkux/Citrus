@@ -22,7 +22,7 @@ if (typeof window !== 'undefined') {
 }
 
 /** True when the page runs in the Android app (by its user agent), even before the channel is ready. */
-export const inApp = () => typeof navigator !== 'undefined' && / CampusOSApp\//.test(navigator.userAgent || '');
+export const inApp = () => typeof navigator !== 'undefined' && / (?:Citrus|CampusOS)App\//.test(navigator.userAgent || '');
 
 export const native = {
   available: () => !!port,
