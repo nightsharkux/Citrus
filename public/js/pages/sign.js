@@ -14,7 +14,7 @@ import { session } from '../core/store.js';
 import { getLanguage } from '../core/i18n.js';
 import { pageHead } from '../core/components.js';
 import { toast, toastError, busy } from '../core/ui.js';
-import { PRESETS, SIZES, SYMBOLS, SPEEDS, LIMITS, DEFAULT_MESSAGE, normalizeSpec, withPreset, messageLines } from '../features/sign-model.js';
+import { PRESETS, SIZES, SYMBOLS, SPEEDS, LIMITS, DEFAULT_MESSAGE, normalizeSpec, withPreset, messageLines, decodeSpec } from '../features/sign-model.js';
 import { signView, openSign } from '../features/sign.js';
 
 const KEY = 'citrus.sign';
@@ -91,6 +91,12 @@ export default {
 
   mount(root, data, ctx) {
     let spec = loadSpec();
+    // A sign the assistant made ("show a red sign that says shh") arrives in the link; it is kept like one made by hand.
+    const shared = ctx.query.get('spec') ? decodeSpec(ctx.query.get('spec'), { language: defaultLanguage() }) : null;
+    if (shared) {
+      spec = shared;
+      saveSpec(spec);
+    }
 
     // ---- the sign itself, full screen
     let sign = null;

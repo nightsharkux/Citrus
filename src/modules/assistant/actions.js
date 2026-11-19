@@ -21,6 +21,8 @@ const { readPreferences, applyPreferences } = require('../account/preferences');
 const { KINDS: QUIZ_KINDS } = require('../quiz/questions');
 const { INTEREST_TAGS } = require('../account/routes');
 const { CATEGORIES: POST_CATEGORIES } = require('../connect/routes');
+const { startBreak, endBreak, startChapter } = require('../live/lecture-edits');
+const { specFromArgs } = require('../sign/design');
 
 const ERRORS = {
   when: 'I could not read that date and time.',
@@ -31,15 +33,20 @@ const ERRORS = {
 /** Where "navigate" may go, by role. */
 const PAGES = {
   home: '/home', map: '/campus/map', assistant: '/assistant', courses: '/courses', schedule: '/schedule', spaces: '/spaces', campus: '/campus', inbox: '/inbox', settings: '/settings', tools: '/tools', guide: '/campus/guide', profile: '/settings/profile', quiz: '/quiz', groups: '/groups',
+  lectures: '/lectures', meetings: '/meetings', library: '/library', apps: '/apps', sign: '/sign',
 };
 const ROLE_PAGES = {
   student: { learning: '/learning', review: '/learning', participation: '/participation', career: '/career' },
   lecturer: { classroom: '/classroom', participation: '/participation' },
   admin: { people: '/admin/people', moderation: '/admin/moderation', ai: '/admin/ai', devices: '/admin/devices', institution: '/admin/institution', classroom: '/classroom', participation: '/participation' },
 };
-const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz', study_groups: 'groups', group: 'groups', lerngruppen: 'groups', lerngruppe: 'groups' };
+const ALIASES = { 'campus_map': 'map', maps: 'map', lageplan: 'map', campusplan: 'map', karte: 'map', calendar: 'schedule', timetable: 'schedule', notifications: 'inbox', messages: 'inbox', chat: 'assistant', learn: 'learning', study: 'learning', teaching: 'courses', events: 'campus', feed: 'campus', rooms: 'spaces', checkin: 'participation', 'check-in': 'participation', careers: 'career', all_tools: 'tools', features: 'tools', preferences: 'settings', account: 'settings', quizzes: 'quiz', quizze: 'quiz', tests: 'quiz', study_groups: 'groups', group: 'groups', lerngruppen: 'groups', lerngruppe: 'groups',
+  // The lectures page, the study sign, documents and meetings, by the names people use in English and German.
+  vorlesungen: 'lectures', vorlesung: 'lectures', live_lecture: 'lectures', live_vorlesung: 'lectures', lecture: 'lectures', go_live: 'lectures', join: 'lectures',
+  meeting: 'meetings', besprechungen: 'meetings', besprechung: 'meetings', dokumente: 'library', documents: 'library', my_tools: 'apps', meine_werkzeuge: 'apps',
+  study_sign: 'sign', do_not_disturb: 'sign', dnd: 'sign', quiet_sign: 'sign', lernschild: 'sign', nicht_stören: 'sign', nicht_storen: 'sign', bitte_nicht_stören: 'sign', stundenplan: 'schedule', kalender: 'schedule', kurse: 'courses', einstellungen: 'settings', postfach: 'inbox' };
 
-function createActionRunner({ db, config, access, timetable, audit, studyGroups = null, campusPosts = null, programmes = null, now = () => new Date() }) {
+function createActionRunner({ db, config, access, timetable, audit, studyGroups = null, campusPosts = null, programmes = null, bus = { publish() {} }, now = () => new Date() }) {
   const tz = config.site.timezone;
   const when = (iso, opts) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, ...opts }).format(new Date(iso));
   const dayAndTime = (startIso, endIso) => `${when(startIso, { weekday: 'short', day: 'numeric', month: 'short' })}, ${when(startIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}–${when(endIso, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
@@ -571,12 +578,58 @@ function createActionRunner({ db, config, access, timetable, audit, studyGroups 
       return { title: `Quiz: ${topic || course.code}`, detail: `${count} questions · ${difficulty}`, link: path, client: { type: 'navigate', path } };
     },
 
+    /**
+     * The study sign: a full-screen "please do not disturb". The sign is built here from a few safe fields and carried to
+     * the page in the link, where it is checked again; the person sees it at once and can change it there.
+     */
+    'sign.show'(user, a) {
+      const spec = specFromArgs({ language: user.preferences?.language === 'de' ? 'de' : 'en', ...a });
+      if (!spec) throw fail('I could not make that sign.');
+      const path = `/sign?show=1&spec=${Buffer.from(JSON.stringify(spec)).toString('base64url')}`;
+      return { title: 'Showing the study sign', detail: spec.message || (spec.language === 'both' ? 'Please do not disturb / Bitte nicht stören' : spec.language === 'de' ? 'Bitte nicht stören' : 'Please do not disturb'), client: { type: 'navigate', path } };
+    },
+
+    /** A student joins a live lecture with the six-digit code from the lecturer's screen. */
+    'lecture.join'(user, a) {
+      if (user.role !== 'student') throw fail('Lecturers start a lecture from Lectures. Students join with the code on the screen.');
+      const code = String(a.code ?? '').replace(/\D/g, '');
+      if (code.length !== 6) throw fail('A lecture code has six digits. Read it from the lecturer’s screen.');
+      return { title: 'Joining the lecture', detail: `Code ${code.slice(0, 3)} ${code.slice(3)}`, client: { type: 'navigate', path: `/join/${code}` } };
+    },
+
+    /** The lecturer's own live lecture: a break, and chapters. The same rules as the buttons in the lecture. */
+    'lecture.break'(user) {
+      const s = runningLecture(user);
+      const already = !!s.paused_at;
+      startBreak({ db, bus }, s);
+      return { title: already ? 'The lecture is already on a break' : 'Break started', detail: s.title };
+    },
+    'lecture.resume'(user) {
+      const s = runningLecture(user);
+      const was = !!s.paused_at;
+      endBreak({ db, bus }, s);
+      return { title: was ? 'The lecture continues' : 'The lecture was not on a break', detail: s.title };
+    },
+    'lecture.chapter'(user, a) {
+      const s = runningLecture(user);
+      const r = startChapter({ db }, s, String(a.title ?? '').replace(/\s+/g, ' ').trim().slice(0, 80));
+      return { title: r.added ? `Chapter ${r.number} started` : 'Chapter already started', detail: s.title };
+    },
+
     'app.theme'(user, a) {
       const mode = String(a.mode || '').toLowerCase();
       if (!['light', 'dark', 'system'].includes(mode)) throw fail('Choose light, dark or system.');
       return { title: mode === 'system' ? 'Theme follows your device' : `${mode[0].toUpperCase()}${mode.slice(1)} mode`, client: { type: 'theme', mode } };
     },
   };
+
+  /** The live lecture the lecturer is running now, or a plain explanation of why there is none. */
+  function runningLecture(user) {
+    if (user.role === 'student') throw fail('Only the lecturer can do that.');
+    const s = db.get('SELECT * FROM live_sessions WHERE institution_id = ? AND lecturer_id = ? AND ended IS NULL ORDER BY id DESC LIMIT 1', user.institution_id, user.id);
+    if (!s) throw fail('You have no live lecture right now. Start one in Lectures.');
+    return s;
+  }
 
   /** Week offset (from this week) of a date, for linking to the right schedule page. */
   function weekOffset(date) {

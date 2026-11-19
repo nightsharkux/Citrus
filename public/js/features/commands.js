@@ -13,7 +13,7 @@ import { allItems } from '../nav.js';
 const EXTRA_NAMES = {
   '/schedule': ['calendar', 'timetable', 'my schedule', 'my calendar', 'my timetable', 'stundenplan', 'mein stundenplan', 'kalender', 'mein kalender', 'terminplan'],
   '/home': ['home', 'dashboard', 'start', 'home screen', 'startseite', 'startbildschirm'],
-  '/courses': ['courses', 'my courses', 'classes', 'teaching', 'my classes', 'kurse', 'meine kurse', 'lehrveranstaltungen', 'vorlesungen', 'lehre'],
+  '/courses': ['courses', 'my courses', 'classes', 'teaching', 'my classes', 'kurse', 'meine kurse', 'lehrveranstaltungen', 'lehre'],
   '/quiz': ['quiz', 'quizzes', 'my quizzes', 'quizze', 'meine quizze', 'tests', 'practice quiz'],
   '/learning': ['learning', 'study', 'review', 'revision', 'progress', 'my progress', 'lernen', 'wiederholen', 'wiederholung', 'fortschritt', 'mein fortschritt'],
   '/meetings': ['meetings', 'meeting', 'meeting mode', 'my meetings', 'besprechungen', 'besprechung', 'meetings ansehen'],
@@ -28,7 +28,7 @@ const EXTRA_NAMES = {
   '/career': ['career', 'career explorer', 'careers', 'karriere', 'berufsorientierung'],
   '/sign': ['study sign', 'sign', 'do not disturb', 'dont disturb', 'quiet sign', 'leave me alone', 'nicht storen', 'bitte nicht storen', 'lernschild', 'ruhe bitte'],
   '/classroom': ['classroom', 'horsaal', 'klassenzimmer', 'rooms and devices', 'room status', 'raumstatus'],
-  '/lectures': ['lectures', 'my lectures', 'live lecture', 'go live', 'live vorlesung'],
+  '/lectures': ['lectures', 'my lectures', 'live lecture', 'go live', 'join lecture', 'join a lecture', 'vorlesungen', 'meine vorlesungen', 'vorlesung', 'live vorlesung', 'vorlesung beitreten', 'live gehen'],
   '/library': ['documents', 'my documents', 'uploads', 'dokumente', 'meine dokumente'],
   '/assistant': ['assistant', 'chat', 'assistent'],
 };

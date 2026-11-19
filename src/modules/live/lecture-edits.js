@@ -22,6 +22,37 @@ const { activeMs } = require('./breaks');
 const TITLE_MAX = 80;
 const DOUBLE_TAP_MS = 2_000;
 
+/** A break begins (nothing happens if one is already open). Returns the session row. */
+function startBreak({ db, bus }, s) {
+  if (!s.paused_at) {
+    const at = new Date().toISOString();
+    db.run('INSERT INTO live_breaks(session_id, started) VALUES(?, ?)', s.id, at);
+    db.run('UPDATE live_sessions SET paused_at = ? WHERE id = ?', at, s.id);
+    bus.publish(`course:${s.course_id}`, 'live.paused', { session: s.id });
+  }
+  return db.get('SELECT * FROM live_sessions WHERE id = ?', s.id);
+}
+
+/** The open break ends. Returns the session row. */
+function endBreak({ db, bus }, s) {
+  if (s.paused_at) {
+    db.run('UPDATE live_breaks SET ended = ? WHERE session_id = ? AND ended IS NULL', new Date().toISOString(), s.id);
+    db.run('UPDATE live_sessions SET paused_at = NULL WHERE id = ?', s.id);
+    bus.publish(`course:${s.course_id}`, 'live.resumed', { session: s.id });
+  }
+  return db.get('SELECT * FROM live_sessions WHERE id = ?', s.id);
+}
+
+/** A new chapter starts now. A second mark within seconds of the last is the same mark. Returns { added, number }. */
+function startChapter({ db }, s, title = '') {
+  const rows = db.all('SELECT id, started FROM live_chapters WHERE session_id = ? ORDER BY started, id', s.id);
+  if (rows.length > 1 && Date.now() - Date.parse(rows.at(-1).started) < DOUBLE_TAP_MS) return { added: false, number: rows.length };
+  if (!rows.length) db.insert('INSERT INTO live_chapters(session_id, started, title, created) VALUES(?, ?, ?, ?)', s.id, s.started, '', new Date().toISOString());
+  const now = new Date().toISOString();
+  db.insert('INSERT INTO live_chapters(session_id, started, title, created) VALUES(?, ?, ?, ?)', s.id, now, title, now);
+  return { added: true, number: Math.max(rows.length, 1) + 1 };
+}
+
 function registerLectureEdits(router, { db, bus, blobs = { enabled: false }, transcripts, teaching, lecturerView, breaksOf }) {
   const isoNow = () => new Date().toISOString();
 
@@ -68,13 +99,10 @@ function registerLectureEdits(router, { db, bus, blobs = { enabled: false }, tra
     if (s.ended) throw conflict('This lecture has ended');
     const b = await ctx.json();
     const title = text(b.title, { max: TITLE_MAX, optional: true, label: 'Title' });
-    const rows = rowsOf(s);
-    const last = rows.at(-1);
-    // A second tap right after the first is the same mark, not an empty chapter.
-    if (rows.length > 1 && Date.now() - Date.parse(last.started) < DOUBLE_TAP_MS) return { chapters: chaptersOf(s), added: false };
-    db.insert('INSERT INTO live_chapters(session_id, started, title, created) VALUES(?, ?, ?, ?)', s.id, isoNow(), title, isoNow());
-    ctx.status = 201;
-    return { chapters: chaptersOf(s), added: true };
+    rowsOf(s); // a lecture always has its first chapter
+    const { added } = startChapter({ db }, s, title); // a second tap right after the first is the same mark
+    if (added) ctx.status = 201;
+    return { chapters: chaptersOf(s), added };
   });
 
   router.patch('/api/live/sessions/:id/chapters/:cid', async (ctx) => {
@@ -140,27 +168,16 @@ function registerLectureEdits(router, { db, bus, blobs = { enabled: false }, tra
   router.post('/api/live/sessions/:id/pause', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
-    if (!s.paused_at) {
-      const at = isoNow();
-      db.run('INSERT INTO live_breaks(session_id, started) VALUES(?, ?)', s.id, at);
-      db.run('UPDATE live_sessions SET paused_at = ? WHERE id = ?', at, s.id);
-      bus.publish(`course:${s.course_id}`, 'live.paused', { session: s.id });
-    }
-    return lecturerView(db.get('SELECT * FROM live_sessions WHERE id = ?', s.id));
+    return lecturerView(startBreak({ db, bus }, s));
   });
 
   router.post('/api/live/sessions/:id/resume', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
-    if (s.paused_at) {
-      db.run('UPDATE live_breaks SET ended = ? WHERE session_id = ? AND ended IS NULL', isoNow(), s.id);
-      db.run('UPDATE live_sessions SET paused_at = NULL WHERE id = ?', s.id);
-      bus.publish(`course:${s.course_id}`, 'live.resumed', { session: s.id });
-    }
-    return lecturerView(db.get('SELECT * FROM live_sessions WHERE id = ?', s.id));
+    return lecturerView(endBreak({ db, bus }, s));
   });
 
   return { chaptersOf };
 }
 
-module.exports = { registerLectureEdits, TITLE_MAX };
+module.exports = { registerLectureEdits, startBreak, endBreak, startChapter, TITLE_MAX };

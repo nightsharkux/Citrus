@@ -105,6 +105,9 @@ const VALUES = { on: 'an', off: 'aus', faster: 'schneller', slower: 'langsamer',
 const value = (v) => VALUES[v] ?? v;
 
 /** [regex, builder]. The first match wins. */
+/** The pages the assistant opens, by the name it gives them, in German. A course code is left as it is. */
+const PAGE_NAMES = { home: 'Start', schedule: 'Stundenplan', courses: 'Kurse', lectures: 'Vorlesungen', meetings: 'Besprechungen', library: 'Dokumente', apps: 'Meine Werkzeuge', sign: 'Lernschild', learning: 'Lernen', quiz: 'Quizze', groups: 'Lerngruppen', spaces: 'Räume', campus: 'Campusleben', map: 'Campusplan', inbox: 'Postfach', settings: 'Einstellungen', tools: 'Alle Werkzeuge', assistant: 'Assistent', participation: 'Teilnahme', classroom: 'Hörsaal', career: 'Karriere', profile: 'Profil', guide: 'Campus-Leitfaden' };
+
 export const PATTERNS = [
   [/^Show the QR code and the code (\d{3} \d{3}) on the projector\.$/, (code) => `Zeig den QR-Code und den Code ${code} am Beamer.`],
   [/^QR code for (.+)$/, (title) => `QR-Code für ${title}`],
@@ -127,7 +130,14 @@ export const PATTERNS = [
   [/^Message (\S+)$/, (name) => `Nachricht an ${name}`],
   [/^Talk to (\S+)$/, (name) => `Mit ${name} sprechen`],
   [/^Talk to (\S+): a hands-free voice conversation$/, (name) => `Mit ${name} sprechen: ein Sprachgespräch ohne Hände`],
-  [/^Opening (.+)$/, (page) => `Öffne ${page}`],
+  [/^Opening (.+)$/, (page) => `Öffne ${PAGE_NAMES[page.toLowerCase()] || page}`],
+  [/^Chapter (\d+) started$/, (n) => `Kapitel ${n} gestartet`],
+  [/^Deleted (\d+) lines? of transcript and (\d+) pieces? of audio$/, (a, b) => `${a} ${Number(a) === 1 ? 'Zeile' : 'Zeilen'} Mitschrift und ${b} ${Number(b) === 1 ? 'Audioabschnitt' : 'Audioabschnitte'} gelöscht`],
+  [/^Deleted (\d+) lines? of transcript$/, (a) => `${a} ${Number(a) === 1 ? 'Zeile' : 'Zeilen'} Mitschrift gelöscht`],
+  [/^Deleted (\d+) pieces? of audio$/, (b) => `${b} ${Number(b) === 1 ? 'Audioabschnitt' : 'Audioabschnitte'} gelöscht`],
+  [/^Delete the recording of “(.+)”\?$/, (n) => `Aufnahme von „${n}“ löschen?`],
+  [/^(Morning|Afternoon|Evening) (\d{2}:\d{2}–\d{2}:\d{2})$/, (w, t) => `${{ Morning: 'Vormittag', Afternoon: 'Nachmittag', Evening: 'Abend' }[w]} ${t}`],
+  [/^Period (\d+) · (\d{2}:\d{2})$/, (n, t) => `Block ${n} · ${t}`],
   [/^(.+) is asleep until an AI model is connected\.$/, (name) => `${name} schläft, bis ein KI-Modell verbunden ist.`],
   [/^Say “Hey (.+)” on any page\. Answers are read aloud\.$/, (name) => `Sag auf jeder Seite „Hey ${name}“. Antworten werden vorgelesen.`],
   [/^(.+) is listening for “Hey (.+)”\.$/, (name, hey) => `${name} hört auf „Hey ${hey}“.`],

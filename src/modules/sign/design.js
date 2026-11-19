@@ -11,6 +11,13 @@ const SIZES = ['m', 'l', 'xl'];
 const SYMBOLS = ['none', 'moon', 'book', 'lock', 'mic-off', 'clock'];
 const SPEEDS = ['slow', 'normal', 'fast'];
 const LANGUAGES = ['en', 'de', 'both'];
+/** The four ready-made styles (the same as the browser's PRESETS). */
+const PRESETS = {
+  'black-white': { style: 'solid', background: '#000000', color: '#ffffff' },
+  'black-red': { style: 'solid', background: '#000000', color: '#ff3b30' },
+  red: { style: 'solid', background: '#d71920', color: '#ffffff' },
+  'flash-red': { style: 'flash', background: '#d71920', color: '#ffffff' },
+};
 
 const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
@@ -76,4 +83,25 @@ function sanitizeDesign(reply) {
   };
 }
 
-module.exports = { sanitizeDesign, parseObject, contrastRatio, LIMITS, SIZES, SYMBOLS, SPEEDS, LANGUAGES };
+/**
+ * A sign from what the assistant (or anyone) asks for in a few words: a ready-made style by name, or colours, plus the
+ * message and language. Always a safe sign: known values, readable colours, short text.
+ */
+function specFromArgs(args = {}) {
+  const preset = PRESETS[String(args.style ?? args.preset ?? '').toLowerCase().replace(/[ _]+/g, '-')] || null;
+  const base = preset || PRESETS['black-white'];
+  const reply = JSON.stringify({
+    background: args.background ?? base.background,
+    color: args.color ?? base.color,
+    style: args.flash === true ? 'flash' : (args.style === 'flash' ? 'flash' : base.style),
+    message: args.message,
+    language: args.language,
+    sub: args.sub,
+    size: args.size,
+    symbol: args.symbol,
+    speed: args.speed,
+  });
+  return sanitizeDesign(reply);
+}
+
+module.exports = { sanitizeDesign, specFromArgs, parseObject, contrastRatio, PRESETS, LIMITS, SIZES, SYMBOLS, SPEEDS, LANGUAGES };

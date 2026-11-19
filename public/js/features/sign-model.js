@@ -90,6 +90,16 @@ export function normalizeSpec(raw = {}, { language = 'en' } = {}) {
   };
 }
 
+/** A sign carried in a link (base64url JSON, as the assistant makes it), checked like any other; null when it is not one. */
+export function decodeSpec(param, options) {
+  try {
+    const bytes = Uint8Array.from(atob(String(param).replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+    return normalizeSpec(JSON.parse(new TextDecoder().decode(bytes)), options);
+  } catch {
+    return null;
+  }
+}
+
 /** A ready-made style applied to a sign, keeping the person's own message and choices. */
 export const withPreset = (spec, id, options) => normalizeSpec({ ...spec, preset: id, background: undefined, color: undefined, style: undefined }, options);
 

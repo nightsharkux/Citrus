@@ -24,6 +24,7 @@ import { notePitch } from '../features/pitch.js';
 import { time } from '../core/format.js';
 import { openLectureQr, showProjector } from '../features/lecture-qr.js';
 import { chaptersCard, mountChapters } from '../features/chapters.js';
+import { lectureCommand } from '../features/lecture-voice.js';
 
 const SIGNALS = [
   [1, 'Following', 'I understand', 'check-circle'],
@@ -564,7 +565,7 @@ function mountLecturer(root, d, ctx) {
         if (notePitch(text, { requireWake: true })) return;
         const asked = wake.match(text);
         if (asked && asked.rest.length >= 4) {
-          askNow(asked.rest);
+          if (!runCommand(asked.rest)) askNow(asked.rest);
           return;
         }
         transcript.push({ at: Date.now(), text });
@@ -588,15 +589,24 @@ function mountLecturer(root, d, ctx) {
 
   // ---- chapters and breaks
   const chaptersUi = mountChapters(root, { sid, chapters: view.chapters || [] });
-  async function addChapter() {
+  async function addChapter(title) {
     try {
-      const r = await api.post(`/live/sessions/${sid}/chapters`, {});
+      const r = await api.post(`/live/sessions/${sid}/chapters`, typeof title === 'string' && title ? { title } : {});
       chaptersUi.set(r.chapters);
       toast(r.added ? `Chapter ${r.chapters.length} started` : 'Chapter already started', 'success', { duration: 1600 });
       navigator.vibrate?.(20);
     } catch (error) {
       toastError(error);
     }
+  }
+  /** "Hey Citrus, new chapter" / "wir machen Pause": a spoken command runs at once; anything else is a question. */
+  function runCommand(text) {
+    const command = lectureCommand(text);
+    if (!command) return false;
+    if (command.type === 'chapter') addChapter(command.title);
+    else if (command.type === 'break' && !state.paused) toggleBreak();
+    else if (command.type === 'resume' && state.paused) toggleBreak();
+    return true;
   }
   /** Draws the break state everywhere it shows: the bar, the buttons, the island. */
   function showBreak(next) {
@@ -659,7 +669,7 @@ function mountLecturer(root, d, ctx) {
           }
           viewer.setActive('voice', true);
           const ear = dictate({
-            onFinal: (q) => q && askNow(q),
+            onFinal: (q) => q && (runCommand(q) || askNow(q)),
             onEnd: () => viewer?.setActive('voice', false),
           });
           if (!ear) viewer.setActive('voice', false);
