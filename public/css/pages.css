@@ -684,13 +684,20 @@ details > summary.card-head::-webkit-details-marker { display: none; }
 .doc-progress span { display: block; height: 100%; background: var(--accent); transition: width var(--dur) var(--ease); }
 
 /* Full-screen lecture notes */
-.viewer { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; background: color-mix(in srgb, var(--bg-solid) 92%, #000); color: var(--text); }
+.viewer { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; color: var(--text);
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 60%), color-mix(in srgb, var(--bg-solid) 94%, #000); }
+/* Anything the viewer hides must really go: these layers set their own display, which would otherwise win over the
+   hidden attribute and leave a blurred sheet over the slide. */
+.viewer [hidden] { display: none !important; }
 .viewer-stage { width: 100%; height: 100%; display: grid; place-items: center; padding: 56px 24px 96px; box-sizing: border-box; }
 .viewer-image { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: var(--radius); box-shadow: var(--shadow-lg); }
 .viewer-pdf { width: min(1200px, 100%); height: 100%; border: 0; border-radius: var(--radius); background: #fff; box-shadow: var(--shadow-lg); }
 .viewer-text { width: min(980px, 100%); max-height: 100%; overflow: auto; padding: 40px 48px; border-radius: var(--radius-xl); background: var(--glass-strong); border: 1px solid var(--glass-border); font-size: clamp(18px, 2vw, 26px); line-height: 1.5; }
 .viewer-empty { display: grid; justify-items: center; gap: 12px; color: var(--text-2); text-align: center; }
-.viewer-caption { position: fixed; top: 16px; left: 20px; right: 20px; display: flex; justify-content: space-between; gap: 16px; font-size: 14px; color: var(--text-2); pointer-events: none; }
+.viewer-caption { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); display: flex; align-items: center; gap: 14px; padding: 7px 16px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-2); pointer-events: none;
+  background: color-mix(in srgb, var(--bg-solid) 60%, transparent); border: 1px solid color-mix(in srgb, var(--text) 8%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+.viewer-caption > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.viewer-caption:empty { display: none; }
 .viewer-panel { position: fixed; right: 20px; bottom: 96px; width: min(420px, calc(100vw - 40px)); max-height: 60vh; display: flex; flex-direction: column; gap: 12px; padding: 16px; border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--bg-solid) 70%, transparent); -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid color-mix(in srgb, var(--text) 10%, transparent); box-shadow: 0 24px 60px -16px rgba(0, 0, 0, .5); animation: rise .35s cubic-bezier(.32, .72, 0, 1); }
@@ -747,7 +754,6 @@ details.report.is-version { margin-left: 18px; border-left: 3px solid var(--acce
 .app-run:fullscreen { height: 100vh; }
 .app-frame { width: 100%; height: 100%; border: 0; display: block; }
 .app-run .island { position: absolute; }
-.app-run .island.is-narrow { position: fixed; }
 .look-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .look-option { display: grid; gap: 8px; padding: 8px; border: 2px solid transparent; border-radius: var(--radius-lg); background: var(--fill); color: inherit; font: inherit; cursor: pointer; transition: border-color var(--fast), transform var(--fast); }
 .look-option:hover { transform: translateY(-2px); }
@@ -765,3 +771,19 @@ details.report.is-version { margin-left: 18px; border-left: 3px solid var(--acce
 .term-chart .term-bar { cursor: pointer; outline: none; }
 .term-chart .term-bar:hover rect, .term-chart .term-bar:focus-visible rect { filter: brightness(1.12); }
 .review-section.is-linked { box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Chapters of a lecture (features/chapters.js) */
+.chapter-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.chapter-row { display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 10px; border-radius: var(--radius-sm); }
+.chapter-row:hover { background: var(--fill); }
+.chapter-row.is-running { background: var(--accent-softer); }
+.chapter-n { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; }
+.chapter-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.chapter-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chapter-name.is-default { color: var(--text-2); font-weight: 600; }
+
+/* A break in a live lecture */
+.live-break { align-items: center; }
+.live-break[hidden] { display: none; }
+.live-signal:disabled, .flag-kinds input:disabled + span { opacity: .45; cursor: not-allowed; }
+.live-bar [hidden], .live-break[hidden] { display: none !important; }

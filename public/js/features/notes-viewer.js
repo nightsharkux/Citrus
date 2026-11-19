@@ -184,5 +184,5 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
   }
 
   show(index);
-  return { el, island, close, answer, setStatus: island.setStatus, setActive: island.setActive, setItem: island.setItem };
+  return { el, island, close, answer, setStatus: island.setStatus, setActive: island.setActive, setItem: island.setItem, setTone: island.setTone };
 }

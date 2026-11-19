@@ -106,6 +106,12 @@ a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: var(-
   color: var(--text);
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.25;
+  /* The label sits centred under its circle, and a two-word label that wraps (Join lecture, My progress) wraps evenly
+     instead of hugging the left edge. */
+  min-width: 0;
+  text-align: center;
+  text-wrap: balance;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -544,68 +550,110 @@ code.math-error { color: var(--warning); }
 .code-box span { flex: 1; }
 
 /* ---------------------------------------------------------------- Island: the frosted toolbar for full-screen views */
+/* A circle by default. A tap opens the bar; the person drags it anywhere, turns it, or fades it (features/island.js). */
 .island {
   --island-ease: cubic-bezier(.32, .72, 0, 1);
-  position: fixed; z-index: 1200; left: 50%; bottom: max(18px, env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  display: flex; align-items: center;
-  padding: 6px; border-radius: 999px;
-  background: color-mix(in srgb, var(--bg-solid) 58%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .45), 0 2px 8px rgba(0, 0, 0, .12), inset 0 1px 0 rgba(255, 255, 255, .14);
+  --hs: 44px; --pad: 5px;
+  position: fixed; z-index: 1200; left: 0; top: 0;
+  display: flex; align-items: center; padding: var(--pad); border-radius: 999px;
   color: var(--text);
-  transition: opacity .5s var(--island-ease), transform .5s var(--island-ease), padding .4s var(--island-ease);
+  background: transparent; border: 1px solid transparent;
+  transition: background .4s var(--island-ease), border-color .4s var(--island-ease), box-shadow .4s var(--island-ease);
 }
-.island.is-resting { opacity: .35; transform: translateX(-50%) translateY(6px) scale(.97); }
-.island.is-resting:hover, .island.is-resting:focus-within { opacity: 1; transform: translateX(-50%); }
-.island-handle { display: none; }
-.island-body { display: flex; align-items: center; gap: 4px; }
-.island-status { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 10px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
+.island [hidden] { display: none !important; }
+.island.is-open {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 9%, transparent), transparent 46%),
+    color-mix(in srgb, var(--bg-solid) 58%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(180%); backdrop-filter: blur(28px) saturate(180%);
+  border-color: color-mix(in srgb, var(--text) 9%, transparent);
+  box-shadow: 0 22px 54px -14px rgba(0, 0, 0, .46), 0 2px 10px rgba(0, 0, 0, .1), inset 0 1px 0 rgba(255, 255, 255, .15);
+}
+.island.is-vertical { flex-direction: column; }
+.island.grow-back { flex-direction: row-reverse; translate: calc(-100% + var(--hs) + var(--pad) * 2) 0; }
+.island.grow-back.is-vertical { flex-direction: column-reverse; translate: 0 calc(-100% + var(--hs) + var(--pad) * 2); }
+
+/* The circle. Closed, it is a small frosted glass of its own; open, it is just the first button of the bar. */
+.island-handle {
+  position: relative; flex: none; display: grid; place-items: center; width: var(--hs); height: var(--hs); border-radius: 50%; padding: 0;
+  color: inherit; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, #fff 12%, transparent), transparent 55%),
+    color-mix(in srgb, var(--bg-solid) 52%, transparent);
+  -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--text) 11%, transparent);
+  box-shadow: 0 10px 26px -8px rgba(0, 0, 0, .42), inset 0 1px 0 rgba(255, 255, 255, .16);
+  opacity: .55; filter: none;
+  transition: opacity .6s var(--island-ease), filter .6s var(--island-ease), transform .35s var(--island-ease), background .3s, box-shadow .3s;
+}
+.island.is-awake .island-handle, .island:hover .island-handle, .island:focus-within .island-handle, .island.is-open .island-handle, .island.is-dragging .island-handle { opacity: 1; }
+.island-handle:hover { transform: scale(1.06); }
+.island-handle:active { transform: scale(.94); }
+.island-handle:focus-visible, .island-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.island.is-open .island-handle { background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.island.is-open .island-handle:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.island.is-dragging { cursor: grabbing; }
+.island.is-dragging, .island.is-dragging * { transition: none !important; }
+.island.is-dragging .island-handle { cursor: grabbing; transform: scale(1.08); }
+
+/* Faded: blurred and faint, so it cannot be seen; a touch, or the pointer coming close, brings it back for a moment. */
+.island.is-faded .island-handle { opacity: .14; filter: blur(1.6px); }
+.island.is-faded.is-awake .island-handle, .island.is-faded:hover .island-handle, .island.is-faded:focus-within .island-handle, .island.is-faded.is-dragging .island-handle { opacity: 1; filter: none; }
+
+/* A small light on the closed circle: how the class is following. */
+.island[data-tone]:not(.is-open) .island-handle::after { content: ''; position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--text-3); box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg-solid) 70%, transparent); }
+.island[data-tone="good"]:not(.is-open) .island-handle::after { background: var(--success); }
+.island[data-tone="watch"]:not(.is-open) .island-handle::after { background: var(--warning); }
+.island[data-tone="trouble"]:not(.is-open) .island-handle::after { background: var(--danger); animation: pulse 1.4s ease-in-out infinite; }
+
+.island-body { display: none; align-items: center; gap: 4px; min-width: 0; }
+.island.is-open .island-body { display: flex; animation: island-in .4s var(--island-ease) both; transform-origin: left center; max-width: var(--island-room, none); }
+.island.grow-back .island-body { transform-origin: right center; }
+.island.is-vertical .island-body { flex-direction: column; transform-origin: center top; max-width: none; max-height: var(--island-room, none); }
+.island.is-vertical.grow-back .island-body { transform-origin: center bottom; }
+@keyframes island-in { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+.island-status { display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
 .island-status .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-3); box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 18%, transparent); }
 .island-status .is-good { background: var(--success); color: var(--success); }
 .island-status .is-watch { background: var(--warning); color: var(--warning); }
 .island-status .is-trouble { background: var(--danger); color: var(--danger); animation: pulse 1.4s ease-in-out infinite; }
 .island-items { display: flex; align-items: center; gap: 2px; }
-.island-divider { width: 1px; height: 22px; margin: 0 6px; background: color-mix(in srgb, var(--text) 14%, transparent); }
+.island.is-vertical .island-items { flex-direction: column; }
+.island-divider { flex: none; width: 1px; height: 22px; margin: 0 6px; background: color-mix(in srgb, var(--text) 14%, transparent); }
+.island.is-vertical .island-divider { width: 22px; height: 1px; margin: 4px 0; }
+.island.is-vertical .island-status { padding: 8px 6px; flex-direction: column; gap: 4px; font-size: 11px; text-align: center; white-space: normal; max-width: var(--hs); }
 .island-btn {
-  position: relative; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%;
+  position: relative; flex: none; display: grid; place-items: center; width: var(--hs); height: var(--hs); border: 0; padding: 0; border-radius: 50%;
   background: transparent; color: inherit; cursor: pointer;
   transition: background .25s var(--island-ease), transform .35s var(--island-ease), color .2s;
 }
 .island-btn:hover { background: color-mix(in srgb, var(--text) 9%, transparent); transform: scale(1.06); }
 .island-btn:active { transform: scale(.92); }
-.island-btn:focus-visible { outline: none; box-shadow: var(--ring); }
-.island-btn.is-active { background: var(--accent); color: var(--accent-contrast); }
+.island-btn.is-active, .island-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
 .island-btn.is-danger { color: var(--danger); }
+.island-own .island-btn { width: 38px; height: 38px; color: var(--text-2); }
+.island-own .island-btn:hover { color: var(--text); }
 .island-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* Tooltips open away from the nearest screen edge. */
 .island-btn[data-tip]::after {
   content: attr(data-tip); position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translate(-50%, 4px);
-  padding: 5px 10px; border-radius: 8px; background: color-mix(in srgb, var(--bg-solid) 86%, transparent);
-  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-sm);
-  font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; opacity: 0;
+  padding: 5px 10px; border-radius: 8px; background: color-mix(in srgb, var(--bg-solid) 88%, transparent);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: var(--shadow-sm), 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent);
+  font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; opacity: 0; z-index: 5;
   transition: opacity .18s, transform .3s var(--island-ease);
 }
-.island-btn[data-tip]:hover::after, .island-btn[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
-
-/* Phones: a round button at the side that opens into a column. */
-.island.is-narrow { left: auto; right: max(12px, env(safe-area-inset-right)); bottom: auto; transform: translateY(-50%); padding: 0; border-radius: 30px; flex-direction: column; }
-.island.is-narrow.on-left { right: auto; left: max(12px, env(safe-area-inset-left)); }
-.island.is-narrow.is-resting { opacity: 1; transform: translateY(-50%); }
-.island.is-narrow .island-handle { display: grid; place-items: center; width: 56px; height: 56px; border: 0; border-radius: 50%; background: transparent; color: inherit; cursor: pointer; touch-action: none; order: 2; }
-.island.is-narrow .island-body { flex-direction: column; gap: 2px; max-height: 0; opacity: 0; overflow: hidden; transform: scale(.6); transform-origin: bottom center; transition: max-height .45s var(--island-ease), opacity .3s var(--island-ease), transform .45s var(--island-ease); }
-.island.is-narrow.is-open { padding: 6px 0 0; }
-.island.is-narrow.is-open .island-body { max-height: 80vh; opacity: 1; transform: none; overflow-y: auto; }
-.island.is-narrow .island-items { flex-direction: column; }
-.island.is-narrow .island-status { padding: 8px 10px; flex-direction: column; gap: 4px; font-size: 11px; text-align: center; white-space: normal; max-width: 56px; }
-.island.is-narrow .island-divider { width: 22px; height: 1px; margin: 4px 0; }
-.island.is-narrow .island-btn { width: 48px; height: 48px; margin: 0 4px; }
-.island.is-narrow .island-btn[data-tip]::after { bottom: auto; left: auto; right: calc(100% + 10px); top: 50%; transform: translate(4px, -50%); }
-.island.is-narrow.on-left .island-btn[data-tip]::after { right: auto; left: calc(100% + 10px); transform: translate(-4px, -50%); }
-.island.is-narrow .island-btn[data-tip]::after { opacity: 1; }
-.island.is-narrow:not(.is-open) .island-btn[data-tip]::after { opacity: 0; }
+.island[data-tip="below"] .island-btn[data-tip]::after { bottom: auto; top: calc(100% + 12px); transform: translate(-50%, -4px); }
+.island[data-tip="left"] .island-btn[data-tip]::after { bottom: auto; left: auto; top: 50%; right: calc(100% + 12px); transform: translate(4px, -50%); }
+.island[data-tip="right"] .island-btn[data-tip]::after { bottom: auto; left: calc(100% + 12px); top: 50%; transform: translate(-4px, -50%); }
+.island .island-btn[data-tip]:hover::after, .island .island-btn[data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); }
+.island[data-tip="below"] .island-btn[data-tip]:hover::after { transform: translate(-50%, 0); }
+.island[data-tip="left"] .island-btn[data-tip]:hover::after, .island[data-tip="right"] .island-btn[data-tip]:hover::after { transform: translate(0, -50%); }
+/* Only when the bar cannot fit does it scroll (a scroll area would clip the tooltips). */
+.island.is-tight:not(.is-vertical) .island-body { overflow-x: auto; scrollbar-width: none; }
+.island.is-tight.is-vertical .island-body { overflow-y: auto; scrollbar-width: none; }
 @media (prefers-reduced-motion: reduce) {
-  .island, .island-btn, .island-body { transition: none !important; }
+  .island, .island-btn, .island-handle, .island-body { transition: none !important; animation: none !important; }
 }
 
 /* Graphs in answers (core/chart.js): a white figure like a textbook page */
@@ -616,3 +664,7 @@ figure.chart .chart-actions { display: flex; gap: 2px; }
 figure.chart .chart-actions .btn { color: #1f2328; }
 figure.chart .chart-actions .btn:hover { background: #f1f3f5; }
 figure.chart.is-drawing { display: flex; align-items: center; gap: 10px; min-height: 80px; color: #57606a; }
+
+/* Ready-made lecture times under "Date and time" (features/lecture-slots.js) */
+.slot-picker { display: grid; gap: 8px; }
+.slot-chips { display: flex; flex-wrap: wrap; gap: 6px; }
