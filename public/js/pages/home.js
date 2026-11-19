@@ -57,6 +57,7 @@ function quickActions(data) {
       ['/admin/moderation', 'flag', 'Moderate', p.posts + p.reports],
       ['/admin/ai', 'cpu', 'Knowledge', 0],
       ['/admin/devices', 'radio', 'Devices', 0],
+      ['/sign', 'moon', 'Study sign', 0],
       ['/assistant', 'campus', 'Ask', 0],
     ];
   }
@@ -67,6 +68,7 @@ function quickActions(data) {
       ['/participation?new=1', 'nfc', 'Check-in', 0],
       ['/meetings', 'message', 'Meeting', (data.meetings?.running || []).length],
       ['/courses', 'trending', 'How it went', 0],
+      ['/sign', 'moon', 'Study sign', 0],
       ['/assistant', 'campus', 'Ask', 0],
     ];
   }
@@ -75,6 +77,7 @@ function quickActions(data) {
     ['/participation', 'nfc', 'Check in', openSessions],
     ['/learning', 'trending', 'My progress', data.review?.stats?.dueNow || 0],
     ['/meetings', 'message', 'Meeting', (data.meetings?.running || []).length],
+    ['/sign', 'moon', 'Study sign', 0],
     ['/assistant', 'campus', 'Ask', 0],
   ];
 }

@@ -441,6 +441,12 @@ State-changing browser requests must be same-origin (CSRF protection).
 | PATCH | `/api/sections/:id` | user | any |
 | DELETE | `/api/sections/:id` | user | any |
 
+## sign
+
+| Method | Path | Auth | Roles |
+|---|---|---|---|
+| POST | `/api/sign/design` | user | any |
+
 ## speech
 
 | Method | Path | Auth | Roles |

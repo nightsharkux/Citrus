@@ -94,7 +94,7 @@ a.card:hover, button.card:hover { transform: translateY(-2px); box-shadow: var(-
 
 /* Circular quick actions (label below) */
 .actions-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(62px, 1fr)); gap: 6px; }
-@media (max-width: 420px) { .action-circle { width: 52px; height: 52px; } .action { font-size: 12px; } }
+@media (max-width: 420px) { .action-circle { width: 52px; height: 52px; } .action { font-size: 12px; } .actions-row { grid-template-columns: repeat(auto-fit, minmax(50px, 1fr)); gap: 2px; } }
 .action {
   display: flex;
   flex-direction: column;

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- **Study sign.** A full-screen “please do not disturb” for when you are studying, a tile on the home screen and an entry in the menu (`/sign`). Up front: one of four styles (black with white text, black with red text, red, or flashing red), English, German or both, an optional message of your own, and *Show the sign*. Tap the screen for the Exit button, or use Esc or the back button. Under *More options*: text size, a symbol, a small line (“Back at 15:30”), the two colours, the flash speed, and *Design with Citrus*, which writes a sign from a description (`POST /api/sign/design`; the reply is read as data and only known values with readable colours are used). Flashing is a slow pulse, never faster than once a second, and stays solid when the device asks for reduced motion. The choices stay on the device; no migration.
+
 ### Added (lecturers)
 - **Breaks.** *Break* in the bar of a live lecture pauses the whole lecture (a coffee break, lunch): listening stops, students see "on a break" and cannot answer or flag, the lecture's minutes stop counting, and *Resume* brings it back, switching listening on again if it was on. The lecture record counts teaching time only and shows each break (`[BREAK …]`). Migration `027`; routes `POST /api/live/sessions/:id/pause` and `/resume`.
 - **Chapters, like laps on a stopwatch.** *Chapter* in the bar (and in the island) starts a new chapter at that moment; names can be added now or after the lecture, chapters can be joined, and they replace the automatic parts in the review, the notes and the downloads as soon as there is more than one. Migration `027`; `src/modules/live/lecture-edits.js`.

@@ -59,6 +59,7 @@ const MODULES = [
   require('./modules/notifications/routes'),
   require('./modules/participation/routes'),
   require('./modules/careers/routes'),
+  require('./modules/sign/routes'),
   require('./modules/campus/routes'),
   require('./modules/devices/routes'),
   require('./modules/integrations/routes'),

@@ -35,6 +35,7 @@ export function registerRoutes() {
   route('/apps/:id', () => import('./pages/app.js'));
   route('/settings/:section?', () => import('./pages/settings.js'));
   route('/tools', () => import('./pages/tools.js'));
+  route('/sign', () => import('./pages/sign.js'));
 
   route('/admin/people', () => import('./pages/admin/people.js'));
   route('/admin/ai', () => import('./pages/admin/ai.js'));

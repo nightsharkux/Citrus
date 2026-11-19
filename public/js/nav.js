@@ -20,7 +20,7 @@ export const NAV = {
     ],
     secondary: [
       item('/courses', 'Courses', 'book'), item('/meetings', 'Meetings', 'message'), item('/schedule', 'Schedule', 'calendar'),
-      item('/quiz', 'Quizzes', 'target'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+      item('/quiz', 'Quizzes', 'target'), item('/sign', 'Study sign', 'moon'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
     hidden: [
       item('/spaces', 'Spaces', 'grid'), item('/groups', 'Study groups', 'users'), item('/campus', 'Campus life', 'compass'),
@@ -39,7 +39,7 @@ export const NAV = {
     ],
     secondary: [
       item('/assistant', 'Ask Citrus', 'campus'), item('/library', 'Documents', 'library'), item('/classroom', 'Rooms & devices', 'door'),
-      item('/schedule', 'Schedule', 'calendar'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
+      item('/schedule', 'Schedule', 'calendar'), item('/sign', 'Study sign', 'moon'), item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
     hidden: [
       item('/quiz', 'Quizzes', 'target'), item('/spaces', 'Spaces', 'grid'), item('/campus', 'Campus life', 'compass'),
@@ -61,7 +61,7 @@ export const NAV = {
       item('/admin/institution', 'Institution', 'shield'),
       item('/inbox', 'Inbox', 'inbox', { badge: 'unread' }),
     ],
-    secondary: [item('/meetings', 'Meetings', 'message'), item('/participation', 'Participation', 'nfc'), item('/classroom', 'Rooms & devices', 'door'), item('/schedule', 'Schedule', 'calendar'), item('/spaces', 'Spaces', 'grid')],
+    secondary: [item('/meetings', 'Meetings', 'message'), item('/participation', 'Participation', 'nfc'), item('/classroom', 'Rooms & devices', 'door'), item('/schedule', 'Schedule', 'calendar'), item('/sign', 'Study sign', 'moon'), item('/spaces', 'Spaces', 'grid')],
     hidden: [item('/quiz', 'Quizzes', 'target'), item('/campus/map', 'Campus map', 'map-pin'), item('/campus', 'Campus life', 'compass'), item('/apps', 'My tools', 'layers')],
     foot: COMMON_FOOT,
     tabs: ['/home', '/admin/people', '/assistant', '/admin/moderation', 'more'],
