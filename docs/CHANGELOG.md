@@ -2,7 +2,24 @@
 
 ## Unreleased
 
+### Added (lecturers)
+- **Breaks.** *Break* in the bar of a live lecture pauses the whole lecture (a coffee break, lunch): listening stops, students see "on a break" and cannot answer or flag, the lecture's minutes stop counting, and *Resume* brings it back, switching listening on again if it was on. The lecture record counts teaching time only and shows each break (`[BREAK …]`). Migration `027`; routes `POST /api/live/sessions/:id/pause` and `/resume`.
+- **Chapters, like laps on a stopwatch.** *Chapter* in the bar (and in the island) starts a new chapter at that moment; names can be added now or after the lecture, chapters can be joined, and they replace the automatic parts in the review, the notes and the downloads as soon as there is more than one. Migration `027`; `src/modules/live/lecture-edits.js`.
+- **Delete what was recorded.** A lecturer can delete the recording of one chapter (transcript lines, audio, and the key points and excerpts from that stretch), only the audio, or everything. Students cannot, and neither can another lecturer.
+- **Ready-made lecture times.** Scheduling a lecture offers the three sessions of the teaching day, taken from the printed DTM timetable: morning 08:15–11:30 (periods 1–2), afternoon 14:00–15:30 (period 4), evening 15:45–19:00 (periods 5–6), and the single periods. One tap sets the start and the length. The date picker's quick times are the period starts. `tests/lecture-slots.test.js` checks them against the timetable data.
+- **Two more student flags: "Explanation too long" and "A bit boring".** They show in the lecturer's flag counts, the chart, the review and the downloads like the other flags, but they are feedback on the teaching: they do not mark a part for follow-up and are never something a student has to study. Migration `028` rebuilds `live_flags` with the wider list and keeps every stored flag.
+
+### Changed
+- **The island is a circle first.** It starts as a small frosted circle instead of a toolbar. A tap opens the tools; the person drags it anywhere, turns the bar across or down, fades the circle until it is barely visible (it comes back at a touch or when the pointer is near), or hides it again. Place, direction and fade are remembered on that device. The bar opens towards the side with room and never leaves the screen.
+
+### Fixed
+- **The lecture notes viewer showed only a blur.** The hidden "All notes" and chat layers set their own display, which beat the hidden attribute, so a frosted full-screen sheet sat on top of every slide. They are really hidden now.
+- **Quick actions and the mobile tab bar were not centred.** On a phone a two-word label such as "Join lecture" or "My progress" wrapped and hugged the left edge of its column; labels are centred now and wrap evenly.
+
 ### Renamed
+- **CampusOS is gone from everything people see or download**: the headers of exported text files, download file names, the timetable data file and its header, the service worker cache, the Android user agent and wake-lock names, the package name, the scripts, the server templates (`deploy/citrus*.service`) and the guides. Kept on purpose because renaming them would break something already installed or saved: the Android application id, the database file `storage/campusos.db`, the device protocol name `campusos-device/1`, the calendar domain `campusos.local` and the default admin address `admin@campusos.local`.
+
+### Renamed (earlier)
 - **Campus OS and its assistant are now called Citrus.** The name changed everywhere people see it: the app, the sign-in and sign-up pages, notifications, the German translations, what the assistant says ("Ask Citrus", "Hey Citrus"), the Android app (name, texts and notification) and the documentation. The mark is a **C** now (the old ring, opened on the right with round ends): in the wordmark (a gradient C followed by "itrus"), on the sign-in cards, as the favicon, in the home-screen and notification icons and in the Android launcher icon. Saying "Hey Citrus" wakes the assistant ("Sitrus" and the German "Zitrus" are understood too, fruit talk such as "citrus juice" is not taken for a call, and the old name still works); a person who gave the assistant another name in the settings keeps it, and the interface keeps saying Citrus where it means the product ("Open Citrus", "your Citrus password"). "Campus" stays where it means the campus itself (Campus life, Campus map, Campus feed, Weidener Technologie-Campus). Kept as they were, because renaming them would break existing installs and links: folder, repository and file names, the Android package id (`app.campusos.android`), the database file name, service names and the `CampusOSClient` code library. The address is **https://citrus-mdu.vercel.app** now (the Android app opens it); the old address, campusos-mdu.vercel.app, keeps working for links and QR codes already out there. The face was left untouched.
 
 ### Added

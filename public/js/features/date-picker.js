@@ -12,9 +12,17 @@
 import { html, render } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { getLanguage } from '../core/i18n.js';
+import { session } from '../core/store.js';
+import { periodStarts, nextPeriodStart } from './slot-times.js';
 
 const SELECTOR = 'input[type="date"]:not([data-native]), input[type="datetime-local"]:not([data-native])';
 const TIMES = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00'];
+
+/** Quick times: the start of each teaching period when the university has them (the edition's timetable), else round hours. */
+export function quickTimes(site = session.site) {
+  const periods = periodStarts(site);
+  return periods.length ? periods : TIMES;
+}
 
 const pad = (n) => String(n).padStart(2, '0');
 export const dayIso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -55,9 +63,11 @@ function label(day, time) {
   return time ? `${date} · ${time}` : date;
 }
 
-/** For a new date and time: the next full hour in the working day, else 9:00. */
-function defaultTime() {
-  const next = new Date().getHours() + 1;
+/** For a new date and time: the next teaching period that has not started (else the first), or without periods the next full hour in the working day, else 9:00. */
+function defaultTime(now = new Date()) {
+  const period = nextPeriodStart(session.site, now);
+  if (period) return period;
+  const next = now.getHours() + 1;
   return next >= 7 && next <= 20 ? `${pad(next)}:00` : '09:00';
 }
 
@@ -101,7 +111,7 @@ function openPicker({ trigger, withTime, required, min, max, value, onPick }) {
       </div>
       ${withTime ? html`<div class="date-pop-time">
         <label class="date-time-field"><span>${icon('clock', 15)} Time</span><input class="input" type="time" step="300" value="${time}" data-time data-native></label>
-        <div class="date-time-chips">${TIMES.map((t) => html`<button type="button" class="chip-button ${t === time ? 'is-on' : ''}" data-time-pick="${t}">${t}</button>`)}</div>
+        <div class="date-time-chips">${quickTimes().map((t) => html`<button type="button" class="chip-button ${t === time ? 'is-on' : ''}" data-time-pick="${t}">${t}</button>`)}</div>
       </div>` : ''}
       <div class="date-pop-foot">
         ${required ? html`<span></span>` : html`<button type="button" class="btn btn-sm btn-ghost" data-clear>Clear</button>`}

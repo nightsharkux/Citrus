@@ -89,7 +89,7 @@ test('flags reach the lecturer without names, and each student only sees their o
     assert.equal((await app.call('prof', 'POST', `/api/live/sessions/${sid}/flags`, { kind: 'fast' })).status, 403, 'the lecturer does not flag');
 
     const view = await app.call('prof', 'GET', `/api/live/sessions/${sid}`);
-    assert.deepEqual(view.body.flagCounts, { confused: 0, fast: 1, example: 1, question: 0 });
+    assert.deepEqual(view.body.flagCounts, { confused: 0, fast: 1, example: 1, question: 0, long: 0, boring: 0 });
     assert.equal(view.body.flags.find((f) => f.kind === 'example').note, 'the second formula');
     assert.ok(!JSON.stringify(view.body.flags).match(/user|ann|ben/i), 'no names or ids of students');
 

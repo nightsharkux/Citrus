@@ -13,7 +13,7 @@ const path = require('node:path');
 const READERS = {
   'resources/OTH_Public_Knowledge_2026-10-31.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Public_Knowledge_2026-10-31.jsonl'), 'utf8'),
   'resources/OTH_Website_Knowledge.jsonl': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'OTH_Website_Knowledge.jsonl'), 'utf8'),
-  'resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'CampusOS_OTH_AW_Academic_Data_2026-11-08.txt'), 'utf8'),
+  'resources/Citrus_OTH_AW_Academic_Data_2026-11-08.txt': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'Citrus_OTH_AW_Academic_Data_2026-11-08.txt'), 'utf8'),
   'resources/oth-campus-map.json': () => fs.readFileSync(path.join(__dirname, '..', '..', 'resources', 'oth-campus-map.json'), 'utf8'),
 };
 

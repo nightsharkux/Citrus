@@ -266,6 +266,14 @@ State-changing browser requests must be same-origin (CSRF protection).
 | GET | `/api/live/lectures/:id/link` | user | any |
 | POST | `/api/live/lectures/:id/link` | user | any |
 | GET | `/api/live/links/:token` | public | any |
+| GET | `/api/live/sessions/:id/chapters` | user | any |
+| POST | `/api/live/sessions/:id/chapters` | user | any |
+| PATCH | `/api/live/sessions/:id/chapters/:cid` | user | any |
+| DELETE | `/api/live/sessions/:id/chapters/:cid` | user | any |
+| DELETE | `/api/live/sessions/:id/chapters/:cid/content` | user | any |
+| DELETE | `/api/live/sessions/:id/audio` | user | any |
+| POST | `/api/live/sessions/:id/pause` | user | any |
+| POST | `/api/live/sessions/:id/resume` | user | any |
 | POST | `/api/live/sessions` | user | any |
 | POST | `/api/live/join` | user | any |
 | GET | `/api/live/mine` | user | any |

@@ -1,4 +1,4 @@
-CAMPUSOS | OTH AMBERG-WEIDEN | PUBLIC ACADEMIC DATA SNAPSHOT
+CITRUS | OTH AMBERG-WEIDEN | PUBLIC ACADEMIC DATA SNAPSHOT
 schema_version: 1.0
 snapshot_date: 2026-11-08
 timezone: Europe/Berlin
@@ -46258,7 +46258,7 @@ END_SOURCE I011
 === REFRESH AND REMAINING GAPS ===
 Refresh the central schedule index and each applicable programme document page. Re-download only changed documents; compare SHA-256 and printed revision dates. Links with stable filenames may change content without changing URL.
 Retain entry-cohort/SPO variants and superseded sources separately. Do not overwrite one student cohort with another.
-OCR source diagrams were converted here; CampusOS does not need image input to search this text, but uncertain facts still require source validation.
+OCR source diagrams were converted here; Citrus does not need image input to search this text, but uncertain facts still require source validation.
 No personal enrolment or registration exports, complete live room-booking data, Moodle block-date updates, or guaranteed coverage of every professional/doctoral/certificate timetable are included.
 Some study plans exist only inside linked module handbooks or examination regulations, which are indexed rather than fully reproduced. Those modules are not guaranteed to have been transcribed into this corpus.
 END_OF_CORPUS

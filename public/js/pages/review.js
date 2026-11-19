@@ -21,6 +21,7 @@ import { markdown } from '../core/markdown.js';
 import { busy, confirm, toast, toastError } from '../core/ui.js';
 import { savePdf, saveText } from '../features/notes-export.js';
 import { FLAGS } from './live.js';
+import { chaptersCard, mountChapters } from '../features/chapters.js';
 
 // ---- the record, part by part
 
@@ -145,7 +146,7 @@ function studentsCard(record) {
   </section>`;
 }
 
-const FLAG_NAMES = { confused: 'didn’t get this', fast: 'too fast', example: 'needs an example', question: 'a question' };
+const FLAG_NAMES = { confused: 'didn’t get this', fast: 'too fast', example: 'needs an example', question: 'a question', long: 'explanation too long', boring: 'boring' };
 
 /** Every download in one place. Every .txt explains itself to any AI. */
 function downloadsCard(d) {
@@ -156,7 +157,7 @@ function downloadsCard(d) {
     <div class="list">
       ${s.keepTranscript && d.stored ? row('file', 'Transcript (.txt)', `What you said, by time and part · ${d.stored} lines`, html`<span class="cluster" style="--gap:4px"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/transcript.txt" download>${icon('download', 15)} Download</a><button class="btn btn-sm btn-ghost btn-icon" data-forget aria-label="Delete the transcript" title="Delete the transcript">${icon('trash', 15)}</button></span>`)
         : row('file', 'Transcript', s.keepTranscript ? 'Nothing was heard during this lecture.' : 'The transcript of this lecture was not kept.', '')}
-      ${d.recording ? row('mic', 'Recording (audio)', `Recorded by the Citrus app · ${Math.round(d.recording.seconds / 60)} min`, html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/recording.aac" download>${icon('download', 15)} Download</a>`) : ''}
+      ${d.recording ? row('mic', 'Recording (audio)', `Recorded by the Citrus app · ${Math.round(d.recording.seconds / 60)} min`, html`<span class="cluster" style="--gap:4px"><a class="btn btn-sm" href="/api/live/sessions/${s.id}/recording.aac" download>${icon('download', 15)} Download</a><button class="btn btn-sm btn-ghost btn-icon" data-forget-audio aria-label="Delete the recording" title="Delete the audio, keep the transcript">${icon('trash', 15)}</button></span>`) : ''}
       ${row('cpu', 'Lecture record for AI (.txt)', 'Everything that happened, every result and average tagged with its time and part', html`<a class="btn btn-sm" href="/api/live/sessions/${s.id}/record.txt" download>${icon('download', 15)} Download</a>`)}
       ${row('sparkle', 'Notes and teaching review (PDF)', `Written by ${assistantName()}, saved to this device`, html`<button class="btn btn-sm" data-go-notes>${icon('sparkle', 15)} Make</button>`)}
     </div></section>`;
@@ -212,6 +213,7 @@ function lecturerView(d) {
       ${statsRow(d)}
       ${chartCard(d.record, false)}
       ${quickTakeCard(d)}
+      ${chaptersCard(d.chapters || [], { live: false })}
       ${sectionsCard(d.record, false)}
       ${studentsCard(d.record)}
       ${coachCard()}
@@ -543,6 +545,17 @@ export default {
           render(box, html`<p class="small muted">${q}</p><div class="prose mt-8">${markdown(r.answer)}</div>`);
         } catch (error) {
           render(box, html`<div class="notice danger">${icon('alert', 18)}<span>${error.message}</span></div>`);
+        }
+      }),
+      ...(data.lecturer ? [mountChapters(root, { sid, chapters: data.data.chapters || [], onChange: () => ctx.refresh() })] : []),
+      on(root, 'click', '[data-forget-audio]', async () => {
+        if (!(await confirm({ title: 'Delete the audio recording?', message: 'The audio is deleted for good. The transcript, the flags and the key points stay.', confirmLabel: 'Delete audio', danger: true }))) return;
+        try {
+          await api.del(`/live/sessions/${sid}/audio`);
+          toast('Audio deleted', 'success');
+          ctx.refresh();
+        } catch (error) {
+          toastError(error);
         }
       }),
       on(root, 'click', '[data-forget]', async () => {

@@ -201,7 +201,7 @@ Safety rules, all enforced on the server:
 
 ## What it knows about the university
 
-Academic questions use the user-supplied `resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt` snapshot. It contains 53 programme records, 182 extracted documents and 572 pages, plus academic calendar tables and feed events. The original UTF-8 file is retained unchanged. There is no schedule search or download at question time.
+Academic questions use the user-supplied `resources/Citrus_OTH_AW_Academic_Data_2026-11-08.txt` snapshot. It contains 53 programme records, 182 extracted documents and 572 pages, plus academic calendar tables and feed events. The original UTF-8 file is retained unchanged. There is no schedule search or download at question time.
 
 - `src/ai/academic-snapshot.js` parses source/page boundaries once per process, preserving fixed-width layouts, drawn regions, OCR confidence and coordinates. It resolves programme names and abbreviations in German/English and uses the last programme mentioned, otherwise the user's profile. Printed semester labels help rank pages; page numbers are never semester numbers.
 - Programme-specific timetable, exam and curriculum questions use this snapshot ahead of the older website pack. General university information still uses `OTH_Public_Knowledge_2026-10-31.jsonl`, `OTH_Website_Knowledge.jsonl` and administrator-approved knowledge. Citrus geometry remains in `oth-campus-map.json`.

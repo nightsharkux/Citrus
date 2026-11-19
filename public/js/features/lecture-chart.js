@@ -21,7 +21,7 @@ export const mmss = (seconds) => {
   return h ? `${h}:${pad(m)}:${pad(s % 60)}` : `${pad(m)}:${pad(s % 60)}`;
 };
 
-const FLAG_WORDS = { confused: 'didn’t get this', fast: 'too fast', example: 'needs an example', question: 'a question' };
+const FLAG_WORDS = { confused: 'didn’t get this', fast: 'too fast', example: 'needs an example', question: 'a question', long: 'explanation too long', boring: 'boring' };
 
 export function lectureChart(record, { student = false } = {}) {
   const minutes = record.minutes || [];

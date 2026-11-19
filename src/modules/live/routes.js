@@ -32,6 +32,7 @@
  *   POST /api/live/sessions/:id/review-chat     { message, history } → { answer }  improve it with Citrus (lecturer)
  *   DELETE /api/live/sessions/:id/transcript    forget the kept transcript                      (lecturer)
  *   POST /api/live/sessions/:id/notes           { attachment_ids }  add prepared notes          (lecturer)
+ *   breaks, chapters and deleting parts of the recording: lecture-edits.js (pause, resume, chapters, …)
  *   POST /api/live/sessions/:id/ask             { question }  → { answer }                      (lecturer)
  *   POST /api/live/sessions/:id/end             finish; returns the summary                     (lecturer)
  *
@@ -56,6 +57,8 @@ const { pulse, timeline, roughPatches, personalTimeline } = require('./pulse');
 const { createMoments } = require('./moments');
 const { buildFeed } = require('./lectures');
 const { registerLinks, isToken, LECTURE_BY_TOKEN, RUNNING_BY_TOKEN } = require('./links');
+const { registerLectureEdits } = require('./lecture-edits');
+const { activeMs, shiftRows, totalBreakMs } = require('./breaks');
 
 // The student is in the room: counted once. Whether they show their name starts as they chose in their last lecture.
 const ARRIVE_SQL = 'INSERT OR IGNORE INTO live_attendees(session_id, user_id, joined, share_name) VALUES(?, ?, ?, COALESCE((SELECT CASE WHEN share_name THEN 1 ELSE 0 END FROM live_attendees WHERE user_id = ? ORDER BY joined DESC LIMIT 1), 0))';
@@ -86,12 +89,22 @@ function byMinute(rows, maxChars = TRANSCRIPT_FOR_AI) {
 function register(router, { db, ai, access, bus, site, notifier, deviceCommands, blobs = { enabled: false } }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
-  const moments = createMoments({ db, ai, bus, transcripts });
+  const moments = createMoments({ db, ai, bus, transcripts, minuteOf: (s) => minuteOf(s) });
   const links = registerLinks(router, { db, access }); // the QR code of each lecture
   const joinAttempts = createRateLimiter({ windowMs: 60_000, max: 12 });
   const notesWriting = createRateLimiter({ windowMs: 60_000, max: 4 });
   const isoNow = () => new Date().toISOString();
-  const minuteOf = (s, at = Date.now()) => Math.max(1, Math.ceil((at - Date.parse(s.started)) / 60_000));
+  let edits = null; // chapters, breaks and recording edits (lecture-edits.js), registered below
+  /** The breaks of a lecture ([{ started, ended }]). Read when needed: another instance may have changed them. */
+  const breaksOf = (sessionId) => db.all('SELECT started, ended FROM live_breaks WHERE session_id = ? ORDER BY started', sessionId);
+  /** The minute of the lecture an instant falls in, in teaching time: a break is not counted. */
+  const minuteOf = (s, at = Date.now()) => Math.max(1, Math.ceil(activeMs(s.started, breaksOf(s.id), at) / 60_000));
+  /** The lecture's clock for timelines: rows moved back by the break time before them, and "now" in teaching time. */
+  function clockOf(s, breaks = breaksOf(s.id)) {
+    const nowMs = Date.now();
+    const endMs = s.ended ? Date.parse(s.ended) : nowMs;
+    return { breaks, shift: (rows) => shiftRows(rows, breaks, nowMs), now: Date.parse(s.started) + activeMs(s.started, breaks, endMs, nowMs) };
+  }
   const language = (user) => (user?.preferences?.language === 'de' ? 'de' : 'en');
 
   // ---- lookups ---------------------------------------------------------------------------------------------
@@ -161,7 +174,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   const flagCounts = (flags) => Object.fromEntries(FLAG_KINDS.map((k) => [k, flags.filter((f) => f.kind === k).length]));
   const storedLines = (sessionId) => db.get('SELECT COUNT(*) AS n FROM live_transcript WHERE session_id = ?', sessionId).n;
 
-  const publicSession = (s) => ({ id: s.id, course_id: s.course_id, lecture_id: s.lecture_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript });
+  // paused / pausedAt / breakMs let every screen keep the lecture's clock without counting its breaks.
+  const publicSession = (s, breaks) => ({ id: s.id, course_id: s.course_id, lecture_id: s.lecture_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript, paused: !!s.paused_at, pausedAt: s.paused_at || null, breakMs: totalBreakMs((breaks || breaksOf(s.id)).filter((b) => b.ended)) });
   const listening = (s) => !s.ended && Date.now() - transcripts.lastAt(s.id) < LISTENING_MS;
 
   /** What Citrus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. */
@@ -238,7 +252,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
    * the notes by name only (their contents are fetched when one is opened).
    */
   function lecturerView(s) {
-    const [signals, flags, enrolledRows, notes, presentRows, storedRows, tokenRows] = db.batch([
+    const [signals, flags, enrolledRows, notes, presentRows, storedRows, tokenRows, breakRows, chapterRows] = db.batch([
       ['SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', s.id],
       ['SELECT id, kind, minute, note, created FROM live_flags WHERE session_id = ? ORDER BY id', s.id],
       ['SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', s.course_id],
@@ -246,13 +260,16 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       ['SELECT COUNT(*) AS n FROM live_attendees WHERE session_id = ?', s.id],
       ['SELECT COUNT(*) AS n FROM live_transcript WHERE session_id = ?', s.id],
       ['SELECT join_token FROM lectures WHERE id = ?', s.lecture_id || 0],
+      ['SELECT started, ended FROM live_breaks WHERE session_id = ? ORDER BY started', s.id],
+      ['SELECT id, started, title FROM live_chapters WHERE session_id = ? ORDER BY started, id', s.id],
     ]);
-    const line = timeline(signals, s.started, { now: s.ended ? Date.parse(s.ended) : Date.now() });
+    const clock = clockOf(s, breakRows);
+    const line = timeline(clock.shift(signals), s.started, { now: clock.now });
     const token = tokenRows[0]?.join_token;
     // The QR code opens the lecture's own link (the same on a slide made before); old sessions have only the code.
     const joinLink = !s.lecture_id ? `/join/${s.join_code}` : token ? `/join/${token}` : links.pathFor(s.lecture_id);
     return {
-      session: { ...publicSession(s), joinCode: s.ended ? null : s.join_code, joinLink },
+      session: { ...publicSession(s, breakRows), joinCode: s.ended ? null : s.join_code, joinLink },
       pulse: pulse(signals, { enrolled: enrolledRows[0].n }),
       timeline: line,
       roughPatches: roughPatches(line),
@@ -263,6 +280,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       heard: transcripts.size(s.id),
       stored: s.keep_transcript ? storedRows[0].n : 0,
       listening: listening(s),
+      chapters: edits ? edits.chaptersOf(s, { rows: chapterRows, breaks: breakRows }) : [],
     };
   }
 
@@ -313,6 +331,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
 
   // ---- routes ----------------------------------------------------------------------------------------------
 
+  edits = registerLectureEdits(router, { db, bus, blobs, transcripts, teaching, lecturerView, breaksOf });
+
   router.post('/api/live/sessions', async (ctx) => {
     const user = ctx.user;
     const b = await ctx.json();
@@ -345,6 +365,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       'INSERT INTO live_sessions(institution_id, course_id, lecturer_id, lecture_id, title, started, join_code, keep_transcript) VALUES(?, ?, ?, ?, ?, ?, ?, ?)',
       user.institution_id, course.id, user.id, lecture.id, title, isoNow(), joinCodeFor(user.institution_id, lecture.id), keep,
     );
+    // The first chapter starts with the lecture; the Chapter button adds the next ones.
+    db.run("INSERT INTO live_chapters(session_id, started, title, created) SELECT id, started, '', started FROM live_sessions WHERE id = ?", sessionId);
     if (previous) db.run('INSERT OR IGNORE INTO live_notes(session_id, attachment_id) SELECT ?, attachment_id FROM live_notes WHERE session_id = ?', sessionId, previous.id);
     attachNotes(user, sessionId, b.notes);
     bus.publish(`course:${course.id}`, 'live.started', { session: sessionId, title, lecture: lecture.id, again: !!previous });
@@ -470,14 +492,14 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const s = joined(ctx.user, ctx.params.id);
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
     const all = signalsOf(s.id);
-    const end = s.ended ? Date.parse(s.ended) : Date.now();
-    const line = timeline(all, s.started, { now: end });
+    const clock = clockOf(s);
+    const line = timeline(clock.shift(all), s.started, { now: clock.now });
     const mine = all.filter((x) => x.user_id === ctx.user.id);
     const { struggles, points } = moments.list(s.id, { excerpts: false });
     const flags = db.all('SELECT id, kind, minute, note, explanation FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, ctx.user.id);
     return {
       session: publicSession(s), course,
-      mine: personalTimeline(mine, s.started, { now: end }),
+      mine: personalTimeline(clock.shift(mine), s.started, { now: clock.now }),
       classPatches: roughPatches(line),
       struggles: struggles.map(({ minute, lost, answered, note }) => ({ minute, lost, answered, note })),
       points,
@@ -559,6 +581,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (!access.courseFromRow(user, courseRows[0])) throw forbidden('Join this course first');
     if (user.role !== 'student') throw forbidden('Only students of this course can do this');
     if (s.ended) throw conflict('This lecture has ended');
+    if (s.paused_at) throw conflict('The lecture is on a break. You can answer when it continues.');
     const b = await ctx.json();
     const level = integer(b.level, { min: 1, max: 3, label: 'Signal' });
     const last = lastRows[0];
@@ -579,6 +602,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const user = ctx.user;
     const s = attending(user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
+    if (s.paused_at) throw conflict('The lecture is on a break. You can flag a moment when it continues.');
     const b = await ctx.json();
     const kind = oneOf(b.kind, FLAG_KINDS, 'Flag');
     const note = text(b.note, { max: 240, optional: true, label: 'Note' }) || '';
@@ -636,6 +660,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   router.post('/api/live/sessions/:id/transcript', async (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
+    if (s.paused_at) return { lines: 0, paused: true }; // a break: nothing is kept
     const b = await ctx.json();
     const line = text(b.text, { min: 1, max: 600, label: 'Text' });
     const lines = transcripts.add(s.id, line);
@@ -781,6 +806,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const s = teaching(user, ctx.params.id);
     if (s.ended) throw conflict('This lecture has ended');
     const piece = await readAudio(ctx);
+    if (s.paused_at) return { lines: 0, text: [], paused: true }; // a break: the background recording may still be running; nothing is kept
     // The audio itself is kept like the transcript: only when the lecturer keeps it, and only with file storage.
     if (blobs.enabled && s.keep_transcript) {
       try {
@@ -898,7 +924,12 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
 
   router.post('/api/live/sessions/:id/end', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
-    if (!s.ended) db.run('UPDATE live_sessions SET ended = ? WHERE id = ?', isoNow(), s.id);
+    if (!s.ended) {
+      // Ending during a break ends the break with it.
+      const at = isoNow();
+      db.run('UPDATE live_breaks SET ended = ? WHERE session_id = ? AND ended IS NULL', at, s.id);
+      db.run('UPDATE live_sessions SET ended = ?, paused_at = NULL WHERE id = ?', at, s.id);
+    }
     transcripts.clear(s.id); // the memory goes; a kept transcript stays in live_transcript
     moments.forget(s.id);
     if (s.lecture_id) db.run("UPDATE lectures SET status = 'ended', ends = CASE WHEN ends IS NULL OR ends > ? THEN ? ELSE ends END WHERE id = ?", isoNow(), isoNow(), s.lecture_id);

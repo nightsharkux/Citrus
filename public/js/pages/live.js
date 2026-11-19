@@ -23,6 +23,7 @@ import { wakeMatcher } from '../features/wake-phrase.js';
 import { notePitch } from '../features/pitch.js';
 import { time } from '../core/format.js';
 import { openLectureQr, showProjector } from '../features/lecture-qr.js';
+import { chaptersCard, mountChapters } from '../features/chapters.js';
 
 const SIGNALS = [
   [1, 'Following', 'I understand', 'check-circle'],
@@ -34,6 +35,8 @@ export const FLAGS = {
   fast: ['Too fast', 'clock'],
   example: ['Need an example', 'bulb'],
   question: ['I have a question', 'message'],
+  long: ['Explanation too long', 'menu'],
+  boring: ['A bit boring', 'moon'],
 };
 const STATUS = {
   quiet: ['Waiting for answers', 'quiet'],
@@ -43,6 +46,8 @@ const STATUS = {
 };
 const isLecturer = () => session.user.role !== 'student';
 const minutesSince = (iso) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 60_000));
+/** Minutes of teaching so far: the clock without the breaks (closed ones, and the one that is open now). */
+const teachingMinutes = (s, now = Date.now()) => Math.max(0, Math.floor((now - Date.parse(s.started) - (s.breakMs || 0) - (s.pausedAt ? now - Date.parse(s.pausedAt) : 0)) / 60_000));
 const spacedCode = (code) => (code ? `${code.slice(0, 3)} ${code.slice(3)}` : '');
 
 export default {
@@ -117,6 +122,7 @@ function studentScreen(a) {
       <span class="small" data-minute>Minute ${minute || minutesSince(a.session.started) + 1}</span>
       <span class="chip ${listening ? 'success' : ''}" data-listening>${icon('mic', 13)} ${listening ? `${assistantName()} is listening` : `${assistantName()} isn’t listening yet`}</span>
     </div>
+    <div class="notice accent live-break" data-break ${a.session.paused ? '' : 'hidden'}>${icon('pause', 18)}<span><strong>The lecture is on a break.</strong> Answers and flags open again when it continues.</span></div>
 
     <section class="card stack">
       <div><h2>How are you following?</h2><p class="small muted">Change it any time. Your lecturer only sees totals.</p></div>
@@ -166,6 +172,7 @@ function mountStudent(root, d, ctx) {
       const v = await api.get(`/live/sessions/${sid}`);
       $('[data-minute]', root).textContent = `Minute ${v.minute}`;
       $('[data-flag-minute]', root).textContent = v.minute;
+      applyBreak(!!v.session.paused);
       const chip = $('[data-listening]', root);
       chip.classList.toggle('success', v.listening);
       render(chip, html`${icon('mic', 13)} ${v.listening ? `${assistantName()} is listening` : `${assistantName()} isn’t listening yet`}`);
@@ -174,6 +181,15 @@ function mountStudent(root, d, ctx) {
     }
   };
   const timer = setInterval(tick, 30_000);
+
+  // A break: nothing to answer or flag until the lecturer continues.
+  const applyBreak = (paused) => {
+    $('[data-break]', root).hidden = !paused;
+    root.querySelectorAll('[data-signal], [data-flag-form] button, [data-flag-form] input').forEach((el) => { el.disabled = paused; });
+  };
+  applyBreak(!!d.active.session.paused);
+  ctx.live.on('live.paused', (event) => event.session === sid && applyBreak(true));
+  ctx.live.on('live.resumed', (event) => event.session === sid && applyBreak(false));
 
   const ask = createAsk(root, (question) => api.post(`/live/sessions/${sid}/student-ask`, { question }));
 
@@ -380,13 +396,16 @@ function liveBar(view) {
   const s = view.session;
   return html`<div class="live-bar card tight" data-live-bar>
     <span class="live-live"><span class="dot live"></span>Live</span>
-    <span class="small" data-elapsed>${minutesSince(s.started)} min</span>
+    <span class="small" data-elapsed>${teachingMinutes(s)} min</span>
+    <span class="chip warning" data-break-chip ${s.paused ? '' : 'hidden'}>${icon('pause', 12)} On a break</span>
     <button class="live-code" data-show-code title="Show the code full screen" aria-label="Join code ${s.joinCode}. Show full screen">${icon('maximize', 15)} Code <b class="mono">${spacedCode(s.joinCode)}</b></button>
     <span class="chip" data-present>${icon('users', 13)} <span data-present-n>${view.present}</span> in the room</span>
     <span class="live-bar-actions">
       <button class="btn btn-sm" data-qr title="The QR code to scan, print or download">${icon('qr', 15)} <span>QR code</span></button>
       <button class="btn btn-sm" data-present-notes title="Show your notes full screen, with the tools at the bottom">${icon('maximize', 15)} <span>Full screen</span></button>
-      <button class="btn btn-sm btn-primary" data-listen ${voiceProblem() ? 'disabled' : ''}>${icon('mic', 15)} <span>Start listening</span></button>
+      <button class="btn btn-sm" data-chapter title="Start a new chapter here, like a lap on a stopwatch">${icon('bookmark', 15)} <span>Chapter</span></button>
+      <button class="btn btn-sm ${s.paused ? 'btn-primary' : ''}" data-pause title="Pause the lecture for a break">${icon(s.paused ? 'play' : 'pause', 15)} <span>${s.paused ? 'Resume' : 'Break'}</span></button>
+      <button class="btn btn-sm btn-primary" data-listen ${voiceProblem() || s.paused ? 'disabled' : ''}>${icon('mic', 15)} <span>Start listening</span></button>
       <button class="btn btn-sm btn-ghost" data-end>${icon('stop', 15)} End</button>
     </span>
   </div>`;
@@ -410,6 +429,7 @@ function lecturerScreen(view) {
           <ul class="flag-list" data-flags>${[...view.flags].reverse().slice(0, 12).map(lecturerFlag)}</ul>
           <p class="small muted" data-no-flags ${view.flags.length ? 'hidden' : ''}>When a student flags a moment it appears here, without their name.</p>
         </section>
+        ${chaptersCard(view.chapters || [], { live: true })}
       </div>
       <div class="stack">
         ${askCard({ title: `Ask ${name}`, hint: voiceProblem() ? `${name} uses your notes, what it heard and the flags.` : `Or say “Hey ${name}, …” while listening is on. ${name} uses your notes, what it heard and the flags.`, placeholder: 'Explain the last thing I said' })}
@@ -456,6 +476,8 @@ function mountLecturer(root, d, ctx) {
   let viewer = null;
   let notes = [...view.notes];
   const flags = [...view.flags];
+  let state = view.session; // paused / pausedAt / breakMs: the lecture's clock without its breaks
+  let wasListening = false; // listening is switched back on when a break ends
 
   const setPresent = (n) => {
     present = n;
@@ -472,6 +494,7 @@ function mountLecturer(root, d, ctx) {
     if (card) card.outerHTML = pulseCard(event.pulse).value;
     pulseNow = event.pulse;
     viewer?.setStatus(islandStatus(pulseNow, flags.length));
+    viewer?.setTone(pulseNow.status);
     api.get(`/live/sessions/${sid}`).then((v) => {
       const line = $('[data-line]', root);
       if (line) line.outerHTML = timelineView(v.timeline).value;
@@ -563,6 +586,53 @@ function mountLecturer(root, d, ctx) {
   }
   const syncViewerMic = () => viewer?.setItem('mic', { icon: captioner?.running ? 'mic-off' : 'mic', label: captioner?.running ? 'Stop listening' : 'Start listening' });
 
+  // ---- chapters and breaks
+  const chaptersUi = mountChapters(root, { sid, chapters: view.chapters || [] });
+  async function addChapter() {
+    try {
+      const r = await api.post(`/live/sessions/${sid}/chapters`, {});
+      chaptersUi.set(r.chapters);
+      toast(r.added ? `Chapter ${r.chapters.length} started` : 'Chapter already started', 'success', { duration: 1600 });
+      navigator.vibrate?.(20);
+    } catch (error) {
+      toastError(error);
+    }
+  }
+  /** Draws the break state everywhere it shows: the bar, the buttons, the island. */
+  function showBreak(next) {
+    state = next;
+    const paused = !!state.paused;
+    const button = $('[data-pause]', root);
+    button.className = `btn btn-sm ${paused ? 'btn-primary' : ''}`;
+    render(button, html`${icon(paused ? 'play' : 'pause', 15)} <span>${paused ? 'Resume' : 'Break'}</span>`);
+    $('[data-break-chip]', root).hidden = !paused;
+    $('[data-listen]', root).disabled = paused || !!voiceProblem();
+    $('[data-elapsed]', root).textContent = `${teachingMinutes(state)} min`;
+    viewer?.setItem('pause', { icon: paused ? 'play' : 'pause', label: paused ? 'Resume the lecture' : 'Take a break' });
+    viewer?.setActive('pause', paused);
+  }
+  async function toggleBreak() {
+    const pausing = !state.paused;
+    try {
+      if (pausing) {
+        // Nothing is heard during a break: listening stops, and comes back with the lecture.
+        wasListening = !!captioner?.running;
+        if (captioner?.running) listen();
+      }
+      const r = await api.post(`/live/sessions/${sid}/${pausing ? 'pause' : 'resume'}`);
+      showBreak(r.session);
+      syncViewerMic();
+      toast(pausing ? 'The lecture is on a break. Students cannot answer until you resume.' : 'The lecture continues.', 'success', { duration: 2200 });
+      if (!pausing && wasListening) {
+        wasListening = false;
+        listen();
+        syncViewerMic();
+      }
+    } catch (error) {
+      toastError(error);
+    }
+  }
+
   // ---- full-screen notes, with the island
   function openViewer(start = 0) {
     viewer?.close();
@@ -598,9 +668,13 @@ function mountLecturer(root, d, ctx) {
           projector?.close();
           projector = showCode(view, present, viewer.el);
         } },
+        { id: 'chapter', icon: 'bookmark', label: 'New chapter', onSelect: addChapter },
+        { id: 'pause', icon: state.paused ? 'play' : 'pause', label: state.paused ? 'Resume the lecture' : 'Take a break', onSelect: toggleBreak },
       ],
     });
     viewer.setActive('mic', !!captioner?.running);
+    viewer.setActive('pause', !!state.paused);
+    viewer.setTone(pulseNow.status);
   }
 
   // ---- notes
@@ -647,7 +721,7 @@ function mountLecturer(root, d, ctx) {
     const body = record
       ? `${record.trimEnd()}\n\n--- WHAT WAS SAID (kept on this device only) ---\n${said.join('\n')}\n`
       : [
-        'CAMPUSOS | LECTURE TRANSCRIPT (kept on this device)',
+        'CITRUS | LECTURE TRANSCRIPT (kept on this device)',
         `lecture: ${view.session.title}`,
         `started: ${view.session.started}`,
         '',
@@ -670,6 +744,8 @@ function mountLecturer(root, d, ctx) {
       listen();
       syncViewerMic();
     }),
+    on(root, 'click', '[data-chapter]', addChapter),
+    on(root, 'click', '[data-pause]', toggleBreak),
     on(root, 'click', '[data-present-notes]', () => openViewer(0)),
     on(root, 'click', '[data-open-note]', (e, b) => openViewer(Number(b.dataset.openNote))),
     on(root, 'click', '[data-show-code]', () => {
@@ -702,12 +778,13 @@ function mountLecturer(root, d, ctx) {
   ];
   const clock = setInterval(() => {
     const el = $('[data-elapsed]', root);
-    if (el) el.textContent = `${minutesSince(view.session.started)} min`;
+    if (el) el.textContent = `${teachingMinutes(state)} min`;
     if (heardAt && Date.now() - heardAt > 90_000 && captioner?.running) $('[data-heard]', root).textContent = 'Quiet';
   }, 15_000);
 
   return () => {
     offs.forEach((off) => off());
+    chaptersUi();
     ask();
     clearInterval(clock);
     captioner?.stop();

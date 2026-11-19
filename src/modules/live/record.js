@@ -6,7 +6,8 @@
  * downloads as .txt to use with another AI. The same instructions travel with the text, so every assistant reads
  * the tags the same way and follows through on the moments the class did not understand.
  *
- *   SECTION  a part of the lecture (P1, P2, …): the stretch between two batches of key points, or five minutes
+ *   SECTION  a part of the lecture (P1, P2, …): a chapter the lecturer marked, else the stretch between two batches
+ *            of key points, else five minutes
  *   SAY      what the lecturer said (speech recognition)                                   lecturer file only
  *   CLASS    how the class was following right after a student answered: counts, understood %, status
  *   MINUTE   the class average for one minute
@@ -15,17 +16,24 @@
  *   STRUGGLE the class tipped into trouble, with Citrus's note on the likely sticking point
  *   POINT    a key point Citrus picked up
  *   GAP      nothing was captured for a while (microphone paused, phone locked, or silence)  lecturer file only
+ *   BREAK    the lecturer paused the lecture (coffee break, lunch). Time is counted without it: t= is teaching time
  *   YOU      how this student said they were following                                    student file only
  *
  * Every line carries t=HH:MM:SS (since the start) and the section it belongs to. #follow-up marks what the class
  * did not understand; #target marks what this student should work on. Pure functions, no database.
  */
 const { timeline, personalTimeline, pulse, MIN_SIGNALS, WINDOW_MS } = require('./pulse');
+const { activeMs, shiftRows, breakMsBefore } = require('./breaks');
 
 const SECTION_MINUTES = 5;
 const GAP_SECONDS = 150;
-const FLAG_TAGS = { confused: 'didnt-get-this', fast: 'too-fast', example: 'needs-example', question: 'question' };
-const FLAG_WORDS = { confused: "didn't get this", fast: 'too fast', example: 'needs an example', question: 'has a question' };
+const FLAG_TAGS = { confused: 'didnt-get-this', fast: 'too-fast', example: 'needs-example', question: 'question', long: 'too-long', boring: 'boring' };
+const FLAG_WORDS = { confused: "didn't get this", fast: 'too fast', example: 'needs an example', question: 'has a question', long: 'explanation too long', boring: 'boring' };
+/**
+ * Flags about the pace or the feel of the lecture, not about what a student failed to understand: they are shown and
+ * counted, but they are not a follow-up for the class and not something a student has to study.
+ */
+const PACING = new Set(['fast', 'long', 'boring']);
 const LEVEL_WORDS = { 1: 'following', 2: 'unsure', 3: 'lost' };
 
 /** Seconds as HH:MM:SS. */
@@ -70,7 +78,22 @@ const quote = (s, max = 240) => `"${oneLine(s, max).replace(/"/g, "'")}"`;
  * The sections of a lecture. Key points come in batches (every few minutes, about what was just said), so a batch
  * closes a section that runs from the previous batch. Without key points, five-minute blocks.
  */
-function sectionsOf(points, durationSec, at) {
+/**
+ * The lecturer's own chapters as sections: each runs from its mark to the next. Key points join the chapter they close.
+ * `chapters` are [{ id, started, title }] (started already in teaching time).
+ */
+function chapterSections(points, durationSec, at, chapters) {
+  const marks = [...chapters].sort((a, b) => Date.parse(a.started) - Date.parse(b.started)).map((c, i) => ({ id: c.id, title: c.title, from: i === 0 ? 0 : at(c.started) }));
+  const kept = marks.filter((m, i) => i === 0 || m.from > marks[i - 1].from);
+  return kept.map((m, i) => {
+    const to = i + 1 < kept.length ? kept[i + 1].from : Math.max(durationSec, m.from);
+    const inside = points.filter((p) => { const t = at(p.created); return t > m.from && t <= to; }).map((p) => oneLine(p.text, 200));
+    return { from: m.from, to, points: inside, id: `P${i + 1}`, title: m.title || `Chapter ${i + 1}`, chapterId: m.id || null, custom: !!m.title };
+  });
+}
+
+function sectionsOf(points, durationSec, at, chapters = []) {
+  if (chapters.length > 1 || (chapters.length === 1 && chapters[0].title)) return chapterSections(points, durationSec, at, chapters);
   const batches = [];
   for (const p of points) {
     const t = at(p.created);
@@ -117,14 +140,21 @@ function buildRecord(input) {
   const { session, course, audience = 'lecturer', userId = null, enrolled = 0, lecturer = '' } = input;
   const student = audience === 'student';
   const start = Date.parse(session.started);
-  const endMs = session.ended ? Date.parse(session.ended) : (input.now ?? Date.now());
+  // Time is teaching time: every timestamp moves back by the breaks before it, so minutes, sections and the timeline
+  // below simply read time since the start.
+  const breaks = input.breaks || [];
+  const nowMs = input.now ?? Date.now();
+  const shift = (rows, key) => shiftRows(rows || [], breaks, nowMs, key);
+  const endMs = start + activeMs(session.started, breaks, session.ended ? Date.parse(session.ended) : nowMs, nowMs);
   const durationSec = Math.max(60, Math.round((endMs - start) / 1000));
   const at = (iso) => Math.min(durationSec, Math.max(0, Math.round((Date.parse(iso) - start) / 1000)));
 
-  const signals = [...(input.signals || [])].sort((a, b) => Date.parse(a.created) - Date.parse(b.created));
-  const flags = (input.flags || []).filter((f) => !student || f.user_id === userId);
-  const transcript = student ? [] : [...(input.transcript || [])];
-  const sections = sectionsOf(input.points || [], durationSec, at);
+  const signals = [...shift(input.signals)].sort((a, b) => Date.parse(a.created) - Date.parse(b.created));
+  const flags = shift(input.flags).filter((f) => !student || f.user_id === userId);
+  const transcript = student ? [] : [...shift(input.transcript)];
+  const struggles = shift(input.struggles);
+  const points = shift(input.points);
+  const sections = sectionsOf(points, durationSec, at, shift(input.chapters, 'started'));
   const sectionAt = (t) => sections.find((s) => t >= s.from && t < s.to) || sections.at(-1);
 
   // ---- per minute: the class (and, for a student, their own answer)
@@ -185,13 +215,16 @@ function buildRecord(input) {
     }
   }
   for (const f of flags) add(at(f.created), 'flag', { who: names.get(f.user_id)?.name || '', flag: f.kind, note: oneLine(f.note, 240), explanation: student ? oneLine(f.explanation, 1500) : '' });
-  for (const m of input.struggles || []) add(at(m.created), 'struggle', { lost: m.lost, unsure: m.unsure, answered: m.answered, note: oneLine(m.note, 240) });
+  for (const m of struggles) add(at(m.created), 'struggle', { lost: m.lost, unsure: m.unsure, answered: m.answered, note: oneLine(m.note, 240) });
   // Key points sum up what was just said, so they belong to the section they close.
-  for (const p of input.points || []) {
+  for (const p of points) {
     const t = at(p.created);
     events.push({ t, kind: 'point', section: sectionAt(Math.max(0, t - 1)).id, text: oneLine(p.text, 200) });
   }
-  const order = { say: 0, point: 1, class: 2, you: 3, answer: 4, flag: 5, struggle: 6, gap: 7 };
+  // Breaks: where the lecturer paused, and for how long (not part of the lecture's time).
+  const breakEvents = breaks.map((b) => ({ t: at(new Date(Date.parse(b.started) - breakMsBefore(breaks, Date.parse(b.started), nowMs)).toISOString()), minutes: Math.max(1, Math.round(((b.ended ? Date.parse(b.ended) : nowMs) - Date.parse(b.started)) / 60_000)) }));
+  for (const b of breakEvents) add(b.t, 'break', { minutes: b.minutes });
+  const order = { say: 0, point: 1, class: 2, you: 3, answer: 4, flag: 5, struggle: 6, gap: 7, break: 8 };
   events.sort((a, b) => a.t - b.t || order[a.kind] - order[b.kind]);
 
   // ---- averages: the lecture, each section, and the student's own
@@ -206,14 +239,15 @@ function buildRecord(input) {
     s.status = statusOfPercent(s.understood);
     s.lowest = scored.length ? Math.min(...scored.map((m) => m.understood)) : null;
     s.flags = events.filter((e) => e.kind === 'flag' && e.section === s.id).length;
+    s.pacingFlags = events.filter((e) => e.kind === 'flag' && e.section === s.id && PACING.has(e.flag)).length;
     s.struggles = events.filter((e) => e.kind === 'struggle' && e.section === s.id).map((e) => ({ t: e.t, note: e.note, lost: e.lost, answered: e.answered }));
     s.followUp = s.status === 'trouble' || s.status === 'watch' || s.struggles.length > 0
-      || events.some((e) => e.kind === 'flag' && e.section === s.id && e.flag !== 'fast');
+      || events.some((e) => e.kind === 'flag' && e.section === s.id && !PACING.has(e.flag));
     if (student) {
       const own = inside.filter((m) => m.you);
       s.you = own.length ? Math.round(own.reduce((a, m) => a + ownScore[m.you], 0) / own.length) : null;
       s.youWorst = own.length ? Math.max(...own.map((m) => m.you)) : null;
-      s.target = (s.youWorst !== null && s.youWorst >= 2) || s.flags > 0;
+      s.target = (s.youWorst !== null && s.youWorst >= 2) || s.flags - s.pacingFlags > 0;
     }
   }
   const followUps = sections.filter((s) => s.followUp).map((s) => s.id);
@@ -221,7 +255,7 @@ function buildRecord(input) {
   const students = named.map((n) => {
     const worst = (id) => Math.max(0, ...n.path.filter((p, i) => p.level && minutes[i]?.section === id).map((p) => p.level));
     const theirFlags = events.filter((e) => e.kind === 'flag' && e.who === n.name);
-    const targets = sections.filter((s) => worst(s.id) >= 2 || theirFlags.some((f) => f.section === s.id)).map((s) => s.id);
+    const targets = sections.filter((s) => worst(s.id) >= 2 || theirFlags.some((f) => f.section === s.id && !PACING.has(f.flag))).map((s) => s.id);
     return {
       id: n.id, name: n.name, email: n.email, understood: n.understood, targets,
       sections: sections.map((s) => ({ id: s.id, worst: worst(s.id) || null })),
@@ -233,7 +267,7 @@ function buildRecord(input) {
     audience,
     meta: {
       title: session.title, course: `${course.code} ${course.title}`.trim(), lecturer, started: session.started, ended: session.ended || null,
-      duration: clock(durationSec), durationSec, enrolled, answeredBy, flags: flags.length, heardLines: transcript.length,
+      duration: clock(durationSec), durationSec, breaks: breakEvents.map(({ t, minutes }) => ({ t, minutes })), enrolled, answeredBy, flags: flags.length, heardLines: transcript.length,
     },
     sections,
     minutes,
@@ -267,7 +301,7 @@ function instructions(audience) {
     student ? null : '   [CLASS t=.. P3]       how the class was following right after a student answered: following / unsure / lost counts.',
     '   [MINUTE m P3]         the class average for one minute.',
     '   [AVERAGE scope=..]    an average: scope=lecture, scope=P3 (one section)' + (student ? ' or scope=you (this student\'s own answers).' : '.'),
-    '   [FLAG t=.. P3]        a moment ' + (student ? 'this student' : 'a student (anonymous)') + ' marked: didnt-get-this, too-fast, needs-example or question, with their note.',
+    '   [FLAG t=.. P3]        a moment ' + (student ? 'this student' : 'a student (anonymous)') + ' marked: didnt-get-this, too-fast, needs-example, question, too-long (the explanation went on much too long) or boring, with their note. too-fast, too-long and boring are about pace and feel, not understanding: report them as feedback on the teaching, never as something to study.',
     '   [STRUGGLE t=.. P3]    the class tipped into trouble; Citrus\'s note on the likely sticking point.',
     '   [POINT t=.. P3]       a key point Citrus picked up from what was said.',
     student ? '   [YOU t=.. P3]         how this student said they were following at that second.' : '   [GAP t=..-..]         nothing was captured for a while (microphone paused, phone locked, or silence).',
@@ -292,13 +326,13 @@ function recordText(record, { extra = '' } = {}) {
   const student = record.audience === 'student';
   const m = record.meta;
   const out = [
-    `CAMPUSOS | ${student ? 'MY LECTURE RECORD' : 'LECTURE RECORD'}`,
+    `CITRUS | ${student ? 'MY LECTURE RECORD' : 'LECTURE RECORD'}`,
     `lecture: ${m.title}`,
     `course: ${m.course}`,
     m.lecturer ? `lecturer: ${m.lecturer}` : '',
     `started: ${m.started}`,
     `ended: ${m.ended || 'still running'}`,
-    `duration: ${m.duration}`,
+    `duration: ${m.duration}${m.breaks?.length ? ` (teaching time; ${m.breaks.length === 1 ? 'one break' : `${m.breaks.length} breaks`} of ${m.breaks.reduce((n, b) => n + b.minutes, 0)} min left out)` : ''}`,
     `students: ${m.answeredBy} answered${m.enrolled ? ` of ${m.enrolled} enrolled` : ''}`,
     '',
     instructions(record.audience),
@@ -343,10 +377,11 @@ function eventLine(e, student) {
     case 'class': return `[CLASS ${where}] following=${e.following} unsure=${e.unsure} lost=${e.lost} answered=${e.answered} understood=${pct(e.understood)} status=${e.status}${e.status === 'trouble' || e.status === 'watch' ? ' #follow-up' : ''}`;
     case 'you': return `[YOU ${where}] ${LEVEL_WORDS[e.level]}${e.level >= 2 ? ' #target' : ''}`;
     case 'answer': return `[ANSWER ${where}] ${quote(e.who, 80)} ${LEVEL_WORDS[e.level]}${e.level >= 2 ? ' #follow-up' : ''}`;
-    case 'flag': return `[FLAG ${where}]${e.who ? ` by=${quote(e.who, 80)}` : ''} kind=${FLAG_TAGS[e.flag] || e.flag}${e.note ? ` note=${quote(e.note)}` : ''}${e.flag === 'fast' ? '' : ' #follow-up'}${student ? ' #target' : ''}${student && e.explanation ? `\n  Citrus explained: ${e.explanation}` : ''}`;
+    case 'flag': return `[FLAG ${where}]${e.who ? ` by=${quote(e.who, 80)}` : ''} kind=${FLAG_TAGS[e.flag] || e.flag}${e.note ? ` note=${quote(e.note)}` : ''}${PACING.has(e.flag) ? '' : ' #follow-up'}${student && !PACING.has(e.flag) ? ' #target' : ''}${student && e.explanation ? `\n  Citrus explained: ${e.explanation}` : ''}`;
     case 'struggle': return `[STRUGGLE ${where}] lost=${e.lost} unsure=${e.unsure} answered=${e.answered}${e.note ? ` note=${quote(e.note)}` : ''} #follow-up`;
     case 'point': return `[POINT ${where}] ${e.text}`;
     case 'gap': return `[GAP t=${clock(e.t)}-${clock(e.to)} ${e.section}] nothing captured for ${Math.round((e.to - e.t) / 60)} min`;
+    case 'break': return `[BREAK ${where}] the lecture was paused for ${e.minutes} min; that time is not counted`;
     default: return '';
   }
 }
@@ -359,7 +394,7 @@ function transcriptText(record) {
   const m = record.meta;
   const said = record.events.filter((e) => e.kind === 'say' || e.kind === 'gap');
   return [
-    'CAMPUSOS | LECTURE TRANSCRIPT',
+    'CITRUS | LECTURE TRANSCRIPT',
     `lecture: ${m.title}`,
     `course: ${m.course}`,
     m.lecturer ? `lecturer: ${m.lecturer}` : '',
@@ -396,9 +431,9 @@ function recordSummary(record, { detail = false } = {}) {
     followUps: record.followUps,
     targets: record.targets,
     students: record.students,
-    ...(detail ? { events: record.events.map(({ t, kind, section, text, who, level, flag, note, following, unsure, lost, answered, understood, status, to, explanation }) => ({ t, kind, section, text, who, level, flag, note, following, unsure, lost, answered, understood, status, to, explanation })) } : {}),
-    sections: record.sections.map(({ id, from, to, title, points, understood, lowest, status, flags, struggles, followUp, you, youWorst, target }) => ({
-      id, from, to, clock: `${short(from)}–${short(to)}`, title, points, understood, lowest, status, flags, struggles, followUp,
+    ...(detail ? { events: record.events.map(({ t, kind, section, text, who, level, flag, note, following, unsure, lost, answered, understood, status, to, explanation, minutes }) => ({ t, kind, section, text, who, level, flag, note, following, unsure, lost, answered, understood, status, to, explanation, minutes })) } : {}),
+    sections: record.sections.map(({ id, from, to, title, points, understood, lowest, status, flags, struggles, followUp, you, youWorst, target, chapterId, custom }) => ({
+      id, from, to, clock: `${short(from)}–${short(to)}`, title, chapterId: chapterId || null, custom: !!custom, points, understood, lowest, status, flags, struggles, followUp,
       ...(record.audience === 'student' ? { you, youWorst, target } : {}),
     })),
     minutes: record.minutes.map(({ minute, understood, status, section, you, answered, following, unsure, lost }) => ({ minute, understood, status, section, answered, following, unsure, lost, ...(record.audience === 'student' ? { you } : {}) })),

@@ -26,7 +26,7 @@ function siteConfig(env = process.env) {
 /** The subset of edition data that is safe and useful for the browser. */
 function publicSite(site) {
   const { id, name, shortName, institution, assistant, tagline, logo, conceptNotice, palette, version, timezone } = site;
-  return { id, name, shortName, institution, assistant, tagline, logo, conceptNotice, palette, version, timezone, map: !!site.campusMap };
+  return { id, name, shortName, institution, assistant, tagline, logo, conceptNotice, palette, version, timezone, map: !!site.campusMap, teachingPeriods: site.teachingPeriods || [], teachingSessions: site.teachingSessions || [] };
 }
 
 module.exports = { THEMES, VERSION, siteConfig, publicSite };

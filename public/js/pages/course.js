@@ -12,6 +12,7 @@ import { shortDate, plural } from '../core/format.js';
 import { sheet, onSubmit, toast, toastError, confirm, menu, busy } from '../core/ui.js';
 import { debounce } from '../core/live.js';
 import { outlineView, mountOutline } from '../features/course-outline.js';
+import { slotPicker, mountSlots } from '../features/lecture-slots.js';
 
 const LEVELS = [[1, 'Lost'], [2, 'Getting there'], [3, 'Got it']];
 const LETTERS = 'ABCDE';
@@ -133,9 +134,11 @@ export default {
         title: 'New lecture',
         content: html`<form class="form" id="lecture-form"><label class="field"><span>Title</span><input class="input" name="topic" required minlength="3" placeholder="Week 5 · Sorting algorithms" autofocus></label>
           <div class="input-row"><label class="field"><span>Date and time (optional)</span><input class="input" type="datetime-local" name="starts"></label><label class="field" style="max-width:160px"><span>Length</span><select class="select" name="duration_minutes">${[[45, '45 min'], [60, '1 hour'], [90, '1.5 hours'], [120, '2 hours'], [180, '3 hours']].map(([m, label]) => html`<option value="${m}" ${m === 90 ? 'selected' : ''}>${label}</option>`)}</select></label></div>
+          ${slotPicker()}
           <label class="field"><span>Room (optional)</span><input class="input" name="room" maxlength="60" placeholder="HSG 001"><span class="hint">Students see the date, time and room in Lectures and get a notification.</span></label>
           <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Create</button></div></form>`,
         onMount(el, close) {
+          mountSlots($('#lecture-form', el));
           onSubmit($('#lecture-form', el), async (v) => {
             // The field gives the viewer's local time; the server stores it as an exact moment.
             await api.post(`/courses/${id}/lectures`, { topic: v.topic, room: v.room, ...(v.starts ? { starts: new Date(v.starts).toISOString(), duration_minutes: Number(v.duration_minutes) } : {}) });

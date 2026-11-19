@@ -27,4 +27,6 @@ module.exports = [
   require('./024-course-sections'),
   require('./025-file-storage'),
   require('./026-lecture-links'),
+  require('./027-breaks-and-chapters'),
+  require('./028-more-flag-kinds'),
 ];

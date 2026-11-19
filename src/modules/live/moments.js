@@ -32,11 +32,12 @@ function parsePoints(raw) {
   }
 }
 
-function createMoments({ db, ai, bus, transcripts, now = Date.now }) {
+function createMoments({ db, ai, bus, transcripts, now = Date.now, minuteOf: minuteFor }) {
   const lastStruggle = new Map();
   const lastPoints = new Map();
   const isoNow = () => new Date(now()).toISOString();
-  const minuteOf = (s) => Math.max(1, Math.ceil((now() - Date.parse(s.started)) / 60_000));
+  // In teaching time (breaks left out) when the routes pass their clock; wall-clock minutes otherwise.
+  const minuteOf = minuteFor || ((s) => Math.max(1, Math.ceil((now() - Date.parse(s.started)) / 60_000)));
   const lecturer = (s) => db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', s.lecturer_id);
   const language = (user) => (user?.preferences?.language === 'de' ? 'de' : 'en');
   const aiReady = (user) => !!user && ai.status(user).aiEnabled;

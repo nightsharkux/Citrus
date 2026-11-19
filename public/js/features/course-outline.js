@@ -12,6 +12,7 @@ import { icon } from '../core/icons.js';
 import { api } from '../core/api.js';
 import { bytes, shortDate } from '../core/format.js';
 import { sheet, menu, prompt, confirm, toast, toastError, onSubmit } from '../core/ui.js';
+import { slotPicker, mountSlots } from './lecture-slots.js';
 
 const MAX_FILE = 4 * 1024 * 1024;
 
@@ -168,9 +169,11 @@ export function mountOutline(root, outline, ctx) {
     title: sectionId ? `New lecture in ${sectionTitle(sectionId)}` : 'New lecture',
     content: html`<form class="form" id="outline-lecture"><label class="field"><span>Title</span><input class="input" name="topic" required minlength="3" value="${sectionTitle(sectionId)}" autofocus></label>
       <div class="input-row"><label class="field"><span>Date and time (optional)</span><input class="input" type="datetime-local" name="starts"></label><label class="field" style="max-width:160px"><span>Length</span><select class="select" name="duration_minutes">${[[45, '45 min'], [60, '1 hour'], [90, '1.5 hours'], [120, '2 hours']].map(([m, label]) => html`<option value="${m}" ${m === 90 ? 'selected' : ''}>${label}</option>`)}</select></label></div>
+      ${slotPicker()}
       <label class="field"><span>Room (optional)</span><input class="input" name="room" maxlength="60" placeholder="HSG 001"></label>
       <div class="form-actions"><button type="button" class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary">Create</button></div></form>`,
     onMount(el, close) {
+      mountSlots($('#outline-lecture', el));
       onSubmit($('#outline-lecture', el), async (v) => {
         await api.post(`/courses/${courseId}/lectures`, { topic: v.topic, room: v.room, ...(sectionId ? { section_id: Number(sectionId) } : {}), ...(v.starts ? { starts: new Date(v.starts).toISOString(), duration_minutes: Number(v.duration_minutes) } : {}) });
         close();

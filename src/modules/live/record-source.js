@@ -36,6 +36,8 @@ function createRecordSource({ db, access }) {
       struggles: db.all("SELECT lost, unsure, answered, note, created FROM live_moments WHERE session_id = ? AND kind = 'struggle' ORDER BY id", session.id),
       points: db.all("SELECT note AS text, created FROM live_moments WHERE session_id = ? AND kind = 'point' ORDER BY id", session.id),
       notes: student || light ? [] : notesOf(session.id),
+      breaks: db.all('SELECT started, ended FROM live_breaks WHERE session_id = ? ORDER BY started', session.id),
+      chapters: db.all('SELECT id, started, title FROM live_chapters WHERE session_id = ? ORDER BY started, id', session.id),
     });
   }
 
@@ -59,6 +61,8 @@ function createRecordSource({ db, access }) {
     const moments = db.all(`SELECT session_id, kind, lost, unsure, answered, note, created FROM live_moments WHERE session_id IN (${marks(ids)}) AND kind IN ('struggle', 'point') ORDER BY id`, ...ids);
     const struggles = group(moments.filter((m) => m.kind === 'struggle').map(({ kind, ...m }) => m));
     const points = group(moments.filter((m) => m.kind === 'point').map((m) => ({ session_id: m.session_id, text: m.note, created: m.created })));
+    const breaks = group(db.all(`SELECT session_id, started, ended FROM live_breaks WHERE session_id IN (${marks(ids)}) ORDER BY started`, ...ids));
+    const chapters = group(db.all(`SELECT session_id, id, started, title FROM live_chapters WHERE session_id IN (${marks(ids)}) ORDER BY started, id`, ...ids));
     const named = new Map(ids.map((i) => [i, new Map()]));
     if (!student) {
       const rows = db.all(`SELECT a.session_id, u.id, u.name, u.email FROM live_attendees a JOIN users u ON u.id = a.user_id WHERE a.session_id IN (${marks(ids)}) AND a.share_name = 1 ORDER BY u.name`, ...ids);
@@ -83,6 +87,8 @@ function createRecordSource({ db, access }) {
       struggles: struggles.get(session.id),
       points: points.get(session.id),
       notes: [],
+      breaks: breaks.get(session.id),
+      chapters: chapters.get(session.id),
     }));
   }
 

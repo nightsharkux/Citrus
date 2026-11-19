@@ -13,6 +13,25 @@ module.exports = {
   tagline: 'Student project',
   conceptNotice: 'A student project. Not an official service of OTH Amberg-Weiden.',
   timezone: 'Europe/Berlin',
+  // The six teaching periods printed on every timetable of the DTM programme (Stundenplan_DTM_WS2627.pdf: "8:15 1 / 9:45 /
+  // 2 10:00 / 11:30 / 3 11:45 / 13:15 / 4 14:00 / 15:30 / 15:45 5 / 17:15 / 17:30 6 / 19:00"). A lecturer scheduling a lecture
+  // picks from these instead of typing times (public/js/features/lecture-slots.js); tests/lecture-slots.test.js checks
+  // them against the timetable data.
+  teachingPeriods: [
+    { n: 1, from: '08:15', to: '09:45' },
+    { n: 2, from: '10:00', to: '11:30' },
+    { n: 3, from: '11:45', to: '13:15' },
+    { n: 4, from: '14:00', to: '15:30' },
+    { n: 5, from: '15:45', to: '17:15' },
+    { n: 6, from: '17:30', to: '19:00' },
+  ],
+  // The three sessions of a teaching day, each a whole number of periods run together. The afternoon is period 4 only:
+  // 13:15 is the end of period 3, and the next class starts at 14:00.
+  teachingSessions: [
+    { id: 'morning', name: 'Morning', from: '08:15', to: '11:30', periods: [1, 2] },
+    { id: 'afternoon', name: 'Afternoon', from: '14:00', to: '15:30', periods: [4] },
+    { id: 'evening', name: 'Evening', from: '15:45', to: '19:00', periods: [5, 6] },
+  ],
   palette: {
     accent: '#F07A2E',
     accentStrong: '#E0631A',
@@ -47,7 +66,7 @@ module.exports = {
     { label: 'Marketplace', description: 'Housing and learning partners', url: 'https://www.oth-aw.de/en/studies/campus-life/marketplace/about-the-marketplace/', icon: 'bag' },
   ],
   campusMap: 'resources/oth-campus-map.json',
-  academicSnapshot: 'resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt',
+  academicSnapshot: 'resources/Citrus_OTH_AW_Academic_Data_2026-11-08.txt',
   knowledgePack: [
     'resources/OTH_Public_Knowledge_2026-10-31.jsonl',
     'resources/OTH_Website_Knowledge.jsonl',

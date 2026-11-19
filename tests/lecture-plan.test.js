@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createAcademicSnapshot, semesterIn } = require('../src/ai/academic-snapshot');
 
-const file = 'resources/CampusOS_OTH_AW_Academic_Data_2026-11-08.txt';
+const file = 'resources/Citrus_OTH_AW_Academic_Data_2026-11-08.txt';
 const root = path.join(__dirname, '..');
 
 test('spoken semesters are understood', () => {
