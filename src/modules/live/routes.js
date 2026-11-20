@@ -187,6 +187,16 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     return transcripts.recent(s.id, { minutes: 10, maxChars });
   }
 
+  /** What was said (stored lines only) inside the given parts of a lecture, as one text. Nothing outside them. */
+  function heardInTargets(s, parts, maxChars) {
+    const texts = [];
+    for (const part of parts) {
+      const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, Math.floor(part.from / 60), Math.ceil(part.to / 60) + 1);
+      if (rows.length) texts.push(byMinute(rows, Math.floor(maxChars / Math.max(1, parts.length))));
+    }
+    return texts.join('\n').slice(0, maxChars);
+  }
+
   function livePulse(s) {
     return pulse(signalsOf(s.id), { enrolled: enrolledCount(s.course_id) });
   }
@@ -493,14 +503,21 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
     const all = signalsOf(s.id);
     const clock = clockOf(s);
-    const line = timeline(clock.shift(all), s.started, { now: clock.now });
     const mine = all.filter((x) => x.user_id === ctx.user.id);
-    const { struggles, points } = moments.list(s.id, { excerpts: false });
+    const taught = moments.list(s.id, { excerpts: false });
     const flags = db.all('SELECT id, kind, minute, note, explanation FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, ctx.user.id);
+    // A student gets no summary of the lecture: only what belongs to the parts they struggled with (their own
+    // answers and flags decide which). The lecturer's key points and trouble-spot notes for every other part stay
+    // with the lecturer.
+    const record = recordSummary(recordOf(ctx.user, s, 'student'), { detail: true });
+    const target = record.sections.filter((x) => x.target);
+    const inTarget = (minute) => target.some((x) => (minute - 1) * 60 >= x.from && (minute - 1) * 60 < Math.max(x.to, x.from + 60));
+    const struggles = taught.struggles.filter((m) => inTarget(m.minute));
+    const points = taught.points.filter((m) => inTarget(m.minute));
     return {
       session: publicSession(s), course,
       mine: personalTimeline(clock.shift(mine), s.started, { now: clock.now }),
-      classPatches: roughPatches(line),
+      classPatches: [],
       struggles: struggles.map(({ minute, lost, answered, note }) => ({ minute, lost, answered, note })),
       points,
       flags,
@@ -508,7 +525,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       // Citrus can answer about this lecture when it kept what it heard.
       canAsk: !!s.keep_transcript && storedLines(s.id) > 0,
       // Their own results, section by section, next to the class average: what to work on.
-      record: recordSummary(recordOf(ctx.user, s, 'student'), { detail: true }),
+      record,
       shareName: sharesName(s.id, ctx.user.id),
     };
   });
@@ -758,7 +775,10 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (!notesWriting.hit(user.id)) throw tooMany('Citrus is still writing. Wait a minute and try again.');
     const record = recordOf(user, s, audience, { studentId: forStudent || user.id });
     const seen = notesFor(s);
-    const heard = audience === 'student' && s.keep_transcript ? heardText(s, { maxChars: 30_000 }) : '';
+    // For a student, Citrus may read what was said only in the parts they struggled with, never the whole lecture.
+    const heard = audience === 'student' && s.keep_transcript
+      ? heardInTargets(s, record.sections.filter((x) => x.target), 30_000)
+      : '';
     const prompt = {
       text: [`<RECORD>\n${recordText({ ...record, notes: [] }).slice(0, 110_000)}\n</RECORD>`, heard ? `<TRANSCRIPT>\n${heard}\n</TRANSCRIPT>` : '', ...seen.blocks].filter(Boolean).join('\n\n'),
       images: seen.images,

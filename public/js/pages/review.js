@@ -198,7 +198,7 @@ function coachCard() {
 const isLecturer = () => session.user.role !== 'student';
 
 const keyPoints = (points) => (points.length
-  ? html`<section class="card"><h3>Key points</h3><ul class="review-points">${points.map((p) => html`<li><span class="chip outline">${p.minute} min</span> ${p.text}</li>`)}</ul></section>`
+  ? html`<section class="card"><h3>Key points of the parts you found hard</h3><ul class="review-points">${points.map((p) => html`<li><span class="chip outline">${p.minute} min</span> ${p.text}</li>`)}</ul></section>`
   : '');
 
 /**
@@ -259,13 +259,13 @@ function studentView(d) {
       ${notesCard(d, true)}
       ${myFlags(d.flags)}
       ${askLecture(d)}
-      ${stuck.length ? html`<section class="card flush"><div class="card-head"><h2>Where the class got stuck</h2></div>
+      ${stuck.length ? html`<section class="card flush"><div class="card-head"><h2>Where you got stuck</h2></div>
         <div class="list">${stuck.map((m) => html`<div class="review-moment"><div class="spread"><strong>Minute ${m.minute}</strong>${m.you ? html`<span class="chip ${m.you === 3 ? 'danger' : 'warning'}">${m.you === 3 ? 'You were lost too' : 'You were unsure too'}</span>` : ''}</div>${m.note ? html`<p class="mt-8">${m.note}</p>` : ''}</div>`)}</div></section>` : ''}
       ${keyPoints(points)}
       ${points.length || stuck.length ? html`<section class="card"><h3>Review</h3>
         <div class="cluster mt-8"><a class="btn btn-primary" href="/quiz/new?topic=${encodeURIComponent(topic)}&count=6">${icon('target', 16)} Quiz me on this lecture</a>
         <a class="btn" href="/assistant?new=1&q=${encodeURIComponent(`Help me review the lecture “${s.title}”. ${points.map((p) => p.text).join(' ')}`)}">${icon('campus', 16)} Ask Citrus</a></div></section>` : ''}
-      ${!points.length && !stuck.length && !signals && !d.flags?.length && !d.canAsk ? html`<div class="card">${empty({ icon: 'presentation', title: 'Nothing to review yet', body: 'Key points and trouble spots appear when the lecturer’s microphone was on during the lecture.' })}</div>` : ''}
+      ${!points.length && !stuck.length && !signals && !d.flags?.length && !d.canAsk ? html`<div class="card">${empty({ icon: 'presentation', title: 'Nothing to review yet', body: 'The parts you found hard, with explanations, appear here when you tell Citrus how you are following during a lecture.' })}</div>` : ''}
     </div>`;
 }
 

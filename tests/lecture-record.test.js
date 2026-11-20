@@ -49,6 +49,28 @@ test('the record ties every result to its second and section, and averages are t
   assert.ok(txt.indexOf('INSTRUCTIONS FOR ANY AI') < txt.indexOf('=== DATA ==='), 'instructions come before the data');
 });
 
+test('a student’s record has the content of the parts they struggled with and nothing about the rest', () => {
+  // User 2 was lost in P2 only; user 5 followed everything.
+  const stuck = buildRecord({ ...lecture(), audience: 'student', userId: 2 });
+  const stuckTxt = recordText(stuck);
+  assert.deepEqual(stuck.targets, ['P2']);
+  assert.match(stuckTxt, /key point: Eigenvalues are roots/, 'the part they struggled with keeps its key points');
+  assert.match(stuckTxt, /\[STRUGGLE t=00:07:20 P2\]/);
+  assert.doesNotMatch(stuckTxt, /An eigenvector keeps its direction/, 'no key points of the parts they followed');
+  assert.deepEqual(stuck.sections[0].points, []);
+  assert.match(stuck.sections[0].title, /^Minutes 0–5$/, 'and not even the title');
+  assert.match(stuckTxt, /do not summarise the lecture/, 'the instructions say so to any AI');
+  const fine = buildRecord({ ...lecture(), audience: 'student', userId: 5 });
+  const fineTxt = recordText(fine).split('\n=== DATA ===\n')[1];
+  assert.deepEqual(fine.targets, []);
+  assert.doesNotMatch(fineTxt, /key point:|\[POINT|\[STRUGGLE|eigenvector|characteristic polynomial|Eigenvalues are roots/i, 'a student who was not stuck gets no summary at all');
+  assert.ok(fine.sections.every((s) => !s.points.length && !s.struggles.length));
+  // The lecturer's record is unchanged.
+  const lect = recordText(buildRecord(lecture()));
+  assert.match(lect, /key point: An eigenvector keeps its direction/);
+  assert.match(lect, /\[POINT t=00:10:00 P2\]/);
+});
+
 test("a student's record has their own results and targets, never the lecturer's words or other students", () => {
   const r = buildRecord({ ...lecture(), audience: 'student', userId: 2 });
   const txt = recordText(r);

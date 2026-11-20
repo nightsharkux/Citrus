@@ -250,6 +250,20 @@ function buildRecord(input) {
       s.target = (s.youWorst !== null && s.youWorst >= 2) || s.flags - s.pacingFlags > 0;
     }
   }
+  // A student's record holds the content of the parts they struggled with and nothing else: no title, key points or
+  // trouble-spot notes for the parts they followed, so it can never be turned into a summary of the lecture.
+  if (student) {
+    const own = new Set(sections.filter((s) => s.target).map((s) => s.id));
+    for (const s of sections) {
+      if (own.has(s.id)) continue;
+      s.points = [];
+      s.struggles = [];
+      s.title = `Minutes ${Math.floor(s.from / 60)}–${Math.max(Math.ceil(s.to / 60), Math.floor(s.from / 60) + 1)}`;
+    }
+    for (let i = events.length - 1; i >= 0; i -= 1) {
+      if ((events[i].kind === 'point' || events[i].kind === 'struggle') && !own.has(events[i].section)) events.splice(i, 1);
+    }
+  }
   const followUps = sections.filter((s) => s.followUp).map((s) => s.id);
   const answeredBy = new Set(signals.map((s) => s.user_id)).size;
   const students = named.map((n) => {
@@ -311,7 +325,7 @@ function instructions(audience) {
     '',
     'WHAT TO WRITE',
     student
-      ? '6. Study notes for this student, in this order: (a) their results: their own average (scope=you) next to the class average (scope=lecture), in one or two sentences; (b) "Areas to target": every section tagged #target, first, in time order, each with its time and section id, what was being taught, a simple explanation, one worked example and one check question; (c) the key points of every section, briefly; (d) three practice questions with short answers at the end.'
+      ? '6. Study notes for this student, in this order: (a) their results: their own average (scope=you) next to the class average (scope=lecture), in one or two sentences; (b) "Areas to target": every section tagged #target, first, in time order, each with its time and section id, what was being taught, a simple explanation, one worked example and one check question; (c) three practice questions with short answers at the end, only about the #target sections. This file deliberately holds nothing about the sections the student followed: do not summarise the lecture, do not list key points of other sections and do not guess what they covered. If there is no #target, say the student followed everything and write only (a).'
       : '6. Lecture notes and a teaching review for the lecturer, in this order: (a) a short summary with the lecture average (scope=lecture); (b) section by section in time order: what was taught (from SAY and POINT), how the class followed (quote the section AVERAGE tag), the flags and struggles; (c) for every #follow-up, a box "Explain it better" with the time, why it probably did not land, and a clearer explanation with a simpler example and a check question; (d) "Next lecture": what to recap first.',
     '7. Follow through on every #follow-up' + (student ? ' and every #target' : '') + ': tie your explanation to its time and section id (for example "12:34 · P3"). Never skip one.',
     '8. Quote numbers exactly as tagged (understood %, counts, times). Do not compute new averages and do not invent what was said: if the record does not show something, say so.',

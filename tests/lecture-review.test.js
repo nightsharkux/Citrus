@@ -9,8 +9,11 @@ const { personalTimeline } = require('../src/modules/live/pulse');
 const SPEECH = 'So the gradient points uphill, which is why we subtract it from the weights. The learning rate decides how big each step is, and if it is too large we overshoot the minimum and the loss gets worse instead of better. Remember this for the exam.';
 
 function gateway() {
+  const seen = [];
   return {
+    seen,
     async fetchImpl(url, options) {
+      seen.push(options.body);
       const body = JSON.parse(options.body);
       const system = body.messages[0].content;
       let content = 'Fine.';
@@ -90,6 +93,25 @@ test('the lecturer sees where it went wrong and what was said; a student sees on
     assert.equal(recap.struggles[0].excerpt, undefined);
     const dia = (await app.call('dia', 'GET', `/api/live/sessions/${sid}/recap`)).body;
     assert.equal(dia.mine.find((m) => m.level !== null).level, 1, 'each student sees only their own answers');
+
+    // A student who followed everything gets no summary of the lecture at all: no key points, no trouble-spot
+    // notes, no part titles, in the recap, in the .txt and in what Citrus is given to write their notes.
+    assert.deepEqual(dia.points, [], 'no key points for a student who was not stuck');
+    assert.deepEqual(dia.struggles, [], 'no trouble-spot notes either');
+    assert.deepEqual(dia.record.targets, []);
+    assert.ok(dia.record.sections.every((x) => !x.points.length && !x.struggles.length && /^Minutes /.test(x.title)), 'sections carry only their times and results');
+    assert.equal(JSON.stringify(dia.record.events).includes('learning rate'), false);
+    const diaTxt = (await (await app.call('dia', 'GET', `/api/live/sessions/${sid}/record.txt`, undefined, { raw: true })).text()).split('\n=== DATA ===\n')[1];
+    assert.doesNotMatch(diaTxt, /key point|\[POINT|\[STRUGGLE|learning rate|against the gradient/i, 'the student’s file is not a summary');
+    assert.match(diaTxt, /\[AVERAGE scope=you\]/, 'it still has their results');
+    fixture.seen.length = 0;
+    const diaNotes = await app.call('dia', 'POST', `/api/live/sessions/${sid}/ai-notes`);
+    assert.equal(diaNotes.status, 200);
+    const given = fixture.seen.join(' ');
+    assert.doesNotMatch(given, /gradient points uphill|learning rate|against the gradient/, 'Citrus is not given what was said in parts the student followed');
+    assert.match(given, /NOT lecture notes/, 'and is told this is not a summary');
+    // A student who was stuck gets the parts they were stuck on, and only those.
+    assert.ok(recap.points.length > 0, 'the stuck student gets the key points of the part they were lost in');
 
     // Access
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/report`)).status, 403, 'students do not get the lecturer’s report');
