@@ -157,7 +157,7 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
         // Nothing but reading the agreement, accepting it, downloading your data and deleting your account works
         // until the current version of the Data Service and Privacy Agreement is accepted.
         if (authMode === 'user' && !route.options.agreementExempt && mustAccept(env, user)) {
-          throw new HttpError(403, 'Please read and accept the Data Service and Privacy Agreement to continue.', { code: 'agreement', version: AGREEMENT_VERSION });
+          throw new HttpError(403, 'Please read and accept the terms of use and privacy policy to continue.', { code: 'agreement', version: AGREEMENT_VERSION });
         }
 
         const ctx = {

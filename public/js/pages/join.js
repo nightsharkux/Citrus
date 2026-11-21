@@ -65,7 +65,7 @@ export default {
     if (!d.signedOut) return mountJoinForm(root, ctx.navigate);
     $('#guest-join [data-read-agreement]', root)?.addEventListener('click', (e) => {
       e.preventDefault();
-      readAgreement({ role: 'student' });
+      readAgreement({ role: 'guest' });
     });
     onSubmit($('#guest-join', root), async (values) => {
       await api.post('/guest', { name: values.name, agree: values.agree === true, ...(d.token ? { lecture: d.token } : {}) });
@@ -108,7 +108,7 @@ function welcome(d) {
       </form><div class="divider">or</div>` : ''}
     ${ready && session.guests ? html`<form class="form" id="guest-join">
         <label class="field"><span>Your name <span class="faint">(optional)</span></span><input class="input" name="name" maxlength="60" autocomplete="name" placeholder="e.g. Lena Meyer" autofocus></label>
-        <label class="agreement-check"><input type="checkbox" name="agree" required> <span><a href="#" data-read-agreement>Data Service and Privacy Agreement</a>: I have read it and agree.</span></label>
+        <label class="agreement-check"><input type="checkbox" name="agree" required> <span><a href="#" data-read-agreement>Terms of use and privacy</a>: I have read it and agree.</span></label>
         <button class="btn btn-primary btn-lg btn-block">${icon('arrow-right', 18)} Join as guest</button>
         <p class="small muted">No account or app needed. In the lecture you decide whether your lecturer sees your name.</p>
       </form><div class="divider">or sign in</div>` : ''}

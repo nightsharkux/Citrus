@@ -807,7 +807,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     return {
       audience, name, markdown,
       record: recordSummary(record),
-      txt: recordText(record, { extra: `=== NOTES WRITTEN BY CAMPUS (Markdown) ===\n${markdown}` }),
+      txt: recordText(record, { extra: `=== NOTES WRITTEN BY CITRUS (Markdown) ===\n${markdown}` }),
     };
   });
 

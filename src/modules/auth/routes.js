@@ -68,7 +68,7 @@ function register(router, { db, config, env, sessions, oidc, settings, ai, notif
     const institutionId = institutionOrDefault(b.institution_id);
     if (!db.get('SELECT id FROM institutions WHERE id = ?', institutionId)) throw badRequest('Choose a valid university');
     if (!settings.get(institutionId, 'allowRegistration')) throw forbidden('Registration is closed. Ask your university administrator for an account.');
-    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the Data Service and Privacy Agreement to create an account');
+    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the terms of use and privacy policy to create an account');
     const name = text(b.name, { min: 2, max: 80, label: 'Name' });
     const mail = email(b.email);
     const password = String(b.password || '');
@@ -104,7 +104,7 @@ function register(router, { db, config, env, sessions, oidc, settings, ai, notif
   router.post('/api/guest', async (ctx) => {
     if (!guestsOn()) throw forbidden('Guest access is switched off.');
     const b = await ctx.json();
-    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the Data Service and Privacy Agreement to join');
+    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the terms of use and privacy policy to join');
     // A lecture's own university is known from the lecture; otherwise the first one (one lookup that also tells
     // whether there is a university at all).
     const lecture = b.lecture ? await links.lectureOfAsync(b.lecture) : null;

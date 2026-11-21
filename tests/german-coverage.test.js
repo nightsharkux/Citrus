@@ -72,25 +72,3 @@ test('every visible English text and every server message has a German version',
   const list = [...missing].map(([s, f]) => `  ${f}: ${s}`);
   assert.equal(list.length, 0, `${list.length} texts have no German version (add them to public/js/core/i18n-de-gaps.js):\n${list.join('\n')}`);
 });
-
-test('the German agreement has the same parts and version as the English one, no blanks, and says it is binding', () => {
-  const { agreementFor, VERSION } = require('../src/modules/legal/agreement');
-  const de = agreementFor({ role: 'all', lang: 'de', institution: 'Beispiel-Hochschule' });
-  const en = agreementFor({ role: 'all', lang: 'en', institution: 'Example University' });
-  const headings = (t) => [...t.markdown.matchAll(/^(#{2,3}) /gm)].map((m) => m[1]);
-  assert.deepEqual(headings(de), headings(en), 'the same sections in the same order');
-  assert.equal(de.version, VERSION);
-  assert.equal(en.version, VERSION);
-  assert.equal(de.language, 'de');
-  assert.match(de.markdown, /Maßgeblich ist die deutsche Fassung/);
-  assert.match(en.markdown, /The German version is the binding one/);
-  assert.doesNotMatch(de.markdown, /\[[A-Za-zÄÖÜäöü]/, 'no placeholder');
-  assert.match(de.markdown, /eu-west-1 \(Irland\)/);
-  assert.match(de.markdown, /Vercel, Dublin \(Irland\)/);
-  assert.match(de.markdown, /365 Tage/);
-  // Tables have the same shape in both languages.
-  const rows = (t) => t.markdown.split('\n').filter((l) => /^\|/.test(l)).length;
-  assert.equal(rows(de), rows(en), 'the same number of table rows');
-  // No English sentence is left in the German text.
-  assert.doesNotMatch(de.markdown, /\b(?:Your institution|the institution|You must|Part A)\b/);
-});

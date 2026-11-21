@@ -27,7 +27,8 @@ function register(router, { db, env, settings, audit }) {
   function textFor(user, requestedRole, institutionId, lang) {
     const id = user?.institution_id || institutionId || firstInstitution()?.id;
     const s = id ? settings.all(id) : {};
-    const role = user ? (user.role === 'admin' ? 'admin' : user.role === 'lecturer' ? 'lecturer' : 'student') : (['student', 'lecturer', 'admin'].includes(requestedRole) ? requestedRole : 'all');
+    // Each kind of user has their own text; a visitor reads the one for the kind of account they are about to make.
+    const role = user ? (user.auth_provider === 'guest' ? 'guest' : user.role === 'admin' ? 'admin' : user.role === 'lecturer' ? 'lecturer' : 'student') : (['student', 'guest', 'lecturer', 'admin'].includes(requestedRole) ? requestedRole : 'student');
     return agreementFor({
       role,
       institution: (id && institutionName(id)) || undefined, // the text says "your institution" in its own language
@@ -38,10 +39,9 @@ function register(router, { db, env, settings, audit }) {
   }
 
   router.get('/api/agreement', (ctx) => {
-    // German first: it is the binding text and the one most people read. English only when asked for (or when the
-    // person's own language is English).
-    const asked = ctx.query.get('lang');
-    const lang = asked === 'en' || asked === 'de' ? asked : (ctx.user?.preferences?.language === 'en' ? 'en' : 'de');
+    // German first: it is the binding text, so it starts in German whatever the interface language is. English is
+    // the second option, one tap away (?lang=en).
+    const lang = ctx.query.get('lang') === 'en' ? 'en' : 'de';
     const doc = textFor(ctx.user, ctx.query.get('role'), Number(ctx.query.get('institution_id')) || null, lang);
     return {
       language: doc.language,
@@ -49,7 +49,10 @@ function register(router, { db, env, settings, audit }) {
       version: doc.version,
       updated: doc.updated,
       role: doc.role,
+      roleLabel: doc.roleLabel,
       title: doc.title,
+      summary: doc.summary,
+      sections: doc.sections,
       markdown: doc.markdown,
       accepted: ctx.user ? { version: ctx.user.agreement_version || null, current: ctx.user.agreement_version === VERSION, at: db.get('SELECT agreement_at FROM users WHERE id = ?', ctx.user.id)?.agreement_at || null } : null,
       required: mustAccept(env, ctx.user),

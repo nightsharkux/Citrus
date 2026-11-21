@@ -169,7 +169,7 @@ test('lecturer and students download their record, Citrus writes notes from it, 
     const notes = await app.call('prof', 'POST', `/api/live/sessions/${sid}/ai-notes`);
     assert.equal(notes.status, 200);
     assert.match(notes.body.markdown, /Explain it better/);
-    assert.match(notes.body.txt, /INSTRUCTIONS FOR ANY AI[\s\S]*NOTES WRITTEN BY CAMPUS[\s\S]*Explain it better/);
+    assert.match(notes.body.txt, /INSTRUCTIONS FOR ANY AI[\s\S]*NOTES WRITTEN BY CITRUS[\s\S]*Explain it better/);
     const call = fixture.state.calls.at(-1);
     assert.match(call.messages[0].content, /Explain it better · 12:34 · P3/, 'the layout the PDF colours');
     assert.match(JSON.stringify(call.messages.at(-1).content), /<RECORD>[\s\S]*INSTRUCTIONS FOR ANY AI[\s\S]*\[SAY t=00:00:30 P1\]/);

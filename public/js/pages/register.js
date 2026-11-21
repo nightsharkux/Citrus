@@ -33,7 +33,7 @@ export default {
               </div>
               <span class="hint" id="role-hint">Lecturer access is confirmed by your administrator. You can use student features meanwhile.</span>
             </div>
-            <label class="agreement-check"><input type="checkbox" name="agree" required> <span><a href="#" data-read-agreement>Data Service and Privacy Agreement</a>: I have read it and agree.</span></label>
+            <label class="agreement-check"><input type="checkbox" name="agree" required> <span><a href="#" data-read-agreement>Terms of use and privacy</a>: I have read it and agree.</span></label>
             <button class="btn btn-primary btn-lg btn-block">Create account</button>
           </form>
           <p class="center small muted mt-24">Already have an account? <a href="/login">Sign in</a></p>

@@ -39,7 +39,7 @@ export default {
   mount(root, _, ctx) {
     $('#guest-btn', root)?.addEventListener('click', async (e) => {
       const button = e.currentTarget;
-      if (!(await askAgreement({ role: 'student' }))) return;
+      if (!(await askAgreement({ role: 'guest' }))) return;
       button.disabled = true;
       try {
         await api.post('/guest', { agree: true });

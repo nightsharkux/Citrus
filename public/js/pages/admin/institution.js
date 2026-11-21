@@ -33,7 +33,7 @@ export default {
             </div>
           </section>
           <section class="card"><h2>Legal details</h2>
-            <p class="small muted mt-8">Shown in the Data Service and Privacy Agreement that every user accepts. Anything you leave empty is described in general words (your institution, its data-protection officer). Changing the agreement text itself means a new version, which everyone must accept again.</p>
+            <p class="small muted mt-8">Shown in the terms of use and privacy policy that every user accepts. Anything you leave empty is described in general words (your institution, its data-protection officer). Changing the agreement text itself means a new version, which everyone must accept again.</p>
             <form class="form mt-16" id="legal-form">
               <label class="field"><span>Controller: the institution's name and address</span><input class="input" name="legalController" maxlength="400" value="${s.legalController || ''}" placeholder="Example University, 1 Campus Road, 12345 Town"></label>
               <label class="field"><span>Data-protection officer: name and contact</span><input class="input" name="legalDpo" maxlength="400" value="${s.legalDpo || ''}" placeholder="Name, email, phone"></label>

@@ -391,10 +391,10 @@ function mountSecurity(root, d, ctx) {
 
 function privacy(d) {
   const sso = session.user.auth_provider === 'oidc';
-  return html`<section class="card"><h2>Data Service and Privacy Agreement</h2>
-    <p class="muted small mt-8">What Citrus collects, why, who else handles it, how long it is kept and your rights. You accepted it to use Citrus, and you are asked again whenever it changes.</p>
+  return html`<section class="card"><h2>Terms of use and privacy</h2>
+    <p class="muted small mt-8">The terms of use, privacy policy, cookie policy and retention periods for your kind of account: what Citrus collects, why, who else handles it, how long it is kept and your rights. You accepted them to use Citrus, and you are asked again whenever they change.</p>
     ${d.agreement ? html`<p class="small mt-8">Version ${d.agreement.version} · updated ${d.agreement.updated}</p><p class="small">${acceptedLine(d.agreement.accepted)}</p>` : ''}
-    <div class="form-actions mt-16" style="justify-content:flex-start"><button class="btn" data-read-agreement>${icon('file', 16)} Read the agreement</button></div>
+    <div class="form-actions mt-16" style="justify-content:flex-start"><button class="btn" data-read-agreement>${icon('file', 16)} Read them</button></div>
   </section>
   <section class="card"><h2>Download your data</h2>
     <p class="muted small mt-8">A JSON file with your account, ratings, answers, conversations, notes, posts, check-ins and schedule.</p>

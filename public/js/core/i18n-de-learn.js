@@ -1,4 +1,4 @@
-/** German for quizzes, Campus's voices, web search and the AI tools (see i18n.js). */
+/** German for quizzes, Citrus's voices, web search and the AI tools (see i18n.js). */
 export default {
   // Quizzes
   'Quizzes': 'Quizze',
