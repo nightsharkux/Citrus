@@ -71,6 +71,7 @@ function register(router, { db, config, sessions, audit }) {
     return { ok: true };
   });
 
+  // Always available, even before the agreement is accepted: leaving, and taking your data with you, never wait on it.
   router.get('/api/me/export', (ctx) => {
     const uid = ctx.user.id;
     const data = {
@@ -96,6 +97,7 @@ function register(router, { db, config, sessions, audit }) {
       lectureFlags: db.all('SELECT s.title AS lecture, f.kind, f.minute, f.note, f.explanation, f.created FROM live_flags f JOIN live_sessions s ON s.id = f.session_id WHERE f.user_id = ? ORDER BY f.id', uid),
       lectureAttendance: db.all('SELECT s.title AS lecture, a.joined, a.share_name AS shownName FROM live_attendees a JOIN live_sessions s ON s.id = a.session_id WHERE a.user_id = ?', uid),
       lectureInsightMarks: db.all('SELECT insight_id, mark, created FROM lecture_insight_marks WHERE user_id = ?', uid),
+      agreementAcceptances: db.all('SELECT version, role, via, created FROM agreement_acceptances WHERE user_id = ? ORDER BY id', uid),
       toolsMade: db.all('SELECT name, description, visibility, created FROM custom_tools WHERE owner_id = ?', uid),
     };
     ctx.res.writeHead(200, {
@@ -104,7 +106,7 @@ function register(router, { db, config, sessions, audit }) {
       'Cache-Control': 'no-store',
     });
     ctx.res.end(JSON.stringify(data, null, 2));
-  });
+  }, { agreementExempt: true });
 
   /**
    * Delete account. Shared contributions (notes, posts) stay but are attributed
@@ -158,7 +160,7 @@ function register(router, { db, config, sessions, audit }) {
     audit(ctx.user, 'account_deleted', uid);
     sessions.end(ctx.req, ctx.res);
     return { ok: true };
-  });
+  }, { agreementExempt: true });
 }
 
 module.exports = { register, INTEREST_TAGS };

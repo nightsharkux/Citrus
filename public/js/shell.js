@@ -19,6 +19,7 @@ import { wireChartActions } from './core/chart-actions.js';
 import { matchCommand } from './features/commands.js';
 import { setLanguage, getLanguage } from './core/i18n.js';
 import { showTranslation } from './features/translate.js';
+import { agreementGate } from './features/agreement.js';
 
 const app = () => document.getElementById('app');
 const ambient = html`<div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>`;
@@ -377,7 +378,16 @@ document.addEventListener('click', (e) => {
 /** Called after sign-in or registration. */
 export async function enterApp(returnTo = '/home') {
   const data = await api.get('/bootstrap');
-  setSession({ user: data.user, ai: data.ai || null, unread: data.unread || 0 });
+  setSession({ user: data.user, ai: data.ai || null, unread: data.unread || 0, agreement: data.agreement || null });
+  // Before anything else: the Data Service and Privacy Agreement, the first time and whenever it has changed.
+  if (data.agreement?.required) {
+    const accepted = await agreementGate({ signOut: async () => { await api.post('/logout').catch(() => {}); setSession({ user: null, unread: 0, ai: null }); } });
+    if (!accepted) {
+      mountPublic();
+      navigate('/login', { replace: true });
+      return;
+    }
+  }
   const theme = data.user?.preferences?.theme;
   if (theme && theme !== 'system') setTheme(theme);
   mountApp();

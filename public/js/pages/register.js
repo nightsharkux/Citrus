@@ -4,6 +4,7 @@ import { session } from '../core/store.js';
 import { onSubmit, toast } from '../core/ui.js';
 import { enterApp } from '../shell.js';
 import { ringMark } from '../core/brand.js';
+import { readAgreement } from '../features/agreement.js';
 
 export default {
   public: true,
@@ -32,6 +33,7 @@ export default {
               </div>
               <span class="hint" id="role-hint">Lecturer access is confirmed by your administrator. You can use student features meanwhile.</span>
             </div>
+            <label class="agreement-check"><input type="checkbox" name="agree" required> <span>I have read and agree to the <a href="#" data-read-agreement>Data Service and Privacy Agreement</a>.</span></label>
             <button class="btn btn-primary btn-lg btn-block">Create account</button>
           </form>
           <p class="center small muted mt-24">Already have an account? <a href="/login">Sign in</a></p>
@@ -41,8 +43,12 @@ export default {
   mount(root, _, ctx) {
     const form = $('#register-form', root);
     if (!form) return;
+    $('[data-read-agreement]', form).addEventListener('click', (e) => {
+      e.preventDefault();
+      readAgreement({ role: form.elements.role?.value === 'lecturer' ? 'lecturer' : 'student' });
+    });
     onSubmit(form, async (values) => {
-      await api.post('/register', { ...values, institution_id: values.institution_id ? Number(values.institution_id) : undefined });
+      await api.post('/register', { ...values, agree: values.agree === true, institution_id: values.institution_id ? Number(values.institution_id) : undefined });
       if (values.role === 'lecturer') toast('Lecturer access requested — an administrator will review it.', 'info', { duration: 5000 });
       await enterApp(ctx.query.get('return') || '/home'); // back to the lecture a QR code opened
     });

@@ -28,6 +28,8 @@ const { createRooms } = require('./services/rooms');
 const { createMaintenance } = require('./services/maintenance');
 const { createBlobStore, withRequest } = require('./services/blob');
 const { createSessions } = require('./modules/auth/sessions');
+const { mustAccept } = require('./modules/legal/routes');
+const { VERSION: AGREEMENT_VERSION } = require('./modules/legal/agreement');
 const { createOidc } = require('./modules/auth/oidc');
 const { createPushSender } = require('./modules/notifications/webpush');
 const { createNotifier } = require('./modules/notifications/service');
@@ -41,6 +43,7 @@ const { createMoodleConnector } = require('./connectors/moodle');
 
 const MODULES = [
   require('./modules/meta/routes'),
+  require('./modules/legal/routes'),
   require('./modules/auth/routes'),
   require('./modules/account/routes'),
   require('./modules/courses/routes'),
@@ -151,6 +154,11 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
         const user = authMode === 'device' ? null : await sessions.identifyAsync(req, res);
         if (authMode === 'user' && !user) throw new HttpError(401, 'Please sign in');
         if (route.options.roles && !route.options.roles.includes(user?.role)) throw new HttpError(403, 'You do not have access to this');
+        // Nothing but reading the agreement, accepting it, downloading your data and deleting your account works
+        // until the current version of the Data Service and Privacy Agreement is accepted.
+        if (authMode === 'user' && !route.options.agreementExempt && mustAccept(env, user)) {
+          throw new HttpError(403, 'Please read and accept the Data Service and Privacy Agreement to continue.', { code: 'agreement', version: AGREEMENT_VERSION });
+        }
 
         const ctx = {
           req,

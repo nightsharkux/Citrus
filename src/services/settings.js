@@ -11,6 +11,12 @@ const DEFAULTS = Object.freeze({
   // What a lecture holds in words: the transcript, the excerpts of trouble moments, the audio kept from the Android app
   // and the notes and explanations students wrote on flags. Gone this many days after it was written; 0 = keep.
   lectureTextRetentionDays: 365,
+  // Shown in the Data Service and Privacy Agreement (modules/legal): who is responsible, who to ask, who supervises.
+  // Empty = the agreement names the institution and says whose contact details apply.
+  legalController: '', // the controller's name and address
+  legalDpo: '', // the data-protection officer's name and contact
+  legalContact: '', // where to send questions and requests
+  legalAuthority: '', // the supervisory authority
 });
 
 // Read on almost every request (sign-in page, registration, bootstrap) and changed a few times a year: each read is

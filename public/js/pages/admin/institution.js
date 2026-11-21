@@ -32,6 +32,16 @@ export default {
               <label class="spread"><span><strong>Require university login</strong><br><span class="small muted">${i.sso.configured ? 'Only administrators may still use passwords.' : 'Configure single sign-on first (OIDC_* in .env).'}</span></span><span class="switch"><input type="checkbox" data-setting="ssoOnly" ${s.ssoOnly ? 'checked' : ''} ${i.sso.configured ? '' : 'disabled'}><span></span></span></label>
             </div>
           </section>
+          <section class="card"><h2>Legal details</h2>
+            <p class="small muted mt-8">Shown in the Data Service and Privacy Agreement that every user accepts. Anything you leave empty is described in general words (your institution, its data-protection officer). Changing the agreement text itself means a new version, which everyone must accept again.</p>
+            <form class="form mt-16" id="legal-form">
+              <label class="field"><span>Controller: the institution's name and address</span><input class="input" name="legalController" maxlength="400" value="${s.legalController || ''}" placeholder="Example University, 1 Campus Road, 12345 Town"></label>
+              <label class="field"><span>Data-protection officer: name and contact</span><input class="input" name="legalDpo" maxlength="400" value="${s.legalDpo || ''}" placeholder="Name, email, phone"></label>
+              <label class="field"><span>Where people send questions and requests</span><input class="input" name="legalContact" maxlength="400" value="${s.legalContact || ''}" placeholder="privacy@example.edu"></label>
+              <label class="field"><span>Supervisory authority</span><input class="input" name="legalAuthority" maxlength="400" value="${s.legalAuthority || ''}" placeholder="The data-protection authority competent for your institution"></label>
+              <div class="form-actions"><button class="btn btn-primary">Save</button></div>
+            </form>
+          </section>
           <section class="card"><h2>Data retention</h2>
             <form class="form mt-16" id="retention-form">
               <label class="field"><span>Delete meeting recordings after</span><div class="input-row" style="align-items:center"><input class="input" type="number" name="days" min="0" max="3650" value="${s.recordingRetentionDays}" style="max-width:140px"><span class="muted">days (0 = keep until the owner deletes them)</span></div></label>
@@ -72,6 +82,11 @@ export default {
       await api.patch('/knowledge/settings', v);
       setSession({ user: { ...session.user, institution: v.name } });
       return 'Saved';
+    });
+    onSubmit($('#legal-form', root), async (v) => {
+      await api.patch('/admin/settings', { legalController: v.legalController, legalDpo: v.legalDpo, legalContact: v.legalContact, legalAuthority: v.legalAuthority });
+      ctx.refresh();
+      return 'Legal details saved';
     });
     onSubmit($('#retention-form', root), async (v) => {
       await api.patch('/admin/settings', { recordingRetentionDays: Number(v.days), lectureTextRetentionDays: Number(v.textDays) });

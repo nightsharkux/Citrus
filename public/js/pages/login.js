@@ -5,6 +5,7 @@ import { session } from '../core/store.js';
 import { onSubmit, toastError } from '../core/ui.js';
 import { enterApp } from '../shell.js';
 import { ringMark } from '../core/brand.js';
+import { askAgreement } from '../features/agreement.js';
 
 export default {
   public: true,
@@ -38,9 +39,10 @@ export default {
   mount(root, _, ctx) {
     $('#guest-btn', root)?.addEventListener('click', async (e) => {
       const button = e.currentTarget;
+      if (!(await askAgreement({ role: 'student' }))) return;
       button.disabled = true;
       try {
-        await api.post('/guest');
+        await api.post('/guest', { agree: true });
         await enterApp(ctx.query.get('return') || '/home');
       } catch (error) {
         button.disabled = false;

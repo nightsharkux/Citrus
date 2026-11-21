@@ -6,6 +6,7 @@ process.env.CAMPUS_ADMIN_EMAIL='admin@example.org';
 process.env.CAMPUS_ADMIN_PASSWORD='Strong-demo-password-93872';
 process.env.AI_GATEWAY_API_KEY='';
 process.env.CAMPUS_AI_PROVIDER='off';
+process.env.CAMPUS_REQUIRE_AGREEMENT='off'; // these tests predate the agreement; tests/agreement.test.js covers it
 const {server,db}=require('../server');
 let origin='';
 const cookie={};

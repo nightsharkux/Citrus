@@ -27,6 +27,8 @@ async function request(method, path, body, { signal, quiet401 = false } = {}) {
   }
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && !quiet401) emit('unauthorized');
+  // The Data Service and Privacy Agreement changed (or was never accepted): the app asks again before anything else.
+  if (res.status === 403 && data.details?.code === 'agreement') emit('agreement');
   if (!res.ok) throw new ApiError(data.error || `Request failed (${res.status})`, res.status, data);
   return data;
 }

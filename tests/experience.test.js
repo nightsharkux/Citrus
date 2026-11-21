@@ -2,6 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),path=require('node:path'),os=require('node:os'),fs=require('node:fs');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'campusos-experience-test-'));
 process.env.DB_PATH=path.join(tmp,'campusos.db');process.env.CAMPUS_ADMIN_EMAIL='testadmin@demo.invalid';process.env.CAMPUS_ADMIN_PASSWORD='TEST-admin-password-do-not-use';
+process.env.CAMPUS_REQUIRE_AGREEMENT='off'; // these tests predate the agreement; tests/agreement.test.js covers it
 const {server,db}=require('../server');
 const bootstrap=async()=>new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const call=async(base,url,{method='GET',body,cookie}={})=>{const r=await fetch(base+url,{method,headers:{...(cookie?{cookie}:{}),...(body?{'content-type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});const json=await r.json();return {status:r.status,json,cookie:r.headers.get('set-cookie')?.split(';')[0]}};

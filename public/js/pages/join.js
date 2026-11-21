@@ -14,6 +14,7 @@ import { ringMark } from '../core/brand.js';
 import { dayLabel, time } from '../core/format.js';
 import { enterApp } from '../shell.js';
 import { joinForm, mountJoinForm } from './live.js';
+import { readAgreement } from '../features/agreement.js';
 
 const codeOf = (param) => (/^[\d\s-]+$/.test(param) && param.replace(/\D/g, '').length === 6 ? param.replace(/\D/g, '') : '');
 const tokenOf = (param) => (/^[A-Za-z0-9_-]{12}$/.test(param) ? param : '');
@@ -62,8 +63,12 @@ export default {
       return undefined;
     }
     if (!d.signedOut) return mountJoinForm(root, ctx.navigate);
+    $('#guest-join [data-read-agreement]', root)?.addEventListener('click', (e) => {
+      e.preventDefault();
+      readAgreement({ role: 'student' });
+    });
     onSubmit($('#guest-join', root), async (values) => {
-      await api.post('/guest', { name: values.name, ...(d.token ? { lecture: d.token } : {}) });
+      await api.post('/guest', { name: values.name, agree: values.agree === true, ...(d.token ? { lecture: d.token } : {}) });
       await enterApp(location.pathname); // signed in now: this page joins the lecture
     });
     $('#code-form', root)?.addEventListener('submit', (e) => {
@@ -103,6 +108,7 @@ function welcome(d) {
       </form><div class="divider">or</div>` : ''}
     ${ready && session.guests ? html`<form class="form" id="guest-join">
         <label class="field"><span>Your name <span class="faint">(optional)</span></span><input class="input" name="name" maxlength="60" autocomplete="name" placeholder="e.g. Lena Meyer" autofocus></label>
+        <label class="agreement-check"><input type="checkbox" name="agree" required> <span>I agree to the <a href="#" data-read-agreement>Data Service and Privacy Agreement</a>.</span></label>
         <button class="btn btn-primary btn-lg btn-block">${icon('arrow-right', 18)} Join as guest</button>
         <p class="small muted">No account or app needed. In the lecture you decide whether your lecturer sees your name.</p>
       </form><div class="divider">or sign in</div>` : ''}

@@ -29,4 +29,5 @@ module.exports = [
   require('./026-lecture-links'),
   require('./027-breaks-and-chapters'),
   require('./028-more-flag-kinds'),
+  require('./029-agreement'),
 ];

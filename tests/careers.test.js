@@ -2,6 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'campusos-one-test-'));
 process.env.DB_PATH=path.join(tmp,'test.db');process.env.CAMPUS_ADMIN_EMAIL='one-admin@example.invalid';process.env.CAMPUS_ADMIN_PASSWORD='OnlyTestPasswordLongAndPrivate123!';
+process.env.CAMPUS_REQUIRE_AGREEMENT='off'; // these tests predate the agreement; tests/agreement.test.js covers it
 const {server,db}=require('../server');
 const request=async (base,p,opts={})=>{const res=await fetch(base+p,{method:opts.method||'GET',headers:{...(opts.cookie?{cookie:opts.cookie}:{}),...(opts.body?{'content-type':'application/json'}:{})},body:opts.body?JSON.stringify(opts.body):undefined});return {status:res.status,data:await res.json(),cookie:res.headers.get('set-cookie')?.split(';')[0]}};
 test('Career explorer saves user-specific answers, rejects invalid input, and never exposes other users',async()=>{

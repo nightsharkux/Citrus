@@ -43,7 +43,7 @@ async function startFakeTurso({ delayMs = 0, commitMs = 0 } = {}) {
 async function startApp({ env = {}, fetchImpl, remote = process.env.CAMPUS_TEST_DB === 'turso', databaseDelayMs = 0, databaseCommitMs = 0 } = {}) {
   const fake = remote ? await startFakeTurso({ delayMs: databaseDelayMs, commitMs: databaseCommitMs }) : null;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-test-'));
-  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', CAMPUS_BUNDLED_KNOWLEDGE: 'off', ...(fake ? { TURSO_DATABASE_URL: fake.url, TURSO_AUTH_TOKEN: TURSO_TOKEN } : {}), ...env };
+  const fullEnv = { CAMPUS_ADMIN_EMAIL: ADMIN.email, CAMPUS_ADMIN_PASSWORD: ADMIN.password, DB_PATH: path.join(dir, 'test.db'), AI_GATEWAY_API_KEY: '', CAMPUS_AI_PROVIDER: 'off', CAMPUS_BUNDLED_KNOWLEDGE: 'off', CAMPUS_REQUIRE_AGREEMENT: 'off', ...(fake ? { TURSO_DATABASE_URL: fake.url, TURSO_AUTH_TOKEN: TURSO_TOKEN } : {}), ...env };
   const config = loadConfig(fullEnv);
   const db = openConfiguredDatabase(config);
   runMigrations(db);
@@ -76,7 +76,7 @@ async function startApp({ env = {}, fetchImpl, remote = process.env.CAMPUS_TEST_
   }
 
   const login = (who, email = ADMIN.email, password = ADMIN.password) => call(who, 'POST', '/api/login', { email, password });
-  const register = (who, { name = who, email = `${who}@test.invalid`, role = 'student' } = {}) => call(who, 'POST', '/api/register', { name: `${name[0].toUpperCase()}${name.slice(1)} Person`, email, password: PASSWORD, role });
+  const register = (who, { name = who, email = `${who}@test.invalid`, role = 'student' } = {}) => call(who, 'POST', '/api/register', { name: `${name[0].toUpperCase()}${name.slice(1)} Person`, email, password: PASSWORD, role, agree: true });
 
   /** Register a lecturer and approve them as admin (admin must be logged in as 'admin'). */
   async function lecturer(who) {

@@ -14,7 +14,7 @@ const USER_COLUMNS = /^(user_id|owner_id|author_id|student_id|lecturer_id|creato
 const EXPORTED = new Set([
   'users', 'user_profiles', 'enrollments', 'responses', 'poll_answers', 'assistant_threads', 'workspace_notes', 'meeting_recordings', 'cx_posts',
   'cx_preferences', 'cx_checkins', 'career_interests', 'review_items', 'timetable_events', 'suggestions',
-  'live_signals', 'live_flags', 'live_attendees', 'lecture_insight_marks', 'custom_tools', 'custom_tool_adds',
+  'live_signals', 'live_flags', 'live_attendees', 'lecture_insight_marks', 'custom_tools', 'custom_tool_adds', 'agreement_acceptances',
 ]);
 
 // Removed when the account is deleted (POST /api/me/delete). Lecture answers and flags stay without the person
@@ -29,6 +29,7 @@ const DELETED = new Set([
 // Stays, with the reason. Rows here are shared records, are about the institution rather than the person, or hold
 // no personal data once the account is anonymised.
 const KEPT = {
+  agreement_acceptances: 'proof that the person was informed of the agreement (version and date); the account becomes "Deleted user"',
   live_signals: 'how they followed a lecture stays as anonymous class data: the account becomes "Deleted user"',
   live_flags: 'the moment stays as anonymous class data; the note and the explanation written for them are removed',
   workspaces: 'a shared workspace; its creator is shown as "Deleted user"',

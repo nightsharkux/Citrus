@@ -12,6 +12,7 @@ import { wake, voiceProblem, previewVoice } from '../features/voice.js';
 import { PRESETS, READ_ALOUD, QUALITY_LABEL, getVoiceSettings, saveVoiceSettings, voicesReady, listVoices } from '../features/voices.js';
 import { applySettingsEffect } from '../features/preferences.js';
 import { setSpeechVolume } from '../features/speaker.js';
+import { readAgreement, acceptedLine } from '../features/agreement.js';
 
 const SECTIONS = [
   ['profile', 'Profile', 'user'], ['appearance', 'Appearance', 'sun'], ['assistant', 'Assistant', 'sparkle'], ['notifications', 'Notifications', 'bell'],
@@ -30,6 +31,7 @@ export default {
     if (section === 'profile') Object.assign(data, await api.get('/me'));
     if (section === 'connections') data.integrations = await api.get('/integrations');
     if (section === 'security') data.sessions = (await api.get('/me/sessions')).sessions;
+    if (section === 'privacy') data.agreement = await api.get('/agreement').catch(() => null);
     return data;
   },
   render(d) {
@@ -387,9 +389,14 @@ function mountSecurity(root, d, ctx) {
 
 // ---------------------------------------------------------------- Privacy
 
-function privacy() {
+function privacy(d) {
   const sso = session.user.auth_provider === 'oidc';
-  return html`<section class="card"><h2>Download your data</h2>
+  return html`<section class="card"><h2>Data Service and Privacy Agreement</h2>
+    <p class="muted small mt-8">What Citrus collects, why, who else handles it, how long it is kept and your rights. You accepted it to use Citrus, and you are asked again whenever it changes.</p>
+    <p class="small mt-8">${d.agreement ? `Version ${d.agreement.version} · updated ${d.agreement.updated}. ${acceptedLine(d.agreement.accepted)}` : ''}</p>
+    <div class="form-actions mt-16" style="justify-content:flex-start"><button class="btn" data-read-agreement>${icon('file', 16)} Read the agreement</button></div>
+  </section>
+  <section class="card"><h2>Download your data</h2>
     <p class="muted small mt-8">A JSON file with your account, ratings, answers, conversations, notes, posts, check-ins and schedule.</p>
     <div class="form-actions mt-16"><a class="btn" href="/api/me/export" download>${icon('download', 16)} Download</a></div>
   </section>
@@ -404,6 +411,7 @@ function privacy() {
 }
 
 function mountPrivacy(root) {
+  $('[data-read-agreement]', root)?.addEventListener('click', () => readAgreement());
   onSubmit($('#delete-form', root), async (v) => {
     if (!(await confirm({ title: 'Delete your account now?', message: 'You’ll be signed out immediately.', confirmLabel: 'Delete account', danger: true }))) return;
     await api.post('/me/delete', v);

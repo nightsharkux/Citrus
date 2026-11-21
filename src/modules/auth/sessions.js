@@ -37,7 +37,7 @@ function createSessions({ db, config }) {
   }
 
   const IDENTIFY_SQL = `SELECT u.id, u.institution_id, u.name, u.email, u.role, u.requested_role, u.can_publish, u.preferences,
-              u.auth_provider, i.name AS institution, s.last_seen, s.token AS session_digest
+              u.auth_provider, u.agreement_version, i.name AS institution, s.last_seen, s.token AS session_digest
        FROM sessions s JOIN users u ON u.id = s.user_id JOIN institutions i ON i.id = u.institution_id
        WHERE s.token = ? AND s.expires > ? AND u.deleted = 0`;
   const TOUCH_SQL = 'UPDATE sessions SET last_seen = ?, expires = ? WHERE token = ?';

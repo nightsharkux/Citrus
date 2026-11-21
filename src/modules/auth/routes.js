@@ -10,6 +10,9 @@ const { createLinks } = require('../live/links');
 const LOCK_AFTER = 8;
 const LOCK_MS = 15 * 60_000;
 
+const { mustAccept, agreementRequired } = require('../legal/routes');
+const { VERSION: AGREEMENT_VERSION } = require('../legal/agreement');
+
 function publicUser(u) {
   if (!u) return null;
   return {
@@ -26,7 +29,7 @@ function publicUser(u) {
   };
 }
 
-function register(router, { db, config, sessions, oidc, settings, ai, notifier, audit }) {
+function register(router, { db, config, env, sessions, oidc, settings, ai, notifier, audit }) {
   // Generous per-IP cap (classrooms share NAT addresses); per-account lockout stops guessing.
   const ipLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 100 });
   const hallLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 600 });
@@ -55,7 +58,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
       durable: config.persistence.durable,
       guests: guestsOn() && institutions.length > 0,
       registration: firstInstitution ? settings.get(user?.institution_id || firstInstitution, 'allowRegistration') : false,
-      ...(user ? { ai: ai.status(user), unread: unread[0].n } : {}),
+      ...(user ? { ai: ai.status(user), unread: unread[0].n, agreement: { required: mustAccept(env, user), version: AGREEMENT_VERSION } } : {}),
     };
   }, { auth: 'public' });
 
@@ -65,6 +68,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     const institutionId = institutionOrDefault(b.institution_id);
     if (!db.get('SELECT id FROM institutions WHERE id = ?', institutionId)) throw badRequest('Choose a valid university');
     if (!settings.get(institutionId, 'allowRegistration')) throw forbidden('Registration is closed. Ask your university administrator for an account.');
+    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the Data Service and Privacy Agreement to create an account');
     const name = text(b.name, { min: 2, max: 80, label: 'Name' });
     const mail = email(b.email);
     const password = String(b.password || '');
@@ -76,9 +80,11 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     const needsApproval = wantsLecturer && settings.get(institutionId, 'lecturerApproval');
     const requested = needsApproval ? 'lecturer' : null;
     const userId = db.insert(
-      'INSERT INTO users(institution_id, name, email, pass, role, requested_role, created) VALUES(?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO users(institution_id, name, email, pass, role, requested_role, created, agreement_version, agreement_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)',
       institutionId, name, mail, await hashPassword(password), wantsLecturer && !needsApproval ? 'lecturer' : 'student', requested, new Date().toISOString(),
+      agreementRequired(env) ? AGREEMENT_VERSION : null, agreementRequired(env) ? new Date().toISOString() : null,
     );
+    if (agreementRequired(env)) db.run('INSERT INTO agreement_acceptances(user_id, version, role, via, created) VALUES(?, ?, ?, ?, ?)', userId, AGREEMENT_VERSION, wantsLecturer && !needsApproval ? 'lecturer' : 'student', 'register', new Date().toISOString());
     const user = db.get('SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.id = ?', userId);
     sessions.start(user, ctx.req, ctx.res);
 
@@ -98,6 +104,7 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
   router.post('/api/guest', async (ctx) => {
     if (!guestsOn()) throw forbidden('Guest access is switched off.');
     const b = await ctx.json();
+    if (agreementRequired(env) && b.agree !== true) throw badRequest('Please accept the Data Service and Privacy Agreement to join');
     // A lecture's own university is known from the lecture; otherwise the first one (one lookup that also tells
     // whether there is a university at all).
     const lecture = b.lecture ? await links.lectureOfAsync(b.lecture) : null;
@@ -113,9 +120,11 @@ function register(router, { db, config, sessions, oidc, settings, ai, notifier, 
     // are committed together by the database client, so a class signing in costs about what one student costs.)
     const find = 'SELECT id FROM users WHERE institution_id = ? AND email = ?';
     const session = sessions.startStatement(ctx.req, find, [institutionId, email]);
-    const [, , rows] = await db.batchAsync([
-      ["INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider) VALUES(?, ?, ?, '!', 'student', ?, 'guest')",
-        institutionId, name, email, new Date().toISOString()],
+    const [, , , rows] = await db.batchAsync([
+      ["INSERT INTO users(institution_id, name, email, pass, role, created, auth_provider, agreement_version, agreement_at) VALUES(?, ?, ?, '!', 'student', ?, 'guest', ?, ?)",
+        institutionId, name, email, new Date().toISOString(), agreementRequired(env) ? AGREEMENT_VERSION : null, agreementRequired(env) ? new Date().toISOString() : null],
+      ["INSERT INTO agreement_acceptances(user_id, version, role, via, created) SELECT id, ?, 'guest', 'guest', ? FROM users WHERE institution_id = ? AND email = ? AND ? = 1",
+        AGREEMENT_VERSION, new Date().toISOString(), institutionId, email, agreementRequired(env) ? 1 : 0],
       session.query,
       ['SELECT u.*, i.name AS institution FROM users u JOIN institutions i ON i.id = u.institution_id WHERE u.institution_id = ? AND u.email = ?', institutionId, email],
     ]);

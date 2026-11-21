@@ -4,7 +4,8 @@ import { session, setSession, on } from './core/store.js';
 import { startRouter, navigate } from './core/router.js';
 import { live } from './core/live.js';
 import { registerRoutes } from './routes.js';
-import { mountApp, mountPublic, setTheme } from './shell.js';
+import { mountApp, mountPublic, setTheme, signOut } from './shell.js';
+import { agreementGate } from './features/agreement.js';
 import { startTranslating, syncFromUser } from './core/i18n.js';
 import { watchDates } from './features/date-picker.js';
 
@@ -28,6 +29,7 @@ async function boot() {
     guests: !!data.guests,
     durable: data.durable !== false,
     institutions: data.institutions || [],
+    agreement: data.agreement || null,
   });
 
   const theme = data.user?.preferences?.theme;
@@ -41,8 +43,22 @@ async function boot() {
     if ('user' in patch) syncFromUser(patch.user);
   });
 
+  // Nobody gets into the app without accepting the current Data Service and Privacy Agreement.
+  if (session.user && session.agreement?.required) {
+    await agreementGate({ signOut: async () => { await api.post('/logout').catch(() => {}); setSession({ user: null, unread: 0, ai: null }); } });
+  }
   if (session.user) mountApp();
   else mountPublic();
+
+  // It changed while the app was open: ask again, then reload with the new version.
+  let asking = false;
+  on('agreement', async () => {
+    if (asking || !session.user) return;
+    asking = true;
+    const accepted = await agreementGate({ signOut });
+    asking = false;
+    if (accepted) location.reload();
+  });
 
   // One failed request is not a sign-out: confirm with the server first, so a stray 401 never drops someone mid-use.
   let checking = false;

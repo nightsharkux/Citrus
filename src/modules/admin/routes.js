@@ -1,6 +1,6 @@
 'use strict';
 /** Institution administration: people, roles, lecturer approvals, feedback, settings, audit and export. */
-const { id, oneOf, integer } = require('../../lib/validate');
+const { id, oneOf, integer, text } = require('../../lib/validate');
 const { badRequest, notFound, unavailable } = require('../../http/errors');
 const { suggestionsPrompt, referenceBlock } = require('../../ai/prompts');
 const { networkUrls } = require('../../lib/network');
@@ -161,6 +161,11 @@ function register(router, deps) {
       changes.ssoOnly = !!b.ssoOnly;
     }
     if (b.recordingRetentionDays !== undefined) changes.recordingRetentionDays = integer(b.recordingRetentionDays, { min: 0, max: 3650, label: 'Retention' });
+    // Who is responsible, shown in the Data Service and Privacy Agreement (modules/legal). A change of these is a
+    // change to the agreement the users read, so it is audited with the rest.
+    for (const key of ['legalController', 'legalDpo', 'legalContact', 'legalAuthority']) {
+      if (b[key] !== undefined) changes[key] = text(b[key], { max: 400, optional: true, label: 'Legal details' }).replace(/\s+/g, ' ');
+    }
     if (b.lectureTextRetentionDays !== undefined) changes.lectureTextRetentionDays = integer(b.lectureTextRetentionDays, { min: 0, max: 3650, label: 'Retention' });
     const next = settings.set(ctx.user.institution_id, changes);
     audit(ctx.user, 'settings_changed', JSON.stringify(changes));
