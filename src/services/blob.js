@@ -36,7 +36,7 @@ function createBlobStore({ env = process.env, fetchImpl = globalThis.fetch, secr
   const override = env.VERCEL_BLOB_API_URL ? new URL(api).origin : null;
   const enabled = !!storeId && !!(oidcStore || rwToken);
   const onVercel = !!env.VERCEL || !!override;
-  const ticketKey = crypto.createHmac('sha256', secret || rwToken || 'campus-os').update('campus-blob-ticket').digest();
+  const ticketKey = crypto.createHmac('sha256', secret || rwToken || 'citrus').update('campus-blob-ticket').digest();
 
   /** The OIDC token of this request (Vercel adds it to every request when the project uses OIDC). */
   function oidcToken() {

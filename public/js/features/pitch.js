@@ -43,11 +43,11 @@ const UNCLEAR = [
 const ASK_YOU = /\b(?:(?:could|can|would|will|wont|might) you|please|bitte|kannst du|konntest du|wurdest du)\b[\s\w]{0,24}\b(?:elaborate|explain|clarify|break (?:it|that|this) down|go (?:into|in) (?:more )?detail|say (?:a bit |a little )?more|tell (?:them|us|everyone|the audience)|help (?:them|us) out|erklar|erlauter|genauer)/;
 const ELABORATE = /\b(?:elaborate|erlauter|genauer erklar)\w*/;
 const ABOUT = [
-  /\b(?:explain|describe|present|tell (?:us|them|everyone|the audience|me|people))\b[\s\w]{0,30}\b(?:citrus|campus os|campusos|campus o s|what citrus is|what campus (?:os )?is|what you (?:are|do|can do)|this app|the app)\b/,
+  /\b(?:explain|describe|present|tell (?:us|them|everyone|the audience|me|people))\b[\s\w]{0,30}\b(?:citrus|what citrus is|what you (?:are|do|can do)|this app|the app)\b/,
   /\b(?:what is|whats) (?:citrus|campus ?os)\b/,
   /\bintroduce yourself\b/,
   /\bstell dich (?:bitte |mal )?vor\b/,
-  /\b(?:erklar|erzahl|beschreib)\w*\b[\s\w]{0,30}\b(?:citrus|campus os|campusos|was du (?:bist|kannst|machst)|was citrus ist|was campus (?:os )?ist)\b/,
+  /\b(?:erklar|erzahl|beschreib)\w*\b[\s\w]{0,30}\b(?:citrus|was du (?:bist|kannst|machst)|was citrus ist)\b/,
 ];
 
 export function matchPitch(text, { recent = '', requireWake = false, answeredRecently = false, name = 'Citrus' } = {}) {

@@ -12,6 +12,7 @@
  * With no dedicated STT configured, src/ai/recognition.js uses OpenAI live transcription through AI_GATEWAY_API_KEY.
  * CAMPUS_AI_SPEECH_STREAMING=off disables streaming playback; buffered speech remains available.
  */
+const fs = require('node:fs');
 const path = require('node:path');
 const { siteConfig } = require('../config/site');
 
@@ -56,8 +57,28 @@ function persistence(env, database) {
   return { durable: false, platform: platform[1] };
 }
 
+/**
+ * The database used to be called campusos.db. A folder that has one and no citrus.db yet gets it renamed (with its
+ * -wal and -shm files), once, before it is opened: nothing is copied, nothing is lost, and nothing happens on a
+ * server without a disk.
+ */
+function carryOverOldDatabaseName(storage) {
+  try {
+    const from = path.join(storage, 'campusos.db');
+    const to = path.join(storage, 'citrus.db');
+    if (!fs.existsSync(from) || fs.existsSync(to)) return;
+    for (const suffix of ['', '-wal', '-shm']) {
+      if (fs.existsSync(from + suffix)) fs.renameSync(from + suffix, to + suffix);
+    }
+  } catch {
+    /* read-only or in use: the old name keeps being used below */
+  }
+}
+
 function loadConfig(env = process.env) {
-  const dbPath = env.DB_PATH || path.join(ROOT, 'storage', 'campusos.db');
+  if (!env.DB_PATH) carryOverOldDatabaseName(path.join(ROOT, 'storage'));
+  const oldOnly = !env.DB_PATH && !fs.existsSync(path.join(ROOT, 'storage', 'citrus.db')) && fs.existsSync(path.join(ROOT, 'storage', 'campusos.db'));
+  const dbPath = env.DB_PATH || path.join(ROOT, 'storage', oldOnly ? 'campusos.db' : 'citrus.db');
   const storageDir = env.CAMPUS_STORAGE_DIR || (env.DB_PATH ? path.dirname(dbPath) : path.join(ROOT, 'storage'));
   const port = int(env.PORT, 3100);
   const host = env.HOST || '127.0.0.1';
@@ -86,7 +107,7 @@ function loadConfig(env = process.env) {
 
     seed: {
       institution: env.CAMPUS_DEFAULT_INSTITUTION || null,
-      adminEmail: env.CAMPUS_ADMIN_EMAIL || 'admin@campusos.local',
+      adminEmail: env.CAMPUS_ADMIN_EMAIL || 'admin@citrus.local',
       adminPassword: env.CAMPUS_ADMIN_PASSWORD || '',
     },
 
@@ -109,9 +130,9 @@ function loadConfig(env = process.env) {
     },
 
     push: {
-      subject: env.PUSH_SUBJECT || `mailto:${env.CAMPUS_ADMIN_EMAIL || 'admin@campusos.local'}`,
+      subject: env.PUSH_SUBJECT || `mailto:${env.CAMPUS_ADMIN_EMAIL || 'admin@citrus.local'}`,
     },
   };
 }
 
-module.exports = { loadConfig, ROOT };
+module.exports = { carryOverOldDatabaseName, loadConfig, ROOT };

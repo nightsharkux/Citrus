@@ -21,7 +21,7 @@ function semesterIn(text) {
 
 function parseSnapshot(input) {
   const text = String(input).replace(/\r\n/g, '\n');
-  if (!/^(?:CITRUS|CAMPUSOS) \| OTH AMBERG-WEIDEN \| PUBLIC ACADEMIC DATA SNAPSHOT/.test(text) || !text.includes('END_OF_CORPUS')) throw new Error('Incomplete academic snapshot');
+  if (!/^CITRUS \| OTH AMBERG-WEIDEN \| PUBLIC ACADEMIC DATA SNAPSHOT/.test(text) || !text.includes('END_OF_CORPUS')) throw new Error('Incomplete academic snapshot');
   const date = field(text, 'snapshot_date');
   const programmes = [...sections(text, 'PROGRAMME DIRECTORY AND DOCUMENT COVERAGE').matchAll(/^PROGRAMME_ID: (\w+)\n([\s\S]*?)(?=^PROGRAMME_ID: |$(?![\s\S]))/gm)].map((m) => {
     const body = m[2];

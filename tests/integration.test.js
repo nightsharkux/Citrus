@@ -1,6 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const root=fs.mkdtempSync(path.join(os.tmpdir(),'campusos-test-'));
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'citrus-test-'));
 process.env.DB_PATH=path.join(root,'pilot.db');
 process.env.CAMPUS_ADMIN_EMAIL='admin@example.org';
 process.env.CAMPUS_ADMIN_PASSWORD='Strong-demo-password-93872';

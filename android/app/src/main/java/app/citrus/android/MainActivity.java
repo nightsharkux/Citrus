@@ -1,4 +1,4 @@
-package app.campusos.android;
+package app.citrus.android;
 
 import android.Manifest;
 import android.app.Activity;

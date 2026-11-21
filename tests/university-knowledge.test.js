@@ -76,7 +76,7 @@ test('the prompt prepares the assistant for mixed German and English', () => {
 });
 
 test('bundled packs are searched together with the library, without importing anything', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-pack-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'citrus-pack-'));
   const file = path.join(dir, 'pack.jsonl');
   fs.writeFileSync(file, `${JSON.stringify({ id: 'a', title: 'Studienbüro Kontakt', content: 'Das Studienbüro Weiden: studienbuero@example.invalid, Telefon +49 961 0000', category: 'Website', sources: [{ url: 'https://example.invalid/sb' }], tags: ['de'] })}\nnot json\n`);
   const db = { get: () => ({ n: 0, maxId: null, changed: null }), all: () => [] };

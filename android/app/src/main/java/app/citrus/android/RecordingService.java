@@ -1,4 +1,4 @@
-package app.campusos.android;
+package app.citrus.android;
 
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -45,10 +45,10 @@ import java.util.concurrent.Executors;
  * has ended (the server answers 409) or access is gone, the service stops by itself.
  */
 public class RecordingService extends Service {
-    static final String ACTION_STANDBY = "app.campusos.android.STANDBY";
-    static final String ACTION_CAPTURE = "app.campusos.android.CAPTURE";
-    static final String ACTION_RELEASE = "app.campusos.android.RELEASE";
-    static final String ACTION_STOP = "app.campusos.android.STOP";
+    static final String ACTION_STANDBY = "app.citrus.android.STANDBY";
+    static final String ACTION_CAPTURE = "app.citrus.android.CAPTURE";
+    static final String ACTION_RELEASE = "app.citrus.android.RELEASE";
+    static final String ACTION_STOP = "app.citrus.android.STOP";
     private static final String CHANNEL = "recording";
     private static final int NOTIFICATION = 7;
     private static final int PIECE_MS = 30_000;

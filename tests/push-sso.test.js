@@ -86,14 +86,14 @@ test('OpenID Connect login verifies the ID token and creates the account', async
       for await (const c of req) raw += c;
       const form = new URLSearchParams(raw);
       if (form.get('code') !== 'good-code' || !form.get('code_verifier')) { res.writeHead(400); return res.end(); }
-      return json({ id_token: sign({ iss: issuer, aud: 'campusos', sub: 'u-123', exp: Math.floor(Date.now() / 1000) + 300, nonce: idp.nonce, email: 'Prof.Ada@Uni.example', name: 'Ada Lovelace', eduPersonAffiliation: ['faculty@uni.example'], ...idp.claims }) });
+      return json({ id_token: sign({ iss: issuer, aud: 'citrus', sub: 'u-123', exp: Math.floor(Date.now() / 1000) + 300, nonce: idp.nonce, email: 'Prof.Ada@Uni.example', name: 'Ada Lovelace', eduPersonAffiliation: ['faculty@uni.example'], ...idp.claims }) });
     }
     res.writeHead(404);
     res.end();
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   issuer = `http://127.0.0.1:${server.address().port}`;
-  const app = await startApp({ env: { OIDC_ISSUER: issuer, OIDC_CLIENT_ID: 'campusos', OIDC_CLIENT_SECRET: 's3cret', OIDC_ROLE_CLAIM: 'eduPersonAffiliation' } });
+  const app = await startApp({ env: { OIDC_ISSUER: issuer, OIDC_CLIENT_ID: 'citrus', OIDC_CLIENT_SECRET: 's3cret', OIDC_ROLE_CLAIM: 'eduPersonAffiliation' } });
   try {
     const boot = (await app.call('x', 'GET', '/api/bootstrap')).body;
     assert.equal(boot.sso.enabled, true);

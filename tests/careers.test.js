@@ -1,6 +1,6 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),os=require('node:os');
-const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'campusos-one-test-'));
+const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'citrus-careers-test-'));
 process.env.DB_PATH=path.join(tmp,'test.db');process.env.CAMPUS_ADMIN_EMAIL='one-admin@example.invalid';process.env.CAMPUS_ADMIN_PASSWORD='OnlyTestPasswordLongAndPrivate123!';
 process.env.CAMPUS_REQUIRE_AGREEMENT='off'; // these tests predate the agreement; tests/agreement.test.js covers it
 const {server,db}=require('../server');

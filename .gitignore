@@ -6,7 +6,7 @@ storage/
 node_modules/
 backups/
 server-backups/
-campusos.tgz
+citrus.tgz
 citrus.tgz
 
 # Local databases and private keys, including copies outside storage/.

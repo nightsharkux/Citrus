@@ -5,11 +5,11 @@ plugins {
 def campusUrl = (project.findProperty('campusUrl') ?: '').toString().trim()
 
 android {
-    namespace 'app.campusos.android'
+    namespace 'app.citrus.android'
     compileSdk 35
 
     defaultConfig {
-        applicationId 'app.campusos.android'
+        applicationId 'app.citrus.android'
         minSdk 26
         targetSdk 35
         versionCode 1

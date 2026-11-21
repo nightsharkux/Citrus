@@ -42,6 +42,8 @@ cd android
 The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Copy it to the phone and open it (allow installing
 from this source when Android asks).
 
+If an older build of the app is installed, uninstall it first: this app has its own ID (`app.citrus.android`), so it does not update the old one.
+
 GitHub builds it too: **Actions → Android app → the latest run → Artifacts → citrus-android**. It opens the live
 site (`campusUrl` in `gradle.properties`); set the repository variable `CAMPUS_URL` to build it for another server.
 
@@ -50,9 +52,9 @@ release key and build `assembleRelease`; never commit the key (`*.jks` and `*.ke
 
 ## Files
 
-- `app/src/main/java/app/campusos/android/MainActivity.java`: the web view, the address, permissions, files, and
+- `app/src/main/java/app/citrus/android/MainActivity.java`: the web view, the address, permissions, files, and
   handing the microphone between the page and the recording service.
-- `app/src/main/java/app/campusos/android/RecordingService.java`: the foreground service that records and sends the
+- `app/src/main/java/app/citrus/android/RecordingService.java`: the foreground service that records and sends the
   pieces.
 - `public/js/features/native.js`, `public/js/features/keep-awake.js` and `createCaptioner` in
   `public/js/features/voice.js`: the web side.

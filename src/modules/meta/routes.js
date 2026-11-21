@@ -12,7 +12,7 @@ function register(router, { db, config }) {
     mode: config.site.mode,
     apiVersion: 1,
     featuresEndpoint: '/api/v1/capabilities',
-    deviceProtocol: 'campusos-device/1',
+    deviceProtocol: 'citrus-device/1',
   }), { auth: 'public' });
 
   router.get('/api/v1/capabilities', (ctx) => {

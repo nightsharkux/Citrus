@@ -130,7 +130,7 @@ test('online backup snapshots a running database and applies retention', async (
   const { execFileSync } = require('node:child_process');
   const os = require('node:os');
   const app = await startApp({ remote: false });
-  const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'campusos-backups-'));
+  const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'citrus-backups-'));
   try {
     await app.register('stu');
     const run = () => execFileSync(process.execPath, [path.join(root, 'scripts/backup.js')], { env: { ...process.env, DB_PATH: app.config.dbPath, BACKUP_DIR: backupDir, BACKUP_KEEP: '2' }, encoding: 'utf8' });
