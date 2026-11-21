@@ -18,14 +18,20 @@ test('the old name does not appear in the app, its texts, its AI instructions or
   assert.deepEqual(found, []);
 });
 
-test('the old name CampusOS is gone from the code, the exports and the data the assistant reads', () => {
-  // Two places keep it on purpose, so that nothing already installed or saved stops working:
-  //   native.js      Android apps installed before the rename still send "CampusOSApp" in their user agent
-  //   academic-snapshot.js   a copy of the timetable data from before the rename starts with the old header
-  const keep = new Set(['public/js/features/native.js', 'src/ai/academic-snapshot.js'].map((f) => path.join(root, f)));
-  const files = [...walk(path.join(root, 'public')), ...walk(path.join(root, 'src')), ...walk(path.join(root, 'config')), ...walk(path.join(root, 'resources')), path.join(root, 'server.js')]
-    .filter((f) => /\.(js|css|html|json|jsonl|txt|svg|webmanifest)$/.test(f) && !keep.has(f));
-  const found = files.filter((f) => /CampusOS|CAMPUSOS/.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f));
+test('the old name is gone from the code, the scripts, the Android app, the docs and the data the assistant reads', () => {
+  // A few places keep an old spelling on purpose, so that nothing already installed or saved stops working:
+  //   native.js         Android apps installed before the rename still send "CampusOSApp" in their user agent
+  //   config.js         renames an existing campusos.db to citrus.db, once, when the app starts
+  //   backup.js         tidies old backup folders that were named campusos-...
+  //   import-storage.js brings in the storage folder of an install that still has campusos.db
+  const keep = new Set(['public/js/features/native.js', 'src/config.js', 'scripts/backup.js', 'scripts/import-storage.js'].map((f) => path.join(root, f)));
+  const skipDir = /[\/](node_modules|build|\.gradle|storage)[\/]/;
+  const files = [
+    ...walk(path.join(root, 'public')), ...walk(path.join(root, 'src')), ...walk(path.join(root, 'config')), ...walk(path.join(root, 'resources')),
+    ...walk(path.join(root, 'scripts')), ...walk(path.join(root, 'android')), ...walk(path.join(root, '.github')),
+    ...walk(path.join(root, 'docs')).filter((f) => !/CHANGELOG\.md$/.test(f)), path.join(root, 'server.js'), path.join(root, 'README.md'), path.join(root, 'package.json'),
+  ].filter((f) => /\.(js|css|html|json|jsonl|txt|svg|webmanifest|md|yml|gradle|java|xml|properties)$/.test(f) && !keep.has(f) && !skipDir.test(f));
+  const found = files.filter((f) => /campus ?-?_?os/i.test(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(root, f));
   assert.deepEqual(found, []);
 });
 
