@@ -60,18 +60,35 @@ export async function openMicrophone(getUserMedia, constraints, mediaDevices = g
     // The chosen microphone was unplugged in the meantime: take the default.
     if (!wanted || !['OverconstrainedError', 'NotFoundError', 'NotReadableError'].includes(error?.name)) throw error;
     route = { ...route, deviceId: null, bluetooth: route.defaultBluetooth };
-    return getUserMedia(request(null));
+    return noteMicrophone(await getUserMedia(request(null)));
   }
-  if (wanted || !isBluetoothMicrophone(stream.getAudioTracks?.()[0]?.label)) return stream;
+  if (wanted || !isBluetoothMicrophone(stream.getAudioTracks?.()[0]?.label)) return noteMicrophone(stream);
   // It opened the headset (the first recording on this site, before the browser named the microphones, or
   // headphones connected since): move to the computer's own microphone.
   await chooseMicrophone(mediaDevices);
-  if (!route.deviceId) return stream;
+  if (!route.deviceId) return noteMicrophone(stream);
   stream.getTracks().forEach((track) => track.stop());
   try {
-    return await getUserMedia(request(route.deviceId));
+    return noteMicrophone(await getUserMedia(request(route.deviceId)));
   } catch {
     route = { ...route, deviceId: null, bluetooth: true };
-    return getUserMedia(request(null));
+    return noteMicrophone(await getUserMedia(request(null)));
   }
+}
+
+/** Windows (the page's own platform): where a page with the microphone open can have other sound turned down. */
+export const onWindows = (nav = globalThis.navigator) => /windows|win32|win64/i.test(String(nav?.userAgentData?.platform || nav?.platform || nav?.userAgent || ''));
+
+/** What the browser did with the last microphone it opened: for the trouble report. */
+let report = null;
+export const microphoneReport = () => report;
+export function noteMicrophone(stream) {
+  try {
+    const track = stream?.getAudioTracks?.()[0];
+    const s = track?.getSettings?.() || {};
+    report = { echoCancellation: s.echoCancellation ?? null, echoCancellationType: s.echoCancellationType ?? null, noiseSuppression: s.noiseSuppression ?? null, autoGainControl: s.autoGainControl ?? null, sampleRate: s.sampleRate ?? null };
+  } catch {
+    report = null;
+  }
+  return stream;
 }

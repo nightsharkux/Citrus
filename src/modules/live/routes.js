@@ -52,6 +52,7 @@ const { pipeTo } = require('../../services/blob');
 const { createRateLimiter } = require('../../http/rate-limit');
 const { assistantNameFor } = require('../account/preferences');
 const { createAttachments } = require('../assistant/attachments');
+const { parsePptx } = require('../../lib/pptx-slides');
 const { createTranscripts } = require('./transcript');
 const { pulse, timeline, roughPatches, personalTimeline } = require('./pulse');
 const { createMoments } = require('./moments');
@@ -886,12 +887,29 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (!note) throw notFound('Note not found');
     return note;
   };
-  const viewable = (n) => (n.kind === 'image' ? 'image' : n.mime === 'application/pdf' && n.data ? 'pdf' : 'text');
+  const viewable = (n) => (n.kind === 'image' ? 'image' : n.mime === 'application/pdf' && n.data ? 'pdf' : n.data && /\.pptx$/i.test(n.name) ? 'slides' : 'text');
+  // A deck is read once per note: the slides (with their pictures) can be a few megabytes.
+  const decks = new Map();
 
   router.get('/api/live/sessions/:id/notes/:noteId', (ctx) => {
     const n = noteOf(teaching(ctx.user, ctx.params.id), ctx.params.noteId);
     const how = viewable(n);
     return { id: n.id, kind: n.kind, name: n.name, mime: n.mime, viewable: how, ...(how === 'text' ? { text: n.text || '' } : {}) };
+  });
+
+  /** A PowerPoint note drawn as slides (pictures, text boxes, colours). Speaker notes come with each slide, for the lecturer only. */
+  router.get('/api/live/sessions/:id/notes/:noteId/slides', (ctx) => {
+    const n = noteOf(teaching(ctx.user, ctx.params.id), ctx.params.noteId);
+    if (viewable(n) !== 'slides') throw notFound('This note has no slides to show');
+    if (!decks.has(n.id)) {
+      if (decks.size > 8) decks.delete(decks.keys().next().value);
+      try {
+        decks.set(n.id, parsePptx(Buffer.from(n.data, 'base64')));
+      } catch (error) {
+        throw badRequest(error.message || 'These slides cannot be shown');
+      }
+    }
+    return decks.get(n.id);
   });
 
   router.get('/api/live/sessions/:id/notes/:noteId/file', (ctx) => {

@@ -23,6 +23,7 @@ import { speakBoundary, detectLanguage } from './turns.js';
 import { getVoiceSettings, chooseVoice, voiceTuning, naturalSpeed } from './voices.js';
 import { speechGain, PcmDecoder } from './speech-audio.js';
 import { StreamingSpeech } from './gateway-audio.js';
+import { createCallOutput, callOutputSupported } from './call-output.js';
 
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 const hasDevice = 'speechSynthesis' in window;
@@ -95,7 +96,8 @@ function audioGraph() {
         compressor.attack.value = 0.003; compressor.release.value = 0.18;
         gain.connect(compressor).connect(analyser).connect(ctx.destination);
       } else gain.connect(analyser).connect(ctx.destination);
-      audio = { ctx, gain, analyser, samples: new Float32Array(analyser.fftSize) };
+      audio = { ctx, gain, analyser, samples: new Float32Array(analyser.fftSize), call: createCallOutput(ctx, analyser) };
+      if (callWanted) audio.call.engage(true);
       // Phones suspend audio for a call or Siri, some browsers when the output device changes. Scheduled
       // sentences would then never end and Citrus would fall silent mid-answer, so resume while it talks.
       ctx.onstatechange = () => {
@@ -108,6 +110,19 @@ function audioGraph() {
   if (audio.ctx.state === 'suspended') audio.ctx.resume().catch(() => {});
   return audio;
 }
+/**
+ * A conversation that keeps the microphone open while Citrus talks asks for the voice to be played as a WebRTC call
+ * stream (features/call-output.js), so the browser's echo canceller has the exact sound to remove. One that releases
+ * the microphone, and phones, use the direct path. Safe to call at any time; it does nothing where WebRTC is missing.
+ */
+let callWanted = false;
+export function setCallOutput(on) {
+  callWanted = !!on && callOutputSupported() && !matchMedia('(pointer: coarse)').matches;
+  audio?.call.engage(callWanted);
+}
+/** True while the voice goes through the call path (for diagnostics). */
+export const callOutputActive = () => !!audio?.call.active;
+
 // Browsers only start audio after a gesture: the first click or key press unlocks it for the visit.
 for (const type of ['pointerdown', 'keydown']) window.addEventListener(type, () => audioGraph(), { once: true, passive: true });
 

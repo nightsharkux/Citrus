@@ -24,7 +24,8 @@ import { api } from '../core/api.js';
 import { DeepgramRecognition } from './recognition.js';
 import { WisprRecognition } from './wispr-recognition.js';
 import { GatewayRecognition } from './gateway-recognition.js';
-import { chooseMicrophone, microphoneRoute } from './microphone.js';
+import { chooseMicrophone, microphoneRoute, onWindows } from './microphone.js';
+import { getVoiceSettings } from './voices.js';
 import { wakeMatcher } from './wake-phrase.js';
 import { notePitch, setPitchName } from './pitch.js';
 import { keepAwake } from './keep-awake.js';
@@ -84,6 +85,18 @@ const lang = recognitionLanguage;
  * the browser's recogniser always uses the default microphone.
  */
 export const microphoneMuffles = () => (useExternalRecognition() ? microphoneRoute().bluetooth : microphoneRoute().defaultBluetooth);
+/**
+ * True when the conversation should release the microphone while Citrus talks (the person takes turns). On Windows
+ * a page with the microphone open gets its other sound processed or turned down, which made Citrus sound muffled
+ * on laptops, so Windows takes turns unless the person turned "Let me talk over Citrus" on (headphones avoid echo).
+ * Other computers keep the microphone open. Settings → Voice → "When Citrus talks" overrides either way.
+ */
+export function takesTurns() {
+  const choice = getVoiceSettings().talkOver;
+  if (choice === 'yes') return false;
+  if (choice === 'no') return true;
+  return onWindows();
+}
 chooseMicrophone().catch(() => {});
 navigator.mediaDevices?.addEventListener?.('devicechange', () => chooseMicrophone().catch(() => {}));
 
@@ -539,7 +552,7 @@ onSpeakingChange((on) => {
 });
 setLanguageHint(() => heardLanguage || uiLanguage());
 
-export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoice, speechLevel, speakingLanguage, preferLoudspeaker } from './speaker.js';
+export { speak, createSpeaker, stopSpeaking, isSpeaking, primeSpeech, previewVoice, speechLevel, speakingLanguage, preferLoudspeaker, setCallOutput, callOutputActive } from './speaker.js';
 
 // ------------------------------------------------------------------ conversation microphone
 

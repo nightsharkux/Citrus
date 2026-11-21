@@ -383,6 +383,9 @@ function register(router, { db, ai, site, buildContext, config, access, timetabl
       user: ctx.user.id, reason: short(b.reason, 30), opened: !!b.opened, ms: Number(b.ms) || 0, sent: Number(b.sent) || 0,
       closeCode: Number(b.closeCode) || null, closeReason: short(b.closeReason, 200), events,
       error: b.error ? { type: short(b.error.type, 80), code: short(b.error.code, 80), message: short(b.error.message, 300) } : null,
+      // How the browser handled the microphone (echo canceller in use) and whether the voice played as a call stream.
+      mic: b.mic && typeof b.mic === 'object' ? Object.fromEntries(['echoCancellation', 'echoCancellationType', 'noiseSuppression', 'autoGainControl', 'sampleRate'].map((k) => [k, short(b.mic[k], 20)])) : null,
+      call: b.call === true,
     }));
     return { ok: true };
   });

@@ -19,7 +19,8 @@ import { createIsland } from './island.js';
 export function textPages(text) {
   const clean = String(text || '').trim();
   if (!clean) return ['(This note has no text to show.)'];
-  const slides = clean.split(/^Slide \d+\n/m).map((s) => s.trim()).filter(Boolean);
+  // The speaker notes are the lecturer's own: never on the screen the room sees.
+  const slides = clean.split(/^Slide \d+\n/m).map((s) => s.split(/\nSpeaker notes:/)[0].trim()).filter(Boolean);
   if (slides.length > 1) return slides;
   const pages = [];
   let page = '';
@@ -34,6 +35,64 @@ export function textPages(text) {
   return pages;
 }
 
+const HEX = /^#[0-9a-f]{6}$/i;
+const luminance = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+/** One slide of a deck (from GET …/notes/:id/slides) as an element: boxes placed in percent, text sized in cqw. */
+export function drawSlide(deck, slide) {
+  const el = document.createElement('div');
+  el.className = 'slide';
+  el.style.setProperty('--ratio', String(deck.width / deck.height));
+  const bg = HEX.test(slide.bg || '') ? slide.bg : '#ffffff';
+  el.style.background = bg;
+  el.style.color = luminance(bg) < 0.5 ? '#ffffff' : '#1a1a1a';
+  const pct = (n) => `${(Number(n) * 100).toFixed(3)}%`;
+  for (const shape of slide.shapes) {
+    const box = document.createElement('div');
+    box.className = `slide-shape is-${shape.kind === 'image' ? 'image' : 'text'}`;
+    Object.assign(box.style, { left: pct(shape.x), top: pct(shape.y), width: pct(shape.w), height: pct(shape.h) });
+    if (shape.kind === 'image') {
+      const img = document.createElement('img');
+      img.alt = '';
+      if (/^data:image\/(png|jpeg|gif|webp);base64,/.test(shape.src || '')) img.src = shape.src;
+      box.append(img);
+    } else {
+      const filled = HEX.test(shape.fill || '');
+      if (filled) box.style.background = shape.fill;
+      box.style.justifyContent = ['start', 'center', 'end'].includes(shape.anchor) ? shape.anchor : 'start';
+      box.style.color = luminance(filled ? shape.fill : bg) < 0.5 ? '#ffffff' : '#1a1a1a';
+      for (const para of shape.paras) {
+        const p = document.createElement('p');
+        if (para.gap) {
+          p.className = 'slide-gap';
+          box.append(p);
+          continue;
+        }
+        if (['center', 'right', 'justify'].includes(para.align)) p.style.textAlign = para.align;
+        if (para.bullet) {
+          p.className = 'slide-bullet';
+          p.style.marginLeft = `${Math.min(8, Number(para.level) || 0) * 2}cqw`;
+        }
+        for (const run of para.runs) {
+          const span = document.createElement('span');
+          span.textContent = run.t;
+          span.style.fontSize = `${Math.min(12, Math.max(0.8, Number(run.size) || 2))}cqw`;
+          if (run.bold) span.style.fontWeight = '700';
+          if (run.italic) span.style.fontStyle = 'italic';
+          if (HEX.test(run.color || '')) span.style.color = run.color;
+          p.append(span);
+        }
+        box.append(p);
+      }
+    }
+    el.append(box);
+  }
+  return el;
+}
+
 export function openNotesViewer({ sessionId, notes, start = 0, tools = [], status = '', onAsk, onClose }) {
   const el = document.createElement('div');
   el.className = 'viewer';
@@ -41,6 +100,7 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
   el.setAttribute('aria-label', 'Lecture notes');
   render(el, html`<div class="viewer-stage" data-stage></div>
     <div class="viewer-caption" data-caption></div>
+    <aside class="viewer-notes" data-speaker hidden><strong>Speaker notes <span class="faint">(only you see this)</span></strong><div class="prose" data-speaker-text></div></aside>
     <aside class="viewer-panel" data-panel hidden>
       <div class="spread"><strong>Ask Citrus</strong><button class="btn btn-ghost btn-icon btn-sm" data-panel-close aria-label="Close">${icon('x', 16)}</button></div>
       <div class="viewer-answer prose" data-answer><p class="small muted">Ask about these notes or what you just said. The answer stays here and is read aloud.</p></div>
@@ -59,6 +119,21 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
     return cache.get(n.id);
   }
 
+  const decks = new Map();
+  /** The drawn slides of a note, or null when they cannot be drawn (the text is shown instead). */
+  function deckOf(n) {
+    if (!decks.has(n.id)) decks.set(n.id, api.get(`/live/sessions/${sessionId}/notes/${n.id}/slides`).catch(() => null));
+    return decks.get(n.id);
+  }
+  function showSpeakerNotes(text) {
+    $('[data-speaker-text]', el).textContent = text || 'No speaker notes on this slide.';
+  }
+  function toggleSpeaker() {
+    const box = $('[data-speaker]', el);
+    box.hidden = !box.hidden;
+    island.setActive('speaker', !box.hidden);
+  }
+
   async function show(i, p = 0) {
     if (!notes.length) {
       render($('[data-stage]', el), html`<div class="viewer-empty">${icon('file', 40)}<p>No notes yet. Add pictures or PDFs on the lecture page.</p></div>`);
@@ -71,13 +146,21 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
     let pages = 1;
     if (n.viewable === 'image') render(stage, html`<img class="viewer-image" src="${file}" alt="${n.name}">`);
     else if (n.viewable === 'pdf') render(stage, html`<iframe class="viewer-pdf" src="${file}#view=FitH&toolbar=1" title="${n.name}"></iframe>`);
-    else {
+    else if (n.viewable === 'slides' && (await deckOf(n))) {
+      const deck = await deckOf(n);
+      pages = deck.slides.length;
+      page = Math.min(Math.max(0, p < 0 ? pages - 1 : p), pages - 1);
+      stage.replaceChildren(drawSlide(deck, deck.slides[page]));
+      showSpeakerNotes(deck.slides[page].notes);
+    } else {
       const all = textPages(n.text);
       pages = all.length;
       page = Math.min(Math.max(0, p < 0 ? all.length - 1 : p), all.length - 1);
-      render(stage, html`<article class="viewer-text prose">${markdown(all[page])}</article>`);
+      // One line per paragraph, so a slide's title and points do not run together.
+      render(stage, html`<article class="viewer-text prose">${markdown(all[page].replace(/\n+/g, '\n\n'))}</article>`);
     }
-    if (n.viewable !== 'text') page = 0;
+    if (n.viewable !== 'text' && n.viewable !== 'slides') page = 0;
+    if (n.viewable !== 'slides') showSpeakerNotes('');
     render($('[data-caption]', el), html`<span>${n.name}</span><span class="faint">${notes.length > 1 ? `${index + 1} of ${notes.length}` : ''}${pages > 1 ? ` · ${page + 1}/${pages}` : ''}</span>`);
     show.pages = pages;
   }
@@ -118,6 +201,7 @@ export function openNotesViewer({ sessionId, notes, start = 0, tools = [], statu
       { id: 'prev', icon: 'chevron-left', label: 'Previous', onSelect: previous, keepOpen: true },
       { id: 'next', icon: 'chevron-right', label: 'Next', onSelect: next, keepOpen: true },
       { id: 'all', icon: 'grid', label: 'All notes', onSelect: grid },
+      { id: 'speaker', icon: 'file', label: 'Speaker notes (only you)', onSelect: toggleSpeaker },
       'divider',
       ...tools,
       { id: 'chat', icon: 'message', label: 'Chat with Citrus', onSelect: () => togglePanel() },

@@ -25,7 +25,7 @@ export const PRESETS = [
  * engine: 'natural' (Citrus's natural voices from the server, when available) or 'device' (this browser's voices).
  * natural: the chosen natural voice ('' for the server's default).
  */
-export const DEFAULTS = { v: 2, voices: {}, uri: '', preset: 'natural', rate: 1.12, pitch: 1, volume: 1, readAloud: 'spoken', gender: 'any', engine: 'natural', natural: '' };
+export const DEFAULTS = { v: 2, voices: {}, uri: '', preset: 'natural', rate: 1.12, pitch: 1, volume: 1, readAloud: 'spoken', gender: 'any', engine: 'natural', natural: '', talkOver: 'auto' };
 
 /**
  * The speaking speed for natural voices. Those already talk at a natural pace at 1, while browser voices needed

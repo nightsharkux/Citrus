@@ -18,11 +18,12 @@ import { navigate } from '../core/router.js';
 import { toast } from '../core/ui.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake } from './voice.js';
+import { wake, takesTurns, setCallOutput } from './voice.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { conversationCommand, detectLanguage } from './turns.js';
 import { getVoiceSettings, saveVoiceSettings } from './voices.js';
-import { createLivePlayer, setSpeechVolume, isSpeaking } from './speaker.js';
+import { createLivePlayer, setSpeechVolume, isSpeaking, callOutputActive } from './speaker.js';
+import { microphoneReport } from './microphone.js';
 import { LiveSession, spokenAnswer } from './live.js';
 
 const QUIET_LIMIT = 120_000;
@@ -31,7 +32,7 @@ let restsUntil = 0;
 /** Live voice can run here: the institution has it, this is a computer, and it is not resting after a failure. */
 export function liveVoiceReady() {
   return session.ai?.live === true && !matchMedia('(pointer: coarse)').matches && !!globalThis.AudioWorkletNode
-    && !!globalThis.WebSocket && Date.now() >= restsUntil;
+    && !!globalThis.WebSocket && !takesTurns() && Date.now() >= restsUntil;
 }
 
 const tail = (text, max = 320) => {
@@ -288,7 +289,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
       },
       onEnd(reason, { started, trace }) {
         // Anything but a normal end is reported, so the server log says why live voice stopped.
-        if (reason !== 'closed') api.post('/assistant/live/trouble', trace).catch(() => {});
+        if (reason !== 'closed') api.post('/assistant/live/trouble', { ...trace, mic: microphoneReport(), call: callOutputActive() }).catch(() => {});
         if (closed || live !== mine) return;
         player?.clear();
         if (!started && reason === 'unavailable') {
@@ -370,6 +371,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
     closed = true;
     clearTimeout(quietTimer);
     clearInterval(byeTimer);
+    setCallOutput(false);
     player?.close();
     offs.forEach((off) => off());
     face.destroy();
@@ -422,6 +424,7 @@ export function startLiveConversation({ threadId: startThread = null, onClose, o
   window.addEventListener('pagehide', onLeave);
   offs.push(() => document.removeEventListener('keydown', onKey), () => window.removeEventListener('pagehide', onLeave));
 
+  setCallOutput(true); // the microphone is open while Citrus talks: the voice plays as a call stream
   paint();
   connect();
   announce();

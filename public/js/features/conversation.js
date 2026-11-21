@@ -35,7 +35,7 @@ import { toast } from '../core/ui.js';
 import { speakable } from '../core/math.js';
 import { setTheme } from '../shell.js';
 import { createFace } from './face.js';
-import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker, microphoneMuffles } from './voice.js';
+import { wake, chime, createListener, createSpeaker, primeSpeech, stopSpeaking, voiceProblem, noteSpoken, recognitionLanguage, speakingLanguage, preferLoudspeaker, microphoneMuffles, takesTurns, setCallOutput } from './voice.js';
 import { notePitch } from './pitch.js';
 import { applySettingsEffect, deviceSettings, openLink } from './preferences.js';
 import { endOfTurnDelay, isEcho, isInterruption, conversationCommand, words, detectLanguage } from './turns.js';
@@ -116,7 +116,7 @@ function captionOf(text, max = 320) {
 function createConversation({ threadId: startThread }) {
   const touch = matchMedia('(pointer: coarse)').matches;
   // Checked each time: headphones can be connected during the conversation.
-  const listenWhileSpeaking = () => !touch && !microphoneMuffles();
+  const listenWhileSpeaking = () => !touch && !microphoneMuffles() && !takesTurns();
   const name = assistantName();
   let threadId = startThread || null;
   let state = 'starting';
@@ -672,6 +672,7 @@ function createConversation({ threadId: startThread }) {
     if (speaker) stopSpeaking();
     speaker = null;
     preferLoudspeaker(false);
+    setCallOutput(false);
     offs.forEach((off) => off());
     face.destroy();
     root.remove();
@@ -728,6 +729,8 @@ function createConversation({ threadId: startThread }) {
   document.addEventListener('visibilitychange', onVisibility);
   offs.push(() => document.removeEventListener('keydown', onKey), () => document.removeEventListener('visibilitychange', onVisibility));
 
+  // The microphone stays open while Citrus talks: play the voice as a call stream so the echo canceller can remove it.
+  setCallOutput(listenWhileSpeaking());
   paint();
   listener.start();
   announce();
