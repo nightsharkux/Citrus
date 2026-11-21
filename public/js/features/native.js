@@ -7,6 +7,7 @@
  *   native.send('start', { label, target })   record in the background (see features/keep-awake.js)
  *   native.send('stop')
  *   native.send('save', { name, mime, data }) save a file (base64) to Downloads
+ *   native.send('immersive', { on })    hide (or show) the system bars while the study sign is up
  *
  * The app tells the page when it goes off and back on screen with the window events "campus-native-background"
  * and "campus-native-foreground".

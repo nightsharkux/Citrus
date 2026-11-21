@@ -11,6 +11,7 @@
 import { html, render } from '../core/dom.js';
 import { icon } from '../core/icons.js';
 import { keepAwake } from './keep-awake.js';
+import { native, inApp } from './native.js';
 import { messageLines, pulseSeconds, dimmed } from './sign-model.js';
 
 /** The sign as an element. `className` is "sign" for the overlay, or "sign sign-preview" for a small one. */
@@ -55,6 +56,7 @@ export function openSign(spec, { onExit } = {}) {
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('fullscreenchange', onFullscreen);
     if (document.fullscreenElement === overlay) document.exitFullscreen?.().catch(() => {});
+    if (inApp()) native.send('immersive', { on: false });
     awake.release();
     overlay.remove();
     if (!silent) onExit?.();
@@ -73,7 +75,10 @@ export function openSign(spec, { onExit } = {}) {
   });
   document.addEventListener('keydown', onKey);
   document.addEventListener('fullscreenchange', onFullscreen);
-  overlay.requestFullscreen?.().catch(() => {}); // best effort: the sign fills the window either way
+  // In the Android app the browser's full screen is not available: the web view has no screen to hand it, and asking
+  // for it turns the sign black. The sign already fills the window, so the app hides its own bars instead.
+  if (inApp()) native.send('immersive', { on: true });
+  else overlay.requestFullscreen?.().catch(() => {}); // best effort: the sign fills the window either way
   showExit(); // the way out is shown for a moment first, then only after a tap
   return { el: overlay, close };
 }

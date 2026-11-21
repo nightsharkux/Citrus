@@ -20,6 +20,12 @@
 ### Changed
 - **The island is a circle first.** It starts as a small frosted circle instead of a toolbar. A tap opens the tools; the person drags it anywhere, turns the bar across or down, fades the circle until it is barely visible (it comes back at a touch or when the pointer is near), or hides it again. Place, direction and fade are remembered on that device. The bar opens towards the side with room and never leaves the screen.
 
+### The study sign on a phone
+- **No more black screen in the app.** The Android web view has no screen to give the browser's full screen, so asking for it turned the sign black. In the app the sign now fills the window itself and the app hides the status and navigation bars while it is up (`immersive` on the app channel); they come back on Exit, on Back and on any page load. This already helps with the app that is installed: it stops asking for the browser's full screen, the new bar-hiding arrives with the next app build.
+- **A catalogue before the full screen.** The page shows the real sign, in the shape of the screen, and below it a row of looks (the four classic ones plus calm blue, library green, amber and night violet), each drawn as a small sign with your own message, language and symbol. Tap a look to try it (the preview pops, the card slides to the middle, a phone buzzes once), tap the preview to open it full screen.
+- **Back in 15 min, 30 min, 1 hour, 2 hours.** One tap puts "Back at 15:30" (or "Zurück um 15:30", or both) on the sign.
+- **Phone home screen.** The six quick actions are three to a row, so German labels such as "Vorlesung beitreten" and "Besprechung" no longer collide and every circle sits in the middle of its column. The slice in the wordmark has more room before "Citrus".
+
 ### The citrus slice
 - **The mark is the slice from the presentation now.** A ring with ten segments in a diagonal gradient from orange through pink to violet, redrawn from numbers (`src/lib/brand-mark.js`) so it is sharp at any size. It is the browser icon (`/brand/mark.svg`), the app icons (192 and 512 pixels, a dark tile with the slice), the Android launcher icon (a vector; build the app again to get it), the mark on the sign-in, register and join pages and in the sidebar, and the picture in the wordmark, which now reads *slice + Citrus*. The full-screen presentation and the PDFs keep their earlier look. `node scripts/make-brand-assets.js` redraws the icons and the Android vector.
 

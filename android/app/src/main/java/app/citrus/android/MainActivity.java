@@ -153,6 +153,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                setImmersive(false); // a full page load never keeps the bars hidden
                 CookieManager.getInstance().flush();
                 connect(url);
             }
@@ -376,7 +377,32 @@ public class MainActivity extends Activity {
         web.postWebMessage(new WebMessage("campus-native", new WebMessagePort[]{ports[1]}), Uri.parse("https://" + trustedHost));
     }
 
-    /** {"cmd": "start", "label", "target"} | {"cmd": "stop"} | {"cmd": "save", "name", "mime", "data" (base64)} */
+    /**
+     * Full screen for the study sign. The browser's own full screen is not used in the app (a web view has no screen
+     * to give it, and the page goes black), so the page asks for the system bars to be hidden instead: a swipe from
+     * the edge shows them for a moment.
+     */
+    @SuppressWarnings("deprecation")
+    private void setImmersive(boolean on) {
+        if (Build.VERSION.SDK_INT >= 30) {
+            android.view.WindowInsetsController c = getWindow().getInsetsController();
+            if (c == null) return;
+            if (on) {
+                c.hide(android.view.WindowInsets.Type.systemBars());
+                c.setSystemBarsBehavior(android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            } else {
+                c.show(android.view.WindowInsets.Type.systemBars());
+            }
+        } else {
+            getWindow().getDecorView().setSystemUiVisibility(on
+                    ? android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    : android.view.View.SYSTEM_UI_FLAG_VISIBLE);
+        }
+    }
+
+    /** {"cmd": "start", "label", "target"} | {"cmd": "stop"} | {"cmd": "immersive", "on"} | {"cmd": "save", "name", "mime", "data" (base64)} */
     private void handle(String data) {
         try {
             JSONObject o = new JSONObject(data);
@@ -396,6 +422,12 @@ public class MainActivity extends Activity {
                 case "stop":
                     endRecording();
                     break;
+                case "immersive": {
+                    // The study sign: hide the status and navigation bars while it is up, show them again after.
+                    boolean on = o.optBoolean("on", false);
+                    runOnUiThread(() -> setImmersive(on));
+                    break;
+                }
                 case "save": {
                     String name = o.optString("name", "citrus-file");
                     String mime = o.optString("mime", "application/octet-stream");

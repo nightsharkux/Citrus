@@ -10,9 +10,15 @@ const design = require('../src/modules/sign/design');
 
 const model = () => import('../public/js/features/sign-model.js');
 
-test('the four ready-made styles are readable and the message follows the language', async () => {
+test('the catalogue of ready-made looks is readable and the message follows the language', async () => {
   const m = await model();
-  assert.deepEqual(m.PRESETS.map((p) => p.id), ['black-white', 'black-red', 'red', 'flash-red']);
+  assert.deepEqual(m.PRESETS.map((p) => p.id), ['black-white', 'black-red', 'red', 'flash-red', 'blue', 'green', 'amber', 'violet']);
+  // "Back at 15:30" in the sign's own language(s)
+  const at = new Date(2026, 10, 21, 14, 50);
+  assert.equal(m.backAtLine('en', 40, at), 'Back at 15:30');
+  assert.equal(m.backAtLine('de', 40, at), 'Zurück um 15:30');
+  assert.equal(m.backAtLine('both', 40, at), 'Back at 15:30 · Zurück um 15:30');
+  assert.ok(m.backAtLine('both', 40, at).length <= m.LIMITS.sub);
   for (const p of m.PRESETS) {
     const spec = m.normalizeSpec({ preset: p.id });
     assert.equal(spec.background, p.spec.background);

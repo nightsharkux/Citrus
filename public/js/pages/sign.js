@@ -14,7 +14,7 @@ import { session } from '../core/store.js';
 import { getLanguage } from '../core/i18n.js';
 import { pageHead } from '../core/components.js';
 import { toast, toastError, busy } from '../core/ui.js';
-import { PRESETS, SIZES, SYMBOLS, SPEEDS, LIMITS, DEFAULT_MESSAGE, normalizeSpec, withPreset, messageLines, decodeSpec } from '../features/sign-model.js';
+import { PRESETS, SIZES, SYMBOLS, SPEEDS, LIMITS, DEFAULT_MESSAGE, BACK_IN, backAtLine, normalizeSpec, withPreset, messageLines, decodeSpec } from '../features/sign-model.js';
 import { signView, openSign } from '../features/sign.js';
 
 const KEY = 'citrus.sign';
@@ -41,8 +41,14 @@ function saveSpec(spec) {
 /** Which ready-made style the sign currently is, or '' once colours or flashing were changed by hand. */
 const activePreset = (s) => PRESETS.find((p) => p.spec.style === s.style && p.spec.background === s.background && p.spec.color === s.color)?.id || '';
 
-const swatch = (p) => html`<button type="button" class="sign-preset" data-preset="${p.id}" aria-pressed="false" style="--sw-bg:${p.spec.background};--sw-fg:${p.spec.color}">
-  <span class="sign-swatch ${p.spec.style === 'flash' ? 'is-flash' : ''}" aria-hidden="true">Aa</span><span>${p.name}</span></button>`;
+// One card of the catalogue: a small copy of the sign in that look (drawn in refresh()), and its name.
+const card = (p) => html`<button type="button" class="sign-card" data-preset="${p.id}" aria-pressed="false">
+  <span class="sign-card-face" data-card="${p.id}" aria-hidden="true"></span><span class="sign-card-name">${p.name}</span></button>`;
+
+const BACK_NAMES = { 15: '15 min', 30: '30 min', 60: '1 hour', 120: '2 hours' };
+
+/** The sign's shape on this screen: tall on a phone held upright, wide on a laptop or a phone on its side. */
+const screenRatio = () => Math.min(1.8, Math.max(0.45, innerWidth / Math.max(1, innerHeight)));
 
 const choices = (name, entries, label = (v) => v) => entries.map((value) => html`<button type="button" class="chip-button" data-choice="${name}" data-value="${value}" aria-pressed="false">${label(value)}</button>`);
 
@@ -55,15 +61,26 @@ export default {
     const aiOn = !!session.ai?.aiEnabled;
     return html`${pageHead({ title: 'Study sign', subtitle: 'Show a screen that asks people nearby not to disturb you.' })}
       <section class="card stack sign-setup">
-        <div class="sign-preview-wrap"><div data-preview></div></div>
+        <div class="sign-stage" data-stage role="button" tabindex="0" aria-label="Show the sign">
+          <div data-preview></div>
+          <span class="sign-stage-hint">${icon('maximize', 14)} Tap the preview to see it full screen</span>
+        </div>
 
-        <div class="field"><span>Style</span><div class="sign-presets" role="group" aria-label="Style">${PRESETS.map(swatch)}</div></div>
+        <div class="field"><span>Pick a look</span>
+          <div class="sign-catalogue" data-catalogue role="group" aria-label="Pick a look">${PRESETS.map(card)}</div></div>
 
         <div class="field"><span>Language</span>
           <div class="sign-seg" role="group" aria-label="Language">${LANGUAGES.map(([v, name]) => html`<button type="button" class="chip-button" data-choice="language" data-value="${v}" aria-pressed="false">${name}</button>`)}</div></div>
 
         <label class="field"><span>Message</span><input class="input" data-message maxlength="${LIMITS.message}" placeholder="${DEFAULT_MESSAGE.en}" autocomplete="off">
           <span class="hint">Leave it empty for the standard message in the language above.</span></label>
+
+        <div class="field"><span>Back in</span>
+          <div class="sign-seg" role="group" aria-label="Back in">
+            ${BACK_IN.map((m) => html`<button type="button" class="chip-button" data-back="${m}">${BACK_NAMES[m]}</button>`)}
+            <button type="button" class="chip-button" data-back="0">No time</button>
+          </div>
+          <span class="hint">Adds a small line like “Back at 15:30”.</span></div>
 
         <button class="btn btn-primary btn-lg" data-show>${icon('maximize', 18)} Show the sign</button>
 
@@ -108,9 +125,18 @@ export default {
 
     // ---- the controls
     const preview = $('[data-preview]', root);
+    const stage = $('[data-stage]', root);
+    // Every preview has the shape of this screen, so what you see here is what the full screen will look like.
+    root.style.setProperty('--sign-ratio', String(screenRatio()));
+    stage.classList.toggle('is-tall', screenRatio() < 1);
     const refresh = () => {
       preview.replaceChildren(signView(spec, 'sign-preview'));
       const preset = activePreset(spec);
+      // The catalogue: each look drawn as a small sign with your own message, language and symbol.
+      root.querySelectorAll('[data-card]').forEach((slot) => {
+        const p = PRESETS.find((x) => x.id === slot.dataset.card);
+        slot.replaceChildren(signView(withPreset(spec, p.id, { language: defaultLanguage() }), 'sign-preview sign-card-sign'));
+      });
       root.querySelectorAll('[data-preset]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.preset === preset)));
       root.querySelectorAll('[data-choice]').forEach((b) => b.setAttribute('aria-pressed', String(spec[b.dataset.choice] === b.dataset.value)));
       const input = $('[data-message]', root);
@@ -134,6 +160,27 @@ export default {
         spec = withPreset(spec, b.dataset.preset, { language: defaultLanguage() });
         saveSpec(spec);
         refresh();
+        // A little feedback: the big preview pops, the card slides to the middle, and a phone buzzes once.
+        stage.classList.remove('pop');
+        void stage.offsetWidth;
+        stage.classList.add('pop');
+        root.querySelector(`[data-preset="${b.dataset.preset}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+        try {
+          navigator.vibrate?.(8);
+        } catch {
+          /* not every browser can */
+        }
+      }),
+      on(root, 'click', '[data-back]', (e, b) => {
+        const minutes = Number(b.dataset.back);
+        change({ sub: minutes ? backAtLine(spec.language, minutes) : '' });
+      }),
+      on(root, 'click', '[data-stage]', () => $('[data-show]', root).click()),
+      on(root, 'keydown', '[data-stage]', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          $('[data-show]', root).click();
+        }
       }),
       on(root, 'click', '[data-choice]', (e, b) => change({ [b.dataset.choice]: b.dataset.value })),
       on(root, 'input', '[data-message]', (e, input) => change({ message: input.value })),

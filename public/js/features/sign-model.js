@@ -21,13 +21,33 @@ export const SYMBOLS = ['none', 'moon', 'book', 'lock', 'mic-off', 'clock'];
 export const SPEEDS = { slow: 2.4, normal: 1.6, fast: 1 };
 export const LANGUAGES = ['en', 'de', 'both'];
 
-/** The four styles offered up front. */
+/**
+ * The catalogue: ready-made looks, each shown as a small sign on the page before the full screen. The first four are
+ * the classic ones; every one keeps a text colour that can be read from across a room.
+ */
 export const PRESETS = [
   { id: 'black-white', name: 'Black, white text', spec: { style: 'solid', background: '#000000', color: '#ffffff' } },
   { id: 'black-red', name: 'Black, red text', spec: { style: 'solid', background: '#000000', color: '#ff3b30' } },
   { id: 'red', name: 'Red', spec: { style: 'solid', background: '#d71920', color: '#ffffff' } },
   { id: 'flash-red', name: 'Flashing red', spec: { style: 'flash', background: '#d71920', color: '#ffffff' } },
+  { id: 'blue', name: 'Calm blue', spec: { style: 'solid', background: '#1e3a8a', color: '#ffffff' } },
+  { id: 'green', name: 'Library green', spec: { style: 'solid', background: '#166534', color: '#ffffff' } },
+  { id: 'amber', name: 'Amber', spec: { style: 'solid', background: '#f5a524', color: '#000000' } },
+  { id: 'violet', name: 'Night violet', spec: { style: 'solid', background: '#4c1d95', color: '#ffffff' } },
 ];
+
+/** The quick "back in" choices: minutes, and the line that goes on the sign ("Back at 15:30"). */
+export const BACK_IN = [15, 30, 60, 120];
+const BACK_AT = { en: 'Back at', de: 'Zurück um' };
+
+/** "Back at 15:30" in the sign's language(s), for `minutes` from `now`. */
+export function backAtLine(language, minutes, now = new Date()) {
+  const t = new Date(now.getTime() + minutes * 60000);
+  const time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  if (language === 'de') return `${BACK_AT.de} ${time}`;
+  if (language === 'both') return `${BACK_AT.en} ${time} · ${BACK_AT.de} ${time}`;
+  return `${BACK_AT.en} ${time}`;
+}
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const clean = (v, max) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
