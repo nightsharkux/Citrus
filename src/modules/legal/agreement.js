@@ -12,6 +12,8 @@
  * periods it states are the institution's real settings.
  */
 
+const { germanFor } = require('./agreement-de');
+
 const VERSION = '2026-11-21';
 const UPDATED = '2026-11-21';
 
@@ -22,10 +24,21 @@ const HOSTING = {
   files: 'Vercel Blob, Dublin (Ireland)',
 };
 
-const days = (n) => (Number(n) > 0 ? `${Number(n)} days` : 'until it is deleted');
+/** How long lecture words are kept, as the institution set it (0 = until someone deletes them). */
+const kept = (n) => (Number(n) > 0 ? `${Number(n)} days after they were written (the institution's setting)` : 'until they are deleted (the institution\'s setting)');
 
-/** The agreement for a role, as Markdown. `role`: 'student' | 'lecturer' | 'admin' (guests read the student part), or 'all'. */
-function agreementFor({ role = 'all', institution = 'your institution', legal = {}, lectureTextRetentionDays = 365 } = {}) {
+/**
+ * The agreement for a role, as Markdown, in German (the binding text, and the default) or English (`lang: 'en'`).
+ * `role`: 'student' | 'lecturer' | 'admin' (guests read the student part), or 'all'. Both languages have the same
+ * parts and the same VERSION: accepting means accepting the agreement, not a language.
+ */
+function agreementFor({ role = 'all', institution, legal = {}, lectureTextRetentionDays = 365, lang = 'de' } = {}) {
+  if (lang !== 'en') {
+    const parts = role === 'all' ? ['student', 'lecturer', 'admin'] : [role === 'guest' ? 'student' : role];
+    const de = germanFor({ role, parts, institution: institution || 'Ihre Einrichtung', legal, lectureTextRetentionDays, HOSTING, VERSION, UPDATED });
+    return { version: VERSION, updated: UPDATED, role, language: 'de', title: de.title, markdown: de.markdown };
+  }
+  institution = institution || 'your institution';
   const controller = legal.controller || institution;
   const dpo = legal.dpo || 'the data-protection officer of your institution, whose contact details your institution publishes';
   const contact = legal.contact || 'the data-protection officer';
@@ -39,6 +52,8 @@ function agreementFor({ role = 'all', institution = 'your institution', legal = 
 This agreement explains how Citrus (the "Service") handles personal data and on what terms you may use it. **You must accept it to use Citrus**: by ticking the box when you create an account, when you join a lecture as a guest, and the first time you sign in after it has changed. We keep a record of the version you accepted and when. Parts B, C and D add what applies to **students and guests**, **lecturers** and **administrators**. If you hold more than one role, each part applies to you in that role.
 
 Citrus is a student-built service run for ${controller}. It is provided as it is, without a guarantee that it is always available.
+
+**The German version is the binding one.** This English version is a translation to help you understand it.
 
 ### 2. Who is responsible
 
@@ -105,7 +120,7 @@ Where data leaves the European Economic Area it is protected by an adequacy deci
 | --- | --- |
 | Account and course data | while your account exists; removed when you delete it |
 | Your answers in a lecture | while your account exists; after you delete it they remain only as anonymous class data |
-| Lecture transcripts, trouble-moment excerpts, kept audio, and the notes and explanations on flags | ${days(lectureTextRetentionDays)} after they were written (the institution's setting) |
+| Lecture transcripts, trouble-moment excerpts, kept audio, and the notes and explanations on flags | ${kept(lectureTextRetentionDays)} |
 | Meeting recordings | until their owner deletes them, or the institution's period |
 | Guest accounts | retired after 30 idle days |
 | Security log | 180 days |
@@ -189,7 +204,7 @@ This is version ${VERSION}, updated ${UPDATED}. When the Service or the law chan
 
   const text = { student, lecturer, admin };
   const body = [common, ...parts.map((p) => text[p])].filter(Boolean).join('\n');
-  return { version: VERSION, updated: UPDATED, role, title: 'Data Service and Privacy Agreement', markdown: `# Data Service and Privacy Agreement\n\nVersion ${VERSION} · ${controller}\n\n${body}` };
+  return { version: VERSION, updated: UPDATED, role, language: 'en', title: 'Data Service and Privacy Agreement', markdown: `# Data Service and Privacy Agreement\n\nVersion ${VERSION} · ${controller}\n\n${body}` };
 }
 
 module.exports = { agreementFor, VERSION, UPDATED, HOSTING };

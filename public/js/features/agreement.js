@@ -16,14 +16,50 @@ import { api } from '../core/api.js';
 import { markdown } from '../core/markdown.js';
 import { session, setSession } from '../core/store.js';
 import { sheet, toast, toastError } from '../core/ui.js';
+import { getLanguage } from '../core/i18n.js';
 
-const fetchText = (role) => api.get(`/agreement${role ? `?role=${encodeURIComponent(role)}` : ''}`);
+/** The agreement in a language: the person's own, German first (it is the binding text). */
+const fetchText = (role, lang) => api.get(`/agreement?lang=${lang === 'en' ? 'en' : 'de'}${role ? `&role=${encodeURIComponent(role)}` : ''}`);
+const startLanguage = () => (getLanguage() === 'en' ? 'en' : 'de');
+
+/** A Deutsch | English switch over the text; `show(doc)` draws a text into `box`. Re-reads the text in the other language. */
+function languageSwitch(role, current, box, onDoc) {
+  const wrap = document.createElement('div');
+  wrap.className = 'agreement-lang';
+  wrap.setAttribute('role', 'group');
+  wrap.setAttribute('aria-label', 'Language of the agreement');
+  wrap.dataset.noTranslate = '';
+  let lang = current;
+  const buttons = [['de', 'Deutsch'], ['en', 'English']].map(([code, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'agreement-lang-btn';
+    b.textContent = label;
+    b.lang = code;
+    b.setAttribute('aria-pressed', String(code === lang));
+    b.addEventListener('click', async () => {
+      if (code === lang) return;
+      try {
+        const doc = await fetchText(role, code);
+        lang = code;
+        buttons.forEach((x) => x.setAttribute('aria-pressed', String(x.lang === lang)));
+        onDoc(doc);
+        box.scrollTop = 0;
+      } catch (error) {
+        toastError(error);
+      }
+    });
+    wrap.append(b);
+    return b;
+  });
+  return wrap;
+}
 
 /** The agreement in a sheet, to read. */
 export async function readAgreement({ role } = {}) {
   let doc;
   try {
-    doc = await fetchText(role);
+    doc = await fetchText(role, startLanguage());
   } catch (error) {
     toastError(error);
     return;
@@ -32,8 +68,12 @@ export async function readAgreement({ role } = {}) {
     title: doc.title,
     wide: true,
     className: 'agreement-sheet',
-    content: html`<p class="small muted">Version ${doc.version} · updated ${doc.updated}</p><article class="prose agreement-text">${markdown(doc.markdown)}</article>`,
+    content: html`<div data-lang-slot></div><p class="small muted" data-version>Version ${doc.version} · ${doc.updated}</p><article class="prose agreement-text" lang="${doc.language}">${markdown(doc.markdown)}</article>`,
     footer: html`<button class="btn btn-primary" data-close>Close</button>`,
+    onMount(root) {
+      const article = $('.agreement-text', root);
+      $('[data-lang-slot]', root).replaceWith(languageSwitch(role, doc.language, article, (next) => { render(article, markdown(next.markdown)); article.lang = next.language; }));
+    },
   });
 }
 
@@ -41,7 +81,7 @@ export async function readAgreement({ role } = {}) {
 export async function askAgreement({ role } = {}) {
   let doc;
   try {
-    doc = await fetchText(role);
+    doc = await fetchText(role, startLanguage());
   } catch (error) {
     toastError(error);
     return false;
@@ -52,12 +92,14 @@ export async function askAgreement({ role } = {}) {
       title: doc.title,
       wide: true,
       className: 'agreement-sheet',
-      content: html`<p class="small muted">Version ${doc.version} · updated ${doc.updated}</p><article class="prose agreement-text">${markdown(doc.markdown)}</article>
-        <label class="agreement-check"><input type="checkbox" data-agree-box> <span>I have read and agree to the ${doc.title}.</span></label>`,
+      content: html`<div data-lang-slot></div><p class="small muted">Version ${doc.version} · updated ${doc.updated}</p><article class="prose agreement-text" lang="${doc.language}">${markdown(doc.markdown)}</article>
+        <label class="agreement-check"><input type="checkbox" data-agree-box> <span>I have read and agree to the Data Service and Privacy Agreement.</span></label>`,
       footer: html`<button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" data-agree disabled>Agree and continue</button>`,
       onMount(root, close) {
         const box = $('[data-agree-box]', root);
         const go = $('[data-agree]', root);
+        const article = $('.agreement-text', root);
+        $('[data-lang-slot]', root).replaceWith(languageSwitch(role, doc.language, article, (next) => { render(article, markdown(next.markdown)); article.lang = next.language; }));
         box.addEventListener('change', () => { go.disabled = !box.checked; });
         go.addEventListener('click', () => {
           agreed = true;
@@ -96,7 +138,7 @@ export function agreementGate({ signOut } = {}) {
       resolve(value);
     };
 
-    fetchText().then((doc) => {
+    fetchText(undefined, startLanguage()).then((doc) => {
       const user = session.user;
       const own = user?.auth_provider === 'local' && user.role !== undefined;
       render(root, html`<div class="agreement-card">
@@ -104,9 +146,10 @@ export function agreementGate({ signOut } = {}) {
           <h1>${doc.title}</h1>
           <p class="small muted">Version ${doc.version} · updated ${doc.updated}. ${doc.accepted?.version ? 'It has changed since you last accepted it, so please read it again.' : 'Please read it before you continue.'}</p>
         </header>
-        <article class="prose agreement-text" tabindex="0" data-agreement-text>${markdown(doc.markdown)}</article>
+        <div class="agreement-lang-row" data-lang-slot></div>
+        <article class="prose agreement-text" tabindex="0" data-agreement-text lang="${doc.language}">${markdown(doc.markdown)}</article>
         <footer class="agreement-foot">
-          <label class="agreement-check"><input type="checkbox" data-agree-box> <span>I have read and agree to this agreement (version ${doc.version}).</span></label>
+          <label class="agreement-check"><input type="checkbox" data-agree-box> <span>I have read and agree to this agreement.</span></label>
           <div class="agreement-actions">
             <button class="btn btn-primary btn-lg" data-agree disabled>${icon('check', 18)} Agree and continue</button>
             <button class="btn btn-ghost" data-decline>I do not agree: sign out</button>
@@ -123,6 +166,8 @@ export function agreementGate({ signOut } = {}) {
       </div>`);
       const box = $('[data-agree-box]', root);
       const go = $('[data-agree]', root);
+      const article = $('[data-agreement-text]', root);
+      $('[data-lang-slot]', root).replaceWith(languageSwitch(undefined, doc.language, article, (next) => { render(article, markdown(next.markdown)); article.lang = next.language; }));
       box.addEventListener('change', () => { go.disabled = !box.checked; });
       go.addEventListener('click', async () => {
         go.disabled = true;

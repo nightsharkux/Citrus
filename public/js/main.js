@@ -6,7 +6,7 @@ import { live } from './core/live.js';
 import { registerRoutes } from './routes.js';
 import { mountApp, mountPublic, setTheme, signOut } from './shell.js';
 import { agreementGate } from './features/agreement.js';
-import { startTranslating, syncFromUser } from './core/i18n.js';
+import { startTranslating, syncFromUser, getLanguage } from './core/i18n.js';
 import { watchDates } from './features/date-picker.js';
 
 async function boot() {
@@ -49,6 +49,10 @@ async function boot() {
   }
   if (session.user) mountApp();
   else mountPublic();
+
+  // The server writes notifications (inbox and push) in each person's language, so it has to know it: the first time
+  // the app starts for someone who never chose one, it saves the language it is showing them.
+  if (session.user && !session.user.preferences?.language) api.patch('/me', { preferences: { language: getLanguage() } }).catch(() => {});
 
   // It changed while the app was open: ask again, then reload with the new version.
   let asking = false;

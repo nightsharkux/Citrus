@@ -393,7 +393,7 @@ function privacy(d) {
   const sso = session.user.auth_provider === 'oidc';
   return html`<section class="card"><h2>Data Service and Privacy Agreement</h2>
     <p class="muted small mt-8">What Citrus collects, why, who else handles it, how long it is kept and your rights. You accepted it to use Citrus, and you are asked again whenever it changes.</p>
-    <p class="small mt-8">${d.agreement ? `Version ${d.agreement.version} · updated ${d.agreement.updated}. ${acceptedLine(d.agreement.accepted)}` : ''}</p>
+    ${d.agreement ? html`<p class="small mt-8">Version ${d.agreement.version} · updated ${d.agreement.updated}</p><p class="small">${acceptedLine(d.agreement.accepted)}</p>` : ''}
     <div class="form-actions mt-16" style="justify-content:flex-start"><button class="btn" data-read-agreement>${icon('file', 16)} Read the agreement</button></div>
   </section>
   <section class="card"><h2>Download your data</h2>

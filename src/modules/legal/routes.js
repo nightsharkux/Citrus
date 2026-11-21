@@ -24,21 +24,28 @@ function register(router, { db, env, settings, audit }) {
   const firstInstitution = () => db.get('SELECT id, name FROM institutions ORDER BY id LIMIT 1');
 
   /** The text for these people, with the institution's own details and retention filled in. */
-  function textFor(user, requestedRole, institutionId) {
+  function textFor(user, requestedRole, institutionId, lang) {
     const id = user?.institution_id || institutionId || firstInstitution()?.id;
     const s = id ? settings.all(id) : {};
     const role = user ? (user.role === 'admin' ? 'admin' : user.role === 'lecturer' ? 'lecturer' : 'student') : (['student', 'lecturer', 'admin'].includes(requestedRole) ? requestedRole : 'all');
     return agreementFor({
       role,
-      institution: (id && institutionName(id)) || 'your institution',
+      institution: (id && institutionName(id)) || undefined, // the text says "your institution" in its own language
       legal: { controller: s.legalController, dpo: s.legalDpo, contact: s.legalContact, authority: s.legalAuthority },
       lectureTextRetentionDays: s.lectureTextRetentionDays,
+      lang,
     });
   }
 
   router.get('/api/agreement', (ctx) => {
-    const doc = textFor(ctx.user, ctx.query.get('role'), Number(ctx.query.get('institution_id')) || null);
+    // German first: it is the binding text and the one most people read. English only when asked for (or when the
+    // person's own language is English).
+    const asked = ctx.query.get('lang');
+    const lang = asked === 'en' || asked === 'de' ? asked : (ctx.user?.preferences?.language === 'en' ? 'en' : 'de');
+    const doc = textFor(ctx.user, ctx.query.get('role'), Number(ctx.query.get('institution_id')) || null, lang);
     return {
+      language: doc.language,
+      languages: ['de', 'en'],
       version: doc.version,
       updated: doc.updated,
       role: doc.role,

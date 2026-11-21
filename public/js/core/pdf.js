@@ -12,6 +12,8 @@
  *
  * `figure` draws the class timeline: { minutes: [{ minute, status, you? }], audience }.
  */
+import { getLanguage } from './i18n.js';
+
 
 const PAGE = { w: 595.28, h: 841.89, left: 54, right: 54, top: 58, bottom: 62 };
 const WIDTH = PAGE.w - PAGE.left - PAGE.right;
@@ -584,7 +586,7 @@ function assemble(doc, { title, footer }) {
  * Notes as a PDF. The first "# " heading of the Markdown becomes the title when no title is given.
  * @returns {Uint8Array}
  */
-export function notesPdf({ title = '', subtitle = '', kicker = 'Citrus', markdown = '', accent = '#F07A2E', figure = null, images = null, footer = 'Citrus · Student project · M. Mangena' } = {}) {
+export function notesPdf({ title = '', subtitle = '', kicker = 'Citrus', markdown = '', accent = '#F07A2E', figure = null, images = null, footer = getLanguage() === 'de' ? 'Citrus · Studentisches Projekt · M. Mangena' : 'Citrus · Student project · M. Mangena' } = {}) {
   const blocks = parseMarkdown(markdown);
   if (blocks[0]?.type === 'heading' && blocks[0].level === 1) {
     if (!title) title = blocks[0].text;

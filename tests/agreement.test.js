@@ -15,7 +15,7 @@ const accept = (app, who, version = VERSION) => app.call(who, 'POST', '/api/agre
 test('the agreement is public, complete and has no blanks, no personal name, and the real hosting locations', async () => {
   const app = await startApp({ env: on });
   try {
-    const r = await app.call('visitor', 'GET', '/api/agreement');
+    const r = await app.call('visitor', 'GET', '/api/agreement?lang=en');
     assert.equal(r.status, 200);
     assert.equal(r.body.version, VERSION);
     const text = r.body.markdown;
@@ -27,7 +27,7 @@ test('the agreement is public, complete and has no blanks, no personal name, and
     assert.doesNotMatch(text, /Mangena/i);
     assert.match(text, /Controller \| (?!\[)/);
     // A visitor can ask for one part.
-    const lecturer = await app.call('visitor', 'GET', '/api/agreement?role=lecturer');
+    const lecturer = await app.call('visitor', 'GET', '/api/agreement?lang=en&role=lecturer');
     assert.match(lecturer.body.markdown, /Part C: lecturers/);
     assert.doesNotMatch(lecturer.body.markdown, /Part D: administrators/);
   } finally {
@@ -72,7 +72,7 @@ test('until the current version is accepted nothing works but reading it, accept
 
     const boot = await app.call('admin', 'GET', '/api/bootstrap');
     assert.deepEqual(boot.body.agreement, { required: true, version: VERSION });
-    const read = await app.call('admin', 'GET', '/api/agreement');
+    const read = await app.call('admin', 'GET', '/api/agreement?lang=en');
     assert.equal(read.body.required, true);
     assert.match(read.body.markdown, /Part D: administrators/);
     assert.doesNotMatch(read.body.markdown, /Part C: lecturers/, 'an administrator is shown their own part');
@@ -85,12 +85,12 @@ test('until the current version is accepted nothing works but reading it, accept
     assert.equal(done.status, 200);
     assert.equal((await app.call('admin', 'GET', '/api/courses')).status, 200);
     assert.deepEqual((await app.call('admin', 'GET', '/api/bootstrap')).body.agreement, { required: false, version: VERSION });
-    assert.equal((await app.call('admin', 'GET', '/api/agreement')).body.accepted.current, true);
+    assert.equal((await app.call('admin', 'GET', '/api/agreement?lang=en')).body.accepted.current, true);
 
     // The text changes: everybody is asked again.
     app.db.run("UPDATE users SET agreement_version = '2020-01-01'");
     assert.equal((await app.call('admin', 'GET', '/api/courses')).status, 403, 'a new version has to be accepted again');
-    assert.equal((await app.call('admin', 'GET', '/api/agreement')).body.accepted.current, false);
+    assert.equal((await app.call('admin', 'GET', '/api/agreement?lang=en')).body.accepted.current, false);
     await accept(app, 'admin');
     assert.equal((await app.call('admin', 'GET', '/api/courses')).status, 200);
     assert.equal(app.db.all("SELECT 1 FROM agreement_acceptances WHERE version = ?", VERSION).length, 2, 'every acceptance is kept');
@@ -108,7 +108,7 @@ test('each role reads its own part, and the institution’s own details are fill
     await app.register('prof');
     app.db.run("UPDATE users SET role = 'lecturer' WHERE email = 'prof@test.invalid'");
     await accept(app, 'prof');
-    const lecturer = (await app.call('prof', 'GET', '/api/agreement')).body.markdown;
+    const lecturer = (await app.call('prof', 'GET', '/api/agreement?lang=en')).body.markdown;
     assert.match(lecturer, /Part C: lecturers/);
     assert.doesNotMatch(lecturer, /Part B: students|Part D: administrators/);
     assert.match(lecturer, /Controller \| Example University, 1 Campus Road, 12345 Town/);
@@ -119,7 +119,7 @@ test('each role reads its own part, and the institution’s own details are fill
 
     await app.register('stu');
     await accept(app, 'stu');
-    const student = (await app.call('stu', 'GET', '/api/agreement')).body.markdown;
+    const student = (await app.call('stu', 'GET', '/api/agreement?lang=en')).body.markdown;
     assert.match(student, /Part B: students and guests/);
     assert.doesNotMatch(student, /Part C: lecturers|Part D: administrators/);
     // Only administrators set the details.
@@ -130,8 +130,50 @@ test('each role reads its own part, and the institution’s own details are fill
 });
 
 test('retention of 0 reads as "until it is deleted" and the text names the institution when no details are entered', () => {
-  const doc = agreementFor({ role: 'student', institution: 'Example University', lectureTextRetentionDays: 0 }).markdown;
-  assert.match(doc, /until it is deleted after they were written/);
+  const doc = agreementFor({ role: 'student', lang: 'en', institution: 'Example University', lectureTextRetentionDays: 0 }).markdown;
+  assert.match(doc, /\| until they are deleted \(the institution's setting\) \|/);
+  assert.match(agreementFor({ role: 'student', lang: 'de', lectureTextRetentionDays: 0 }).markdown, /\| bis sie gelöscht werden \(Einstellung der Einrichtung\) \|/);
   assert.match(doc, /Controller \| Example University/);
   assert.match(doc, /data-protection officer of your institution/);
+  assert.match(agreementFor({ role: 'student', lang: 'de', institution: 'Beispiel-Hochschule' }).markdown, /Verantwortlicher \| Beispiel-Hochschule/);
+  assert.match(agreementFor({ role: 'student', lang: 'de' }).markdown, /Verantwortlicher \| Ihre Einrichtung/, 'without a name the German text says so in German');
+});
+
+test('German comes first: it is the default, with the institution’s details and each role’s own part, and English one switch away', async () => {
+  const app = await startApp({ env: on });
+  try {
+    // A visitor, nobody asked for a language: German, all parts, no blanks, no personal name.
+    const visitor = (await app.call('visitor', 'GET', '/api/agreement')).body;
+    assert.equal(visitor.language, 'de');
+    assert.deepEqual(visitor.languages, ['de', 'en'], 'German listed first');
+    assert.match(visitor.title, /Datendienst- und Datenschutzvereinbarung/);
+    for (const part of ['Teil A: für alle', 'Teil B: Studierende und Gäste', 'Teil C: Dozierende', 'Teil D: Administratorinnen und Administratoren']) assert.match(visitor.markdown, new RegExp(part));
+    assert.match(visitor.markdown, /eu-west-1 \(Irland\)/, 'where the database runs');
+    assert.match(visitor.markdown, /Maßgeblich ist die deutsche Fassung/);
+    assert.doesNotMatch(visitor.markdown, /\[[A-Za-zÄÖÜäöü]|Mangena/);
+
+    // The same agreement in English on request, with the same version.
+    const english = (await app.call('visitor', 'GET', '/api/agreement?lang=en')).body;
+    assert.equal(english.language, 'en');
+    assert.equal(english.version, visitor.version);
+
+    // The institution's own details and retention appear in the German text too.
+    await app.login('admin');
+    await accept(app, 'admin');
+    await app.call('admin', 'PATCH', '/api/admin/settings', { legalController: 'Beispiel-Hochschule, Campusweg 1, 12345 Stadt', legalDpo: 'Dr. Daten, datenschutz@beispiel.test', legalContact: 'datenschutz@beispiel.test', legalAuthority: 'Landesbeauftragter für den Datenschutz', lectureTextRetentionDays: 90 });
+    const admin = (await app.call('admin', 'GET', '/api/agreement')).body.markdown;
+    assert.match(admin, /Teil D: Administratorinnen und Administratoren/);
+    assert.doesNotMatch(admin, /Teil C: Dozierende/);
+    assert.match(admin, /Verantwortlicher \| Beispiel-Hochschule, Campusweg 1, 12345 Stadt/);
+    assert.match(admin, /datenschutz@beispiel\.test/);
+    assert.match(admin, /\| 90 Tage nach ihrer Entstehung/);
+
+    // A person whose own language is English gets English unless they ask for German.
+    await app.register('ann');
+    await app.call('ann', 'PATCH', '/api/me', { preferences: { language: 'en' } });
+    assert.equal((await app.call('ann', 'GET', '/api/agreement')).body.language, 'en');
+    assert.equal((await app.call('ann', 'GET', '/api/agreement?lang=de')).body.language, 'de');
+  } finally {
+    await app.close();
+  }
 });

@@ -89,7 +89,7 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
     ? createAcademicSnapshot({ root: config.root, file: site.academicSnapshot }) : null;
   const ai = createAiService({ db, env, fetchImpl, packs, academic: programmes, readPack: (file) => readBundled(config.root, file) });
   const push = createPushSender({ storageDir: config.storageDir, storedKeys: keys.vapid(), subject: config.push.subject, fetchImpl, allowAnyEndpoint: env.PUSH_ALLOW_ANY_ENDPOINT === '1' });
-  const notifier = createNotifier({ db, bus, push, timeZone });
+  const notifier = createNotifier({ db, bus, push, timeZone, defaultLanguage: String(env.CAMPUS_DEFAULT_LANGUAGE || '').toLowerCase() === 'en' ? 'en' : 'de' });
   const timetable = createTimetable({ db, timeZone });
   const studyGroups = createStudyGroups({ db, notifier });
   const campusPosts = createCampusPosts({ db, notifier });

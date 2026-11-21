@@ -7,6 +7,7 @@ import pages from './i18n-de-pages.js';
 import staff from './i18n-de-staff.js';
 import more from './i18n-de-more.js';
 import learn from './i18n-de-learn.js';
+import gaps, { PATTERNS as GAP_PATTERNS } from './i18n-de-gaps.js';
 
 export const DE = {
   'Replay answer': 'Antwort erneut abspielen',
@@ -76,6 +77,7 @@ export const DE = {
   ...staff,
   ...more,
   ...learn,
+  ...gaps,
   ...pages,
   ...shell,
   // Messages the server sends.
@@ -109,6 +111,7 @@ const value = (v) => VALUES[v] ?? v;
 const PAGE_NAMES = { home: 'Start', schedule: 'Stundenplan', courses: 'Kurse', lectures: 'Vorlesungen', meetings: 'Besprechungen', library: 'Dokumente', apps: 'Meine Werkzeuge', sign: 'Lernschild', learning: 'Lernen', quiz: 'Quizze', groups: 'Lerngruppen', spaces: 'Räume', campus: 'Campusleben', map: 'Campusplan', inbox: 'Postfach', settings: 'Einstellungen', tools: 'Alle Werkzeuge', assistant: 'Assistent', participation: 'Teilnahme', classroom: 'Hörsaal', career: 'Karriere', profile: 'Profil', guide: 'Campus-Leitfaden' };
 
 export const PATTERNS = [
+  ...GAP_PATTERNS,
   [/^Show the QR code and the code (\d{3} \d{3}) on the projector\.$/, (code) => `Zeig den QR-Code und den Code ${code} am Beamer.`],
   [/^QR code for (.+)$/, (title) => `QR-Code für ${title}`],
   [/^AI-generated voice · (.+?)( · streaming audio)?$/, (model, streaming) => `KI-generierte Stimme · ${model}${streaming ? ' · Audiostream' : ''}`],

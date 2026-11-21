@@ -860,4 +860,9 @@ details.report.is-version { margin-left: 18px; border-left: 3px solid var(--acce
 .agreement-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .agreement-leave summary { cursor: pointer; }
 .agreement-sheet .agreement-text { max-height: 58vh; padding: 0; }
+.agreement-lang { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--glass-strong, rgba(127, 127, 127, 0.14)); border: 1px solid var(--glass-border, rgba(127, 127, 127, 0.25)); margin: 0 0 10px; }
+.agreement-lang-btn { border: 0; background: transparent; color: inherit; font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.agreement-lang-btn[aria-pressed='true'] { background: var(--accent, #F07A2E); color: #fff; font-weight: 600; }
+.agreement-lang-row { padding: 0 28px 4px; }
+@media (max-width: 720px) { .agreement-lang-row { padding: 0 16px 4px; } }
 @media (max-width: 720px) { .agreement-gate { padding: 0; } .agreement-card { max-height: 100dvh; border-radius: 0; } .agreement-head, .agreement-foot { padding-left: 16px; padding-right: 16px; } .agreement-text { padding: 4px 16px 16px; } }
