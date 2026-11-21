@@ -30,7 +30,7 @@ Fix: set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` (see the Turso section abov
 
 ## Vercel hosting and environment variables
 
-Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Citrus at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/campusos.db` as before.
+Vercel Functions have no persistent disk, so the SQLite file cannot live there. Point Citrus at a hosted [Turso](https://turso.tech) database instead (SQLite in the cloud, so the SQL and migrations are unchanged). Set `TURSO_DATABASE_URL` and the app uses it; leave it unset and the app uses `storage/citrus.db` as before.
 
 **Set up the database**
 
@@ -83,7 +83,7 @@ These are the only AI environment variables. Do not add direct-provider keys or 
 | `HOST`, `PORT` | Bind address and port required by the Node host; see VPS example below |
 | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Hosted database. Required on Vercel; when the URL is set, `DB_PATH` is ignored |
 | `CAMPUS_MASTER_KEY`, `CAMPUS_NFC_KEY` | Optional 32-byte keys (64 hex characters or base64). Default: files in `storage/`, or the `app_keys` table on a hosted database |
-| `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/campusos.db` |
+| `CAMPUS_STORAGE_DIR`, `DB_PATH` | Optional absolute paths on the persistent disk; defaults are `storage/` and `storage/citrus.db` |
 | `BLOB_STORE_ID` or `BLOB_READ_WRITE_TOKEN` | Optional. Set by Vercel when a private Blob store is connected: course files up to 100 MB and recordings kept on the server. A read-write token is a Secret |
 
 When using a custom storage directory, set **both** `CAMPUS_STORAGE_DIR` and `DB_PATH` (for example `/var/lib/citrus` and `/var/lib/citrus/citrus.db`). Preserve the database, audio and keys together across deployments. `OIDC_*`, `MOODLE_URL` and `PUSH_SUBJECT` are optional integrations; leave them unset unless used. No `SESSION_SECRET` variable is required by this code.
@@ -145,7 +145,7 @@ useradd --system --create-home --home-dir /opt/citrus --shell /usr/sbin/nologin 
 
 ### 3. Upload the code (from your Windows PC)
 
-In **PowerShell**, inside the `CampusOS_One` folder. Your `.env`, database and backups stay on your PC:
+In **PowerShell**, inside the `Citrus` folder. Your `.env`, database and backups stay on your PC:
 
 ```powershell
 tar -czf citrus.tgz --exclude=./storage --exclude=./backups --exclude=./.env --exclude=./node_modules .

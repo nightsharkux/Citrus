@@ -55,7 +55,7 @@ A module takes only what it needs: `register(router, { db, access, notifier })`.
 
 With `TURSO_DATABASE_URL` set, the database and the three key entries live in Turso (`app_keys`) and only audio recordings need a disk. The rest of this section describes the default local setup.
 
-`storage/campusos.db` (plus `-wal`/`-shm`), `storage/audio/`, `storage/master.key`, `storage/nfc-hmac.key` and `storage/vapid.json`. Losing `master.key` makes device secrets and Moodle tokens unreadable. Losing `nfc-hmac.key` unlinks every card.
+`storage/citrus.db` (plus `-wal`/`-shm`), `storage/audio/`, `storage/master.key`, `storage/nfc-hmac.key` and `storage/vapid.json`. Losing `master.key` makes device secrets and Moodle tokens unreadable. Losing `nfc-hmac.key` unlinks every card.
 
 ## Front end layout
 

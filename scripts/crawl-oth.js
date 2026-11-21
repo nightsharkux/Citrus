@@ -21,7 +21,7 @@ const crypto = require('node:crypto');
 
 const ROOT = path.join(__dirname, '..');
 const HOST = 'https://www.oth-aw.de';
-const UA = 'Citrus-OTH-pack/1.0 (student project, private; https://github.com/nightsharkux/CampusOS_One)';
+const UA = 'Citrus-OTH-pack/1.0 (student project, private; https://github.com/nightsharkux/Citrus)';
 const CACHE = path.join(ROOT, 'storage', 'oth-crawl');
 
 const args = process.argv.slice(2);

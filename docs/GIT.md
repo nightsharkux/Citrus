@@ -39,13 +39,13 @@ This uses GitHub's privacy-preserving commit email and leaves author settings fo
 After local commits exist, create a private repository and push the current branch:
 
 ```powershell
-gh repo create CampusOS_One --private --source . --remote origin --push
+gh repo create Citrus --private --source . --remote origin --push
 ```
 
 Run this once, only if `origin` has not already been configured. If you already created a GitHub repository, connect its URL instead:
 
 ```powershell
-git remote add origin https://github.com/YOUR_USERNAME/CampusOS_One.git
+git remote add origin https://github.com/YOUR_USERNAME/Citrus.git
 git push --set-upstream origin main
 ```
 
