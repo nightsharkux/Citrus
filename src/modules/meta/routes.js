@@ -48,7 +48,7 @@ function register(router, { db, config }) {
 
   /** The Citrus slice mark (browser tab icon, the mark in the pages, social previews): src/lib/brand-mark.js. */
   router.get('/brand/mark.svg', (ctx) => {
-    ctx.res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+    ctx.res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=3600' });
     ctx.res.end(markSvg(config.site.shortName));
   }, { auth: 'public' });
 
@@ -71,9 +71,9 @@ function register(router, { db, config }) {
       background_color: '#0C0A17',
       theme_color: '#0C0A17',
       icons: [
-        { src: `/icons/${config.site.id}-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
-        { src: `/icons/${config.site.id}-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
-        { src: '/brand/mark.svg', sizes: 'any', type: 'image/svg+xml' },
+        { src: `/icons/${config.site.id}-192.png?v=slice`, sizes: '192x192', type: 'image/png', purpose: 'any maskable' },
+        { src: `/icons/${config.site.id}-512.png?v=slice`, sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        { src: '/brand/mark.svg?v=slice', sizes: 'any', type: 'image/svg+xml' },
       ],
       shortcuts: [
         { name: `Ask ${config.site.assistant}`, url: '/assistant' },

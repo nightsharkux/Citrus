@@ -159,7 +159,7 @@ test('the brand mark is the slice and the manifest follows the edition', async (
     assert.match(mark.body, /#ED8641/i, 'the slice mark, the same in every edition');
     const manifest = await app.call('anon', 'GET', '/manifest.webmanifest');
     assert.equal(manifest.body.short_name, 'Citrus');
-    assert.equal(manifest.body.icons[0].src, '/icons/general-192.png');
+    assert.equal(manifest.body.icons[0].src, '/icons/general-192.png?v=slice');
     assert.equal((await app.call('anon', 'GET', '/api/bootstrap')).body.site.assistant, 'Citrus');
   } finally {
     await app.close();

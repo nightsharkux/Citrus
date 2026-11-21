@@ -2,7 +2,7 @@
  * Service worker: offline app shell + Web Push.
  * Network-first for everything; private API responses are never cached.
  */
-const CACHE = 'citrus-1.1.0';
+const CACHE = 'citrus-1.1.0-slice';
 const SHELL = ['/', '/css/tokens.css', '/css/base.css', '/css/components.css', '/css/layout.css', '/css/pages.css', '/css/face.css', '/js/main.js', '/js/theme-boot.js', '/brand/mark.svg'];
 
 self.addEventListener('install', (event) => {
