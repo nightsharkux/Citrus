@@ -35,6 +35,7 @@ export default {
           <section class="card"><h2>Data retention</h2>
             <form class="form mt-16" id="retention-form">
               <label class="field"><span>Delete meeting recordings after</span><div class="input-row" style="align-items:center"><input class="input" type="number" name="days" min="0" max="3650" value="${s.recordingRetentionDays}" style="max-width:140px"><span class="muted">days (0 = keep until the owner deletes them)</span></div></label>
+              <label class="field"><span>Delete lecture transcripts, kept audio and students’ flag notes after</span><div class="input-row" style="align-items:center"><input class="input" type="number" name="textDays" min="0" max="3650" value="${s.lectureTextRetentionDays ?? 365}" style="max-width:140px"><span class="muted">days (0 = keep; the results of a lecture stay)</span></div></label>
               <div class="form-actions"><button class="btn btn-primary">Save</button></div>
             </form>
           </section>
@@ -73,7 +74,7 @@ export default {
       return 'Saved';
     });
     onSubmit($('#retention-form', root), async (v) => {
-      await api.patch('/admin/settings', { recordingRetentionDays: Number(v.days) });
+      await api.patch('/admin/settings', { recordingRetentionDays: Number(v.days), lectureTextRetentionDays: Number(v.textDays) });
       ctx.refresh();
       return 'Retention updated';
     });

@@ -181,7 +181,8 @@ function notesCard(d, student) {
       <p class="small muted">${student
         ? `${name} writes study notes from your own answers and flags: the parts to work on first, explained, with practice questions.`
         : `${name} writes the lecture notes from everything that happened: what you said, how the class followed, the flags. Every part that did not land gets a clearer explanation.`}
-      The PDF and the .txt are saved to this device. The .txt carries instructions, so any AI can turn it into notes too.</p></div></div>
+      The PDF and the .txt are saved to this device. The .txt carries instructions, so any AI can turn it into notes too.</p>
+      <p class="small faint">The notes are written by AI. Check them before you rely on them.</p></div></div>
     <div class="cluster"><button class="btn btn-primary" data-make-notes>${icon('sparkle', 16)} ${student ? 'Make my notes (PDF)' : 'Make the notes (PDF)'}</button>
       <a class="btn" href="/api/live/sessions/${d.session.id}/record.txt" download>${icon('download', 16)} ${student ? 'My record (.txt)' : 'Lecture record (.txt)'}</a></div>
     <div data-notes-out></div></section>`;

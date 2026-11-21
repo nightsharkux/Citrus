@@ -190,6 +190,7 @@ export default {
                 <button class="btn btn-primary btn-icon composer-send" aria-label="Send" ${ready ? '' : 'disabled'}>${icon('arrow-up', 19)}</button>
               </div>
             </form>
+            <p class="small faint composer-note">This is an AI assistant and it can make mistakes. Check anything important.</p>
           </div>
         </section>
       </div>`;

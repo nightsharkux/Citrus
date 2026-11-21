@@ -161,6 +161,7 @@ function register(router, deps) {
       changes.ssoOnly = !!b.ssoOnly;
     }
     if (b.recordingRetentionDays !== undefined) changes.recordingRetentionDays = integer(b.recordingRetentionDays, { min: 0, max: 3650, label: 'Retention' });
+    if (b.lectureTextRetentionDays !== undefined) changes.lectureTextRetentionDays = integer(b.lectureTextRetentionDays, { min: 0, max: 3650, label: 'Retention' });
     const next = settings.set(ctx.user.institution_id, changes);
     audit(ctx.user, 'settings_changed', JSON.stringify(changes));
     return { settings: next };

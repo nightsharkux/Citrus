@@ -8,13 +8,32 @@ const path = require('node:path');
 
 const EVERY_MS = 3_600_000;
 
-function createMaintenance({ db, config, settings, vault = null }) {
+function createMaintenance({ db, config, settings, vault = null, blobs = null }) {
+  /**
+   * What lectures hold in words is removed after each institution's period (Settings: lectureTextRetentionDays, a
+   * year unless it chose otherwise, 0 = keep): transcript lines, the excerpts of trouble moments, the notes and
+   * explanations on students' flags, and kept audio. The results (how students followed, the key points) stay.
+   * The period is read in SQL, so this is part of the same round trip as the rest of the housekeeping.
+   */
+  const lectureTextStatements = () => {
+    const fallback = Number(settings.DEFAULTS?.lectureTextRetentionDays) || 0;
+    const days = `COALESCE((SELECT CAST(st.value AS INTEGER) FROM settings st WHERE st.institution_id = s.institution_id AND st.key = 'lectureTextRetentionDays'), ${fallback})`;
+    const old = (column) => `${days} > 0 AND ${column} < strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || ${days} || ' days')`;
+    const rows = (table, where) => `SELECT x.id FROM ${table} x JOIN live_sessions s ON s.id = x.session_id WHERE ${where}`;
+    return [
+      [`DELETE FROM live_transcript WHERE id IN (${rows('live_transcript', old('x.created'))}) RETURNING id`],
+      [`UPDATE live_moments SET excerpt = '' WHERE excerpt != '' AND id IN (${rows('live_moments', old('x.created'))}) RETURNING id`],
+      [`UPDATE live_flags SET note = '', explanation = '' WHERE (note != '' OR explanation != '') AND id IN (${rows('live_flags', old('x.created'))}) RETURNING id`],
+      [`DELETE FROM live_recordings WHERE id IN (${rows('live_recordings', old('x.created'))}) RETURNING blob_url`],
+    ];
+  };
+
   function run() {
     const now = Date.now();
     const days = (n) => new Date(now - n * 86_400_000).toISOString();
     // All in one round trip to the database (on a hosted one, each statement on its own was a round trip, and the
     // server instance could answer nobody meanwhile).
-    db.batch([
+    const results = db.batch([
       ['DELETE FROM sessions WHERE expires < ?', now],
       // Guest accounts nobody came back to are retired after a month.
       ["UPDATE users SET deleted = 1 WHERE auth_provider = 'guest' AND deleted = 0 AND COALESCE(last_login, created) < ?", days(30)],
@@ -32,9 +51,14 @@ function createMaintenance({ db, config, settings, vault = null }) {
       ['DELETE FROM device_events WHERE created < ?', days(30)],
       ["DELETE FROM device_commands WHERE status != 'queued' AND created < ?", days(30)],
       ['DELETE FROM assistant_attachments WHERE message_id IS NULL AND created < ? AND id NOT IN (SELECT attachment_id FROM live_notes)', days(2)],
+      ...lectureTextStatements(),
       // When it last ran, so other instances (each new one on Vercel) leave it for an hour.
       ["INSERT INTO app_keys(name, value, created) VALUES('maintenance', ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value", String(now), new Date(now).toISOString()],
     ]);
+    // The rows the retention statements changed (the last four results before the bookkeeping one).
+    const [lines, moments, flags, audio] = results.slice(-5, -1);
+    const lectureTextRemoved = (lines?.length || 0) + (moments?.length || 0) + (flags?.length || 0) + (audio?.length || 0);
+    if (audio?.length && blobs?.enabled) blobs.del(audio.map((r) => r.blob_url)).catch(() => {});
     // Lecture text written before it was sealed gets sealed, a few hundred rows an hour.
     try {
       vault?.sealLegacy(db);
@@ -68,7 +92,7 @@ function createMaintenance({ db, config, settings, vault = null }) {
         removed += 1;
       }
     }
-    return { recordingsRemoved: removed };
+    return { recordingsRemoved: removed, lectureTextRemoved };
   }
 
   /** Has another instance (or this one) done it within the hour? One read. */

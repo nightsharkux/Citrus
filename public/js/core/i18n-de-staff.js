@@ -62,6 +62,8 @@ export default {
   'Require university login': 'Hochschul-Login verlangen',
   'Data retention': 'Datenaufbewahrung',
   'Delete meeting recordings after': 'Besprechungsaufnahmen löschen nach',
+  'Delete lecture transcripts, kept audio and students’ flag notes after': 'Vorlesungsmitschriften, gespeicherte Aufnahmen und Notizen der Studierenden löschen nach',
+  'days (0 = keep; the results of a lecture stay)': 'Tagen (0 = behalten; die Ergebnisse einer Vorlesung bleiben)',
   'days (0 = keep until the owner deletes them)': 'Tagen (0 = behalten, bis die Eigentümerin/der Eigentümer sie löscht)',
   'Open on other devices': 'Auf anderen Geräten öffnen',
   'Phones, tablets and laptops on the same Wi-Fi can open Citrus while this computer runs it:': 'Handys, Tablets und Laptops im selben WLAN können Citrus öffnen, solange dieser Computer es ausführt:',

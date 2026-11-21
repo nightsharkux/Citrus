@@ -98,8 +98,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
   const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, studyGroups });
-  const maintenance = createMaintenance({ db, config, settings, vault });
   const blobs = createBlobStore({ env, secret: keys.master() });
+  const maintenance = createMaintenance({ db, config, settings, vault, blobs });
 
   const deps = {
     db, config, site, env, access, bus, audit, settings, secretBox, vault, nfcKey, ai, push, notifier,

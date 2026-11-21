@@ -126,7 +126,7 @@ function studentScreen(a) {
     <div class="notice accent live-break" data-break ${a.session.paused ? '' : 'hidden'}>${icon('pause', 18)}<span><strong>The lecture is on a break.</strong> Answers and flags open again when it continues.</span></div>
 
     <section class="card stack">
-      <div><h2>How are you following?</h2><p class="small muted">Change it any time. Your lecturer only sees totals.</p></div>
+      <div><h2>How are you following?</h2><p class="small muted">Change it any time. Your lecturer only sees totals. Citrus uses your answers to help you review the parts you found hard.</p></div>
       <div class="live-buttons">${SIGNALS.map(([level, label, hint, glyph]) => html`
         <button class="live-signal live-signal-${level} ${mine?.level === level ? 'is-active' : ''}" data-signal="${level}" aria-pressed="${mine?.level === level}">
           <span class="live-signal-icon">${icon(glyph, 28)}</span><strong>${label}</strong><span class="small">${hint}</span>

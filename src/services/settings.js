@@ -8,6 +8,9 @@ const DEFAULTS = Object.freeze({
   lecturerApproval: false, // true: new lecturers wait for an administrator; false: anyone may register as a lecturer
   ssoOnly: false,
   recordingRetentionDays: 0, // 0 = keep until the owner deletes them
+  // What a lecture holds in words: the transcript, the excerpts of trouble moments, the audio kept from the Android app
+  // and the notes and explanations students wrote on flags. Gone this many days after it was written; 0 = keep.
+  lectureTextRetentionDays: 365,
 });
 
 // Read on almost every request (sign-in page, registration, bootstrap) and changed a few times a year: each read is
