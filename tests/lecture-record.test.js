@@ -77,7 +77,12 @@ test("a student's record has their own results and targets, never the lecturer's
   assert.deepEqual(r.targets, ['P2']);
   assert.match(txt, /\[AVERAGE scope=you\] understood=\d+% minutes_answered=\d+ target=P2/);
   assert.match(txt, /\[YOU t=00:06:54 P2\] lost #target/);
-  assert.match(txt, /\[MINUTE 8 P2\] .* you=lost #follow-up #target/);
+  assert.match(txt, /\[MINUTE 8 P2\] you=lost #target/);
+  // Nothing about the class, in the data or in the file: a student's record is theirs alone.
+  assert.ok(r.minutes.every((m) => m.answered === 0 && m.following === 0 && m.lost === 0 && m.understood === null && m.status === 'quiet'));
+  assert.ok(r.sections.every((s) => s.understood === null && s.lowest === null && s.status === 'quiet' && s.followUp === false));
+  assert.deepEqual([r.averages.lecture.understood, r.meta.answeredBy, r.meta.enrolled, r.followUps], [null, 0, 0, []]);
+  assert.doesNotMatch(txt, /scope=lecture|following=\d|unsure=\d|lost=\d|\banswered[ =]|enrolled|class average|#follow-up/i);
   assert.match(txt, /what is lambda/, 'their own flag');
   assert.doesNotMatch(txt, /secret note of user 3/, 'not other students\' flags');
   assert.doesNotMatch(txt, /^\[SAY /m, 'never the lecturer word for word');
@@ -277,7 +282,12 @@ test('audio recorded in the background (Android app) becomes transcript lines at
     const part = call.messages.at(-1).content.find((p) => p.type === 'file');
     assert.equal(part.file.media_type, 'audio/mp4', 'the audio goes to the model as a file');
     const rows = app.db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', sid);
-    assert.deepEqual(rows.map((r) => r.text), ['Eigenvalues scale vectors.', 'The determinant has to be zero.']);
+    assert.equal(rows.length, 2);
+    // What the lecturer said is stored sealed (vault.js): nothing readable in the database itself.
+    assert.ok(rows.every((r) => r.text.startsWith('enc1:') && !/Eigenvalues|determinant/.test(r.text)), 'sealed at rest');
+    const said = await (await app.call('prof', 'GET', `/api/live/sessions/${sid}/transcript.txt`, undefined, { raw: true })).text();
+    assert.match(said, /Eigenvalues scale vectors\./);
+    assert.match(said, /The determinant has to be zero\./);
     assert.equal(rows[0].created, recordedAt, 'the first line at the start of the piece');
     assert.ok(Date.parse(rows[1].created) > Date.parse(recordedAt) && Date.parse(rows[1].created) < Date.parse(recordedAt) + 60_000, 'later lines inside the piece');
     assert.equal(app.db.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%audio%'").length, 0, 'no audio is stored');

@@ -59,8 +59,8 @@ function readDevice(input) {
 /** Long enough for worked examples with formulas; reasoning models also spend this budget thinking. */
 const ANSWER_TOKENS = 2600;
 
-function register(router, { db, ai, site, buildContext, config, access, timetable, audit, studyGroups, campusPosts, programmes, bus }) {
-  const lectures = createRecordSource({ db, access });
+function register(router, { db, ai, site, buildContext, config, access, timetable, audit, studyGroups, campusPosts, programmes, bus, vault }) {
+  const lectures = createRecordSource({ db, access, vault });
   const progress = createProgress({ db, access });
 
   /** The courses a person may ask about: the ones they teach or take (an admin: their institution's). */

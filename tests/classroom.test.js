@@ -138,11 +138,21 @@ test('a kept transcript lets students ask Citrus about the lecture during and af
     assert.match(body, /\[00:00:\d\d · P1\] The gradient points uphill/, 'each line is tied to its second and part');
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/transcript.txt`)).status, 403);
 
-    // After the end the memory is gone but the kept transcript still answers.
+    // What the lecturer said is sealed in the database: nothing readable there, whoever looks.
+    const stored = app.db.all('SELECT text FROM live_transcript WHERE session_id = ?', sid);
+    assert.ok(stored.length > 0 && stored.every((r) => r.text.startsWith('enc1:') && !/gradient/.test(r.text)));
+
+    // After the end Citrus gets only what was said in the parts a student struggled with, never the whole lecture:
+    // Ann said she was lost, so she is given that part; Ben followed everything, so he is given nothing of it.
+    assert.equal((await app.call('ann', 'POST', `/api/live/sessions/${sid}/signal`, { level: 3 })).status, 200);
     await app.call('prof', 'POST', `/api/live/sessions/${sid}/end`);
     const after = await app.call('ann', 'POST', `/api/live/sessions/${sid}/student-ask`, { question: 'What was the rule again?' });
     assert.equal(after.body.heard, true);
     assert.match(JSON.stringify(fixture.state.calls.at(-1).messages.at(-1).content), /\[minute 1\] The gradient points uphill/);
+    const bens = await app.call('ben', 'POST', `/api/live/sessions/${sid}/student-ask`, { question: 'What was the rule again?' });
+    assert.equal(bens.status, 200);
+    assert.equal(bens.body.heard, false, 'nothing of the lecture for a student who has nothing to work on');
+    assert.doesNotMatch(JSON.stringify(fixture.state.calls.at(-1).messages.at(-1).content), /points uphill/);
     assert.equal((await app.call('ann', 'GET', `/api/live/sessions/${sid}/recap`)).body.canAsk, true);
 
     // Deleting it: Citrus can no longer answer from it.

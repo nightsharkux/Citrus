@@ -87,10 +87,10 @@ function byMinute(rows, maxChars = TRANSCRIPT_FOR_AI) {
   return out.trim().slice(-maxChars);
 }
 
-function register(router, { db, ai, access, bus, site, notifier, deviceCommands, blobs = { enabled: false } }) {
+function register(router, { db, ai, access, bus, site, notifier, deviceCommands, vault, blobs = { enabled: false } }) {
   const attachments = createAttachments({ db });
   const transcripts = createTranscripts();
-  const moments = createMoments({ db, ai, bus, transcripts, minuteOf: (s) => minuteOf(s) });
+  const moments = createMoments({ db, ai, bus, transcripts, vault, minuteOf: (s) => minuteOf(s) });
   const links = registerLinks(router, { db, access }); // the QR code of each lecture
   const joinAttempts = createRateLimiter({ windowMs: 60_000, max: 12 });
   const notesWriting = createRateLimiter({ windowMs: 60_000, max: 4 });
@@ -179,10 +179,18 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   const publicSession = (s, breaks) => ({ id: s.id, course_id: s.course_id, lecture_id: s.lecture_id, title: s.title, started: s.started, ended: s.ended, keepTranscript: !!s.keep_transcript, paused: !!s.paused_at, pausedAt: s.paused_at || null, breakMs: totalBreakMs((breaks || breaksOf(s.id)).filter((b) => b.ended)) });
   const listening = (s) => !s.ended && Date.now() - transcripts.lastAt(s.id) < LISTENING_MS;
 
-  /** What Citrus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. */
-  function heardText(s, { from = 0, to = Infinity, maxChars = TRANSCRIPT_FOR_AI } = {}) {
+  /**
+   * The stored lines are sealed (vault.js). They are opened only through one of two doors: `forLecturer` for the
+   * lecturer who teaches the lecture, and `forAi` as input to a model request that writes something for a student
+   * (the words themselves never go back to the student).
+   */
+  const forAi = (s) => (stored) => vault.forAi(s, stored);
+
+  /** What Citrus heard: the stored transcript when kept (by minute), otherwise the last minutes in memory. `open` opens the sealed lines. */
+  function heardText(s, { from = 0, to = Infinity, maxChars = TRANSCRIPT_FOR_AI, open } = {}) {
     if (s.keep_transcript) {
-      const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, from, Number.isFinite(to) ? to : 100_000);
+      const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, from, Number.isFinite(to) ? to : 100_000)
+        .map((r) => ({ ...r, text: open(r.text) }));
       if (rows.length) return byMinute(rows, maxChars);
     }
     return transcripts.recent(s.id, { minutes: 10, maxChars });
@@ -192,7 +200,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   function heardInTargets(s, parts, maxChars) {
     const texts = [];
     for (const part of parts) {
-      const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, Math.floor(part.from / 60), Math.ceil(part.to / 60) + 1);
+      const rows = db.all('SELECT minute, text FROM live_transcript WHERE session_id = ? AND minute >= ? AND minute <= ? ORDER BY id', s.id, Math.floor(part.from / 60), Math.ceil(part.to / 60) + 1)
+        .map((r) => ({ ...r, text: forAi(s)(r.text) }));
       if (rows.length) texts.push(byMinute(rows, Math.floor(maxChars / Math.max(1, parts.length))));
     }
     return texts.join('\n').slice(0, maxChars);
@@ -484,8 +493,9 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   router.get('/api/live/sessions/:id/report', (ctx) => {
     const s = teaching(ctx.user, ctx.params.id);
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
-    const flags = flagsOf(s.id).map((f) => ({ ...f, excerpt: s.keep_transcript ? heardText(s, { from: f.minute - 1, to: f.minute, maxChars: 500 }) : '' }));
-    return { ...lecturerView(s), flags, course, ...moments.list(s.id), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer'), { detail: true }), recording: keptAudio(s) };
+    const open = vault.lecturer(s, ctx.user); // checks once that this is the lecturer who teaches it
+    const flags = flagsOf(s.id).map((f) => ({ ...f, excerpt: s.keep_transcript ? heardText(s, { from: f.minute - 1, to: f.minute, maxChars: 500, open }) : '' }));
+    return { ...lecturerView(s), flags, course, ...moments.list(s.id, { open }), answeredBy: new Set(signalsOf(s.id).map((x) => x.user_id)).size, record: recordSummary(recordOf(ctx.user, s, 'lecturer'), { detail: true }), recording: keptAudio(s) };
   });
 
   /** How much of the lecture's audio was kept (Android background recording with file storage), or null. */
@@ -502,9 +512,9 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   router.get('/api/live/sessions/:id/recap', (ctx) => {
     const s = joined(ctx.user, ctx.params.id);
     const course = db.get('SELECT id, code, title FROM courses WHERE id = ?', s.course_id);
-    const all = signalsOf(s.id);
     const clock = clockOf(s);
-    const mine = all.filter((x) => x.user_id === ctx.user.id);
+    // Their own answers only: what the rest of the class answered is not read for a student's page.
+    const mine = db.all('SELECT user_id, level, created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, ctx.user.id);
     const taught = moments.list(s.id, { excerpts: false });
     const flags = db.all('SELECT id, kind, minute, note, explanation FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, ctx.user.id);
     // A student gets no summary of the lecture: only what belongs to the parts they struggled with (their own
@@ -519,13 +529,14 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
       session: publicSession(s), course,
       mine: personalTimeline(clock.shift(mine), s.started, { now: clock.now }),
       classPatches: [],
-      struggles: struggles.map(({ minute, lost, answered, note }) => ({ minute, lost, answered, note })),
+      // No counts of how many students were lost: only the moment and Citrus's note on it.
+      struggles: struggles.map(({ minute, note }) => ({ minute, note })),
       points,
       flags,
       signals: mine.length,
       // Citrus can answer about this lecture when it kept what it heard.
       canAsk: !!s.keep_transcript && storedLines(s.id) > 0,
-      // Their own results, section by section, next to the class average: what to work on.
+      // Their own results, section by section: what to work on. It holds nothing about the class.
       record,
       shareName: sharesName(s.id, ctx.user.id),
     };
@@ -645,7 +656,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (flag.explanation) return { id: flag.id, explanation: flag.explanation };
     if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
     const seen = notesFor(s);
-    const heard = heardText(s, { from: flag.minute - 4, to: flag.minute + 1, maxChars: 6000 });
+    const heard = heardText(s, { from: flag.minute - 4, to: flag.minute + 1, maxChars: 6000, open: forAi(s) });
     const turn = { text: [`<TRANSCRIPT>\n${heard || '(nothing was heard around this minute)'}\n</TRANSCRIPT>`, ...seen.blocks].join('\n\n'), images: seen.images };
     const explanation = String(await ai.complete({ user, system: liveFlagExplainPrompt({ kind: flag.kind, note: flag.note, minute: flag.minute, language: language(user) }), prompt: turn, maxTokens: 600, task: 'search' })).trim();
     db.run('UPDATE live_flags SET explanation = ? WHERE id = ?', explanation.slice(0, 4000), flag.id);
@@ -661,7 +672,11 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     if (!ai.status(user).aiEnabled) throw unavailable('The assistant is not connected yet.');
     const course = db.get('SELECT code, title FROM courses WHERE id = ?', s.course_id);
     const seen = notesFor(s);
-    const heard = heardText(s);
+    // While the lecture is running a student may ask about what was just said (they are in the room). Afterwards
+    // Citrus is given only what was said in the parts they struggled with, never the whole lecture.
+    const heard = s.ended
+      ? (s.keep_transcript ? heardInTargets(s, recordSummary(recordOf(user, s, 'student')).sections.filter((x) => x.target), TRANSCRIPT_FOR_AI) : '')
+      : heardText(s, { from: minuteOf(s) - 10, open: forAi(s) });
     const flags = db.all('SELECT kind, minute, note FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', s.id, user.id)
       .map((f) => `minute ${f.minute}: ${FLAG_LABELS[f.kind]}${f.note ? ` · "${f.note}"` : ''}`);
     const system = liveStudentAskPrompt({ user, assistantName: assistantNameFor(user, site), course, title: s.title, minutesIn: minuteOf(s), ended: !!s.ended, language: language(user) });
@@ -682,7 +697,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const b = await ctx.json();
     const line = text(b.text, { min: 1, max: 600, label: 'Text' });
     const lines = transcripts.add(s.id, line);
-    if (s.keep_transcript) db.run('INSERT INTO live_transcript(session_id, minute, text, created) VALUES(?, ?, ?, ?)', s.id, minuteOf(s), line.replace(/\s+/g, ' ').trim(), isoNow());
+    if (s.keep_transcript) db.run('INSERT INTO live_transcript(session_id, minute, text, created) VALUES(?, ?, ?, ?)', s.id, minuteOf(s), vault.seal(s.id, line.replace(/\s+/g, ' ').trim()), isoNow());
     moments.onSpeech(s); // every few minutes: the key points of what was just said
     return { lines };
   });
@@ -692,8 +707,8 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
   const audienceOf = (user, s) => (access.teachingCourse(user, s.course_id) ? 'lecturer' : 'student');
 
   /** Everything that happened in the lecture, as the record for the lecturer or for one student. */
-  const records = createRecordSource({ db, access });
-  const recordOf = (user, s, audience, { studentId = user.id } = {}) => records.load(s, { audience, studentId });
+  const records = createRecordSource({ db, access, vault });
+  const recordOf = (user, s, audience, { studentId = user.id } = {}) => records.load(s, { audience, studentId, reader: audience === 'lecturer' ? user : null });
   const fileBase = (s) => {
     const course = db.get('SELECT code FROM courses WHERE id = ?', s.course_id);
     return `${course.code}-${s.title}-${s.started.slice(0, 10)}`.replace(/[^\w-]+/g, '-').replace(/-+/g, '-').slice(0, 80);
@@ -841,7 +856,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const lines = spread(await transcribe({ ai, user, buffer: piece.buffer, mime: piece.mime, language: language(user) }), piece.startedAt, piece.durationMs);
     for (const line of lines) {
       transcripts.add(s.id, line.text);
-      if (s.keep_transcript) db.run('INSERT INTO live_transcript(session_id, minute, text, created) VALUES(?, ?, ?, ?)', s.id, minuteOf(s, Date.parse(line.created)), line.text, line.created);
+      if (s.keep_transcript) db.run('INSERT INTO live_transcript(session_id, minute, text, created) VALUES(?, ?, ?, ?)', s.id, minuteOf(s, Date.parse(line.created)), vault.seal(s.id, line.text), line.created);
     }
     if (lines.length) moments.onSpeech(s);
     return { lines: lines.length, text: lines.map((l) => l.text) };
@@ -946,7 +961,7 @@ function register(router, { db, ai, access, bus, site, notifier, deviceCommands,
     const course = db.get('SELECT code, title FROM courses WHERE id = ?', s.course_id);
     const view = lecturerView(s);
     const seen = notesFor(s);
-    const heard = transcripts.recent(s.id) || heardText(s, { from: minuteOf(s) - 8 });
+    const heard = transcripts.recent(s.id) || heardText(s, { from: minuteOf(s) - 8, open: vault.lecturer(s, user) });
     const system = liveAskPrompt({
       user, assistantName: assistantNameFor(user, site), course, title: s.title,
       minutesIn: Math.max(0, Math.round((Date.now() - Date.parse(s.started)) / 60000)),

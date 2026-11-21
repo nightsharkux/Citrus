@@ -101,10 +101,15 @@ test('the lecturer sees the term; a student sees only their own progress; both d
     assert.deepEqual(mine.body.parts.map((p) => [p.session, p.part, p.you]), [[s2, 'P2', 'lost']], 'the part she found hard');
     assert.deepEqual(mine.body.parts[0].flags.map((f) => f.note), ['what is lambda?']);
     assert.ok(!('students' in mine.body) && !('hardest' in mine.body), 'nothing about other students');
+    // A student is never told how the class did: not in the page's data, not in the file for AI.
+    assert.ok(!('class' in mine.body.averages), 'no class average');
+    assert.ok(mine.body.lectures.every((l) => !('class' in l)) && mine.body.parts.every((p) => !('class' in p)), 'no class figures per lecture or part');
+    assert.doesNotMatch(JSON.stringify(mine.body), /"class"/);
     const annTxt = await (await app.call('ann', 'GET', `/api/courses/${courseId}/progress.txt`, undefined, { raw: true })).text();
     assert.match(annTxt, /^CITRUS \| MY PROGRESS/);
     assert.match(annTxt, new RegExp(`\\[TARGET date=\\S+ session=${s2} P2 t=\\S+\\] .* you=lost .*#target`));
     assert.match(annTxt, /\[FLAG t=\S+\] kind=confused note="what is lambda\?"/);
+    assert.doesNotMatch(annTxt, /scope=class|class=\d|class=n\/a/, 'no class figures in the file');
     const ben = await app.call('ben', 'GET', `/api/courses/${courseId}/progress`);
     assert.ok(ben.body.parts.every((p) => !p.flags.some((f) => f.note === 'what is lambda?')), 'not Ann\'s flag');
 

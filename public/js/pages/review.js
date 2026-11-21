@@ -47,18 +47,23 @@ function momentList(events) {
 function sectionRow(s, record, student) {
   const [tone, word] = STATUS[s.status] || STATUS.quiet;
   const you = student && s.youWorst ? YOU[s.youWorst] : null;
+  // A student sees their own result for the part, never how the class did.
+  const ownMeter = student ? (s.you === null || s.you === undefined ? null : s.you) : s.understood;
+  const ownStatus = student ? (ownMeter === null ? 'quiet' : ownMeter > 80 ? 'good' : ownMeter > 60 ? 'watch' : 'trouble') : s.status;
   const moments = eventsBetween(record, s.from, s.to);
   return html`<details class="review-section ${s.followUp ? 'is-follow' : ''} ${student && s.target ? 'is-target' : ''}" data-part="${s.id}">
     <summary>
       <div class="spread"><strong>${s.id} · ${s.clock}</strong>
-        <span class="cluster" style="--gap:6px">${student && s.target ? html`<span class="chip danger">${icon('target', 13)} Work on this</span>` : ''}${!student && s.followUp ? html`<span class="chip danger">Follow up</span>` : ''}<span class="chip ${tone}">${word}</span>${icon('chevron-down', 16)}</span></div>
+        <span class="cluster" style="--gap:6px">${student && s.target ? html`<span class="chip danger">${icon('target', 13)} Work on this</span>` : ''}${!student && s.followUp ? html`<span class="chip danger">Follow up</span>` : ''}${student ? '' : html`<span class="chip ${tone}">${word}</span>`}${icon('chevron-down', 16)}</span></div>
       <p class="mt-4">${s.title}</p>
-      <div class="review-meter" role="img" aria-label="${s.understood === null ? 'Too few answers' : `${s.understood}% understood`}"><i class="is-${s.status}" style="width:${s.understood ?? 0}%"></i></div>
-      <p class="small muted mt-4">${s.understood === null ? 'Too few answers to tell' : `Class: ${s.understood}% understood${s.lowest !== null && s.lowest < s.understood ? `, lowest ${s.lowest}%` : ''}`}${s.flags ? ` · ${s.flags} ${s.flags === 1 ? 'flag' : 'flags'}` : ''}${you ? ` · ${you[1]}` : ''}</p>
+      <div class="review-meter" role="img" aria-label="${ownMeter === null ? (student ? 'You did not answer' : 'Too few answers') : `${ownMeter}% understood`}"><i class="is-${ownStatus}" style="width:${ownMeter ?? 0}%"></i></div>
+      <p class="small muted mt-4">${student
+        ? (ownMeter === null ? 'You did not answer in this part' : `You: ${ownMeter}% understood`)
+        : (s.understood === null ? 'Too few answers to tell' : `Class: ${s.understood}% understood${s.lowest !== null && s.lowest < s.understood ? `, lowest ${s.lowest}%` : ''}`)}${s.flags ? ` · ${s.flags} ${s.flags === 1 ? 'flag' : 'flags'}` : ''}${you ? ` · ${you[1]}` : ''}</p>
     </summary>
     <div class="review-part-body">
       ${s.points.length > 1 ? html`<ul class="small review-points-mini">${s.points.slice(1).map((p) => html`<li>${p}</li>`)}</ul>` : ''}
-      ${s.struggles.map((x) => html`<p class="small mt-4">${icon('alert', 13)} ${x.note || `${x.lost} of ${x.answered} lost`}</p>`)}
+      ${s.struggles.map((x) => html`<p class="small mt-4">${icon('alert', 13)} ${x.note || (x.answered ? `${x.lost} of ${x.answered} lost` : 'A hard moment')}</p>`)}
       <div class="cluster mt-8">${student
         ? (s.target ? html`<button class="btn btn-sm" data-explain-part="${s.id}">${icon('sparkle', 14)} Explain this part to me</button>` : '')
         : html`<button class="btn btn-sm" data-coach-ask="${`How could I explain ${s.id} (${s.clock}, “${s.title}”) better? Use what students flagged and what I said there.`}">${icon('campus', 14)} Ask ${assistantName()} about this part</button>`}</div>
@@ -74,7 +79,6 @@ function sectionsCard(record, student) {
   return html`<section class="card flush"><div class="card-head"><h2>${student ? 'Your results, part by part' : 'Part by part'}</h2><span class="small muted">Open a part for the exact moments</span></div>
     ${student ? html`<div class="review-averages">
       <div><span class="review-big">${pct(a.you?.understood)}</span><span class="small muted">You understood</span></div>
-      <div><span class="review-big">${pct(a.lecture.understood)}</span><span class="small muted">Class average</span></div>
       <div><span class="review-big">${record.targets.length}</span><span class="small muted">${record.targets.length === 1 ? 'Part to work on' : 'Parts to work on'}</span></div>
     </div>` : ''}
     <div class="list">${(student ? [...record.sections].sort((x, y) => (y.target ? 1 : 0) - (x.target ? 1 : 0) || x.from - y.from) : record.sections).map((s) => sectionRow(s, record, student))}</div></section>`;
@@ -98,9 +102,9 @@ function chartCard(record, student) {
   if (!record?.minutes?.length) return '';
   const legend = [['following', student ? 'Following' : 'Following'], ['unsure', 'Unsure'], ['lost', 'Lost'], ['flag', 'Flag']];
   return html`<section class="card review-chart-card">
-    <div class="spread"><h2>${student ? 'You and the class, minute by minute' : 'How the class followed'}</h2><span class="small muted">Tap a minute or a part</span></div>
+    <div class="spread"><h2>${student ? 'How you followed, minute by minute' : 'How the class followed'}</h2><span class="small muted">Tap a minute or a part</span></div>
     <div class="lecture-chart-wrap">${raw(lectureChart(record, { student }))}</div>
-    <div class="chart-legend">${legend.map(([k, label]) => html`<span><i style="background:${COLORS[k]}"></i>${label}</span>`)}<span><i class="is-band"></i>Parts, coloured by how the class followed</span></div>
+    <div class="chart-legend">${legend.map(([k, label]) => html`<span><i style="background:${COLORS[k]}"></i>${label}</span>`)}${student ? html`<span><i style="background:${COLORS.lost}"></i>Parts to work on</span>` : html`<span><i class="is-band"></i>Parts, coloured by how the class followed</span>`}</div>
     <div data-moment></div>
   </section>`;
 }
@@ -253,7 +257,7 @@ function studentView(d) {
   return html`${pageHead({ back: { href: '/lectures', label: 'Lectures' }, title: s.title, subtitle: `${course.code} · ${dateTime(s.started)}` })}
     <div class="stack stagger" style="max-width:760px">
       ${signals ? chartCard(d.record, true) : html`<section class="card"><h3>How you followed</h3><p class="small muted mt-8">You didn’t answer during this lecture. Next time, tap how you’re following and this recap will show where you got stuck.</p></section>`}
-      ${signals ? html`<p class="small muted" style="margin-top:-8px">Only you can see your own row. The bars are the whole class, without names.</p>` : ''}
+      ${signals ? html`<p class="small muted" style="margin-top:-8px">Only you can see this. It shows how you said you were following.</p>` : ''}
       ${signals || d.flags?.length ? sectionsCard(d.record, true) : ''}
       ${shareCard(d)}
       ${notesCard(d, true)}
@@ -380,7 +384,9 @@ export default {
       root.querySelector(`.lc-min[data-minute="${minute}"]`)?.classList.add('is-selected');
       render(box, html`<div class="moment-panel">
         <div class="spread"><strong>Minute ${minute} · ${m.section}</strong><button class="btn btn-ghost btn-icon btn-sm" data-close-moment aria-label="Close">${icon('x', 16)}</button></div>
-        <p class="small mt-4">${m.answered ? `${m.following} following · ${m.unsure} unsure · ${m.lost} lost · ${m.understood}% understood` : 'Nobody answered in this minute.'}${student && m.you ? ` · you: ${['', 'following', 'unsure', 'lost'][m.you]}` : ''}</p>
+        <p class="small mt-4">${student
+          ? (m.you ? `You said: ${['', 'following', 'unsure', 'lost'][m.you]}` : 'You did not answer in this minute.')
+          : (m.answered ? `${m.following} following · ${m.unsure} unsure · ${m.lost} lost · ${m.understood}% understood` : 'Nobody answered in this minute.')}</p>
         ${momentList(eventsBetween(record, (minute - 1) * 60, minute * 60))}
         ${student ? '' : html`<button class="btn btn-sm mt-8" data-coach-ask="${`What happened at minute ${minute} (${m.section})? Why did the class react like that, and how should I explain it next time?`}">${icon('campus', 14)} Ask ${assistantName()} about this minute</button>`}
       </div>`);

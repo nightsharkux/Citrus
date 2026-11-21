@@ -32,7 +32,7 @@ function parsePoints(raw) {
   }
 }
 
-function createMoments({ db, ai, bus, transcripts, now = Date.now, minuteOf: minuteFor }) {
+function createMoments({ db, ai, bus, transcripts, vault = null, now = Date.now, minuteOf: minuteFor }) {
   const lastStruggle = new Map();
   const lastPoints = new Map();
   const isoNow = () => new Date(now()).toISOString();
@@ -50,7 +50,7 @@ function createMoments({ db, ai, bus, transcripts, now = Date.now, minuteOf: min
     const excerpt = transcripts.recent(s.id, { minutes: 1.5, maxChars: 700, now: now() });
     const id = db.insert(
       "INSERT INTO live_moments(session_id, kind, minute, answered, lost, unsure, excerpt, created) VALUES(?, 'struggle', ?, ?, ?, ?, ?, ?)",
-      s.id, minuteOf(s), p.answered, p.lost, p.unsure, excerpt, isoNow(),
+      s.id, minuteOf(s), p.answered, p.lost, p.unsure, vault ? vault.seal(s.id, excerpt) : excerpt, isoNow(),
     );
     bus.publish(`user:${s.lecturer_id}`, 'live.moment', { session: s.id, kind: 'struggle', minute: minuteOf(s) });
     if (excerpt) explain(id, s, excerpt);
@@ -90,11 +90,14 @@ function createMoments({ db, ai, bus, transcripts, now = Date.now, minuteOf: min
       .catch(() => {});
   }
 
-  /** Stored moments of a session, in time order. `excerpts: false` for students, who never see what was said. */
-  function list(sessionId, { excerpts = true } = {}) {
+  /**
+   * Stored moments of a session, in time order. `excerpts: false` for students, who never see what was said. With
+   * excerpts, the caller passes `open` (the lecturer's opener from the vault); without it the excerpts stay empty.
+   */
+  function list(sessionId, { excerpts = true, open = null } = {}) {
     const rows = db.all('SELECT id, kind, minute, answered, lost, unsure, excerpt, note FROM live_moments WHERE session_id = ? ORDER BY minute, id', sessionId);
     return {
-      struggles: rows.filter((r) => r.kind === 'struggle').map((r) => ({ id: r.id, minute: r.minute, answered: r.answered, lost: r.lost, unsure: r.unsure, note: r.note, ...(excerpts ? { excerpt: r.excerpt } : {}) })),
+      struggles: rows.filter((r) => r.kind === 'struggle').map((r) => ({ id: r.id, minute: r.minute, answered: r.answered, lost: r.lost, unsure: r.unsure, note: r.note, ...(excerpts ? { excerpt: open ? open(r.excerpt) : '' } : {}) })),
       points: rows.filter((r) => r.kind === 'point').map((r) => ({ id: r.id, minute: r.minute, text: r.note })),
     };
   }

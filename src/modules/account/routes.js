@@ -90,6 +90,13 @@ function register(router, { db, config, sessions, audit }) {
       reviewItems: db.all('SELECT prompt, interval_days, due, reps FROM review_items WHERE user_id = ?', uid),
       personalEvents: db.all('SELECT title, starts, ends, location FROM timetable_events WHERE owner_id = ?', uid),
       suggestions: db.all('SELECT message, status, created FROM suggestions WHERE user_id = ?', uid),
+      // Lectures: how the person said they were following, what they flagged (with their own words and the
+      // explanations written for them), and which lectures they were counted in.
+      lectureAnswers: db.all('SELECT s.title AS lecture, g.level, g.created FROM live_signals g JOIN live_sessions s ON s.id = g.session_id WHERE g.user_id = ? ORDER BY g.id', uid),
+      lectureFlags: db.all('SELECT s.title AS lecture, f.kind, f.minute, f.note, f.explanation, f.created FROM live_flags f JOIN live_sessions s ON s.id = f.session_id WHERE f.user_id = ? ORDER BY f.id', uid),
+      lectureAttendance: db.all('SELECT s.title AS lecture, a.joined, a.share_name AS shownName FROM live_attendees a JOIN live_sessions s ON s.id = a.session_id WHERE a.user_id = ?', uid),
+      lectureInsightMarks: db.all('SELECT insight_id, mark, created FROM lecture_insight_marks WHERE user_id = ?', uid),
+      toolsMade: db.all('SELECT name, description, visibility, created FROM custom_tools WHERE owner_id = ?', uid),
     };
     ctx.res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
@@ -124,7 +131,15 @@ function register(router, { db, config, sessions, audit }) {
         'DELETE FROM timetable_events WHERE owner_id = ?', 'DELETE FROM ai_chats WHERE user_id = ?', 'DELETE FROM responses WHERE user_id = ?',
         'DELETE FROM poll_answers WHERE user_id = ?', 'DELETE FROM cx_rsvps WHERE user_id = ?', 'DELETE FROM enrollments WHERE user_id = ?',
         'DELETE FROM workspace_members WHERE user_id = ?', 'DELETE FROM recording_signals WHERE user_id = ?', 'DELETE FROM device_activations WHERE user_id = ?', 'DELETE FROM study_group_requests WHERE user_id = ?', 'DELETE FROM assistant_memories WHERE user_id = ?',
+        'DELETE FROM nfc_pairings WHERE user_id = ?', 'DELETE FROM lecture_insight_marks WHERE user_id = ?', 'DELETE FROM custom_tool_adds WHERE user_id = ?',
+        // Presence in lectures, and with it the choice to show their name.
+        'DELETE FROM live_attendees WHERE user_id = ?',
       ]) db.run(sql, uid);
+      // Their answers in lectures stay as anonymous class data (the account becomes "Deleted user"), but what they
+      // wrote and the explanations written for them go.
+      db.run("UPDATE live_flags SET note = '', explanation = '' WHERE user_id = ?", uid);
+      db.run('DELETE FROM custom_tool_adds WHERE tool_id IN (SELECT id FROM custom_tools WHERE owner_id = ?)', uid);
+      db.run('DELETE FROM custom_tools WHERE owner_id = ?', uid);
       db.run('DELETE FROM meeting_reports WHERE owner_id = ?', uid);
       db.run('DELETE FROM meeting_reports WHERE recording_id IN (SELECT id FROM meeting_recordings WHERE owner_id = ?)', uid);
       db.run('DELETE FROM meeting_recordings WHERE owner_id = ?', uid);

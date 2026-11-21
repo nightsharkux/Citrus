@@ -8,7 +8,7 @@ const path = require('node:path');
 
 const EVERY_MS = 3_600_000;
 
-function createMaintenance({ db, config, settings }) {
+function createMaintenance({ db, config, settings, vault = null }) {
   function run() {
     const now = Date.now();
     const days = (n) => new Date(now - n * 86_400_000).toISOString();
@@ -35,6 +35,12 @@ function createMaintenance({ db, config, settings }) {
       // When it last ran, so other instances (each new one on Vercel) leave it for an hour.
       ["INSERT INTO app_keys(name, value, created) VALUES('maintenance', ?, ?) ON CONFLICT(name) DO UPDATE SET value = excluded.value", String(now), new Date(now).toISOString()],
     ]);
+    // Lecture text written before it was sealed gets sealed, a few hundred rows an hour.
+    try {
+      vault?.sealLegacy(db);
+    } catch (error) {
+      console.warn('Sealing older lecture text failed:', error.message);
+    }
     if (!db.remote) {
       db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
       const free = db.get('PRAGMA freelist_count');

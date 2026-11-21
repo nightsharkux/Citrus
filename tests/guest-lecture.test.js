@@ -72,6 +72,11 @@ test('guests from a QR code get the same recap, record and notes as students, an
 
     // A guest who was lost: the key points of the part they were lost in, and their own notes about it.
     const lost = (await app.call('lost', 'GET', `/api/live/sessions/${sid}/recap`)).body;
+    // Never how the class did: no counts of students, no averages, in the data that is sent.
+    assert.equal(JSON.stringify(lost).match(/"(following|unsure|lost|answered|answeredBy|enrolled)":[1-9]/), null, 'no class counts in the recap');
+    assert.ok(lost.record.minutes.every((m) => m.understood === null && m.answered === 0));
+    assert.ok(lost.record.sections.every((s) => s.understood === null && s.status === 'quiet'));
+    assert.equal(lost.record.averages.lecture.understood, null);
     assert.ok(lost.points.length > 0, 'the part they were lost in comes with its key points');
     assert.ok(lost.record.targets.length > 0);
     assert.equal(JSON.stringify(lost).includes('gradient points uphill, which'), false, 'never the lecturer’s words');

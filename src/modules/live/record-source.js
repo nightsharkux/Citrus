@@ -8,7 +8,7 @@
  */
 const { buildRecord, recordText } = require('./record');
 
-function createRecordSource({ db, access }) {
+function createRecordSource({ db, access, vault = null }) {
   const namedStudents = (sessionId) => new Map(db.all(
     'SELECT u.id, u.name, u.email FROM live_attendees a JOIN users u ON u.id = a.user_id WHERE a.session_id = ? AND a.share_name = 1 ORDER BY u.name',
     sessionId,
@@ -20,8 +20,10 @@ function createRecordSource({ db, access }) {
    * The record of a session for the lecturer, or for one student (`studentId`). `light` leaves out what was said
    * and the prepared notes, for overviews of many lectures that only need the results.
    */
-  function load(session, { audience = 'lecturer', studentId = null, light = false } = {}) {
+  function load(session, { audience = 'lecturer', studentId = null, light = false, reader = null } = {}) {
     const student = audience === 'student';
+    // What the lecturer said is sealed: only the lecturer who teaches the lecture (`reader`) can read it into a record.
+    const open = !student && !light && session.keep_transcript && reader && vault ? vault.lecturer(session, reader) : null;
     return buildRecord({
       session,
       course: db.get('SELECT code, title FROM courses WHERE id = ?', session.course_id),
@@ -29,10 +31,15 @@ function createRecordSource({ db, access }) {
       userId: studentId,
       names: student ? new Map() : namedStudents(session.id),
       lecturer: db.get('SELECT name FROM users WHERE id = ?', session.lecturer_id)?.name || '',
-      enrolled: db.get('SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', session.course_id).n,
-      transcript: student || light || !session.keep_transcript ? [] : db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', session.id),
-      signals: db.all('SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', session.id),
-      flags: db.all('SELECT user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? ORDER BY id', session.id),
+      enrolled: student ? 0 : db.get('SELECT COUNT(*) AS n FROM enrollments WHERE course_id = ?', session.course_id).n,
+      transcript: student || light || !session.keep_transcript || (vault && !open) ? [] : db.all('SELECT text, created FROM live_transcript WHERE session_id = ? ORDER BY id', session.id).map((r) => (open ? { ...r, text: open(r.text) } : r)),
+      // A student's record is built from their own rows only: other students' answers are never read for it.
+      signals: student
+        ? db.all('SELECT user_id, level, created FROM live_signals WHERE session_id = ? AND user_id = ? ORDER BY id', session.id, studentId)
+        : db.all('SELECT user_id, level, created FROM live_signals WHERE session_id = ? ORDER BY id', session.id),
+      flags: student
+        ? db.all('SELECT user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? AND user_id = ? ORDER BY id', session.id, studentId)
+        : db.all('SELECT user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id = ? ORDER BY id', session.id),
       struggles: db.all("SELECT lost, unsure, answered, note, created FROM live_moments WHERE session_id = ? AND kind = 'struggle' ORDER BY id", session.id),
       points: db.all("SELECT note AS text, created FROM live_moments WHERE session_id = ? AND kind = 'point' ORDER BY id", session.id),
       notes: student || light ? [] : notesOf(session.id),
@@ -56,8 +63,11 @@ function createRecordSource({ db, access }) {
       for (const { session_id: sid, ...row } of rows) out.get(sid)?.push(row);
       return out;
     };
-    const signals = group(db.all(`SELECT session_id, user_id, level, created FROM live_signals WHERE session_id IN (${marks(ids)}) ORDER BY id`, ...ids));
-    const flags = group(db.all(`SELECT session_id, user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id IN (${marks(ids)}) ORDER BY id`, ...ids));
+    // For a student, only their own answers and flags are read (see load()).
+    const own = student ? ' AND user_id = ?' : '';
+    const ownArgs = student ? [studentId] : [];
+    const signals = group(db.all(`SELECT session_id, user_id, level, created FROM live_signals WHERE session_id IN (${marks(ids)})${own} ORDER BY id`, ...ids, ...ownArgs));
+    const flags = group(db.all(`SELECT session_id, user_id, kind, minute, note, explanation, created FROM live_flags WHERE session_id IN (${marks(ids)})${own} ORDER BY id`, ...ids, ...ownArgs));
     const moments = db.all(`SELECT session_id, kind, lost, unsure, answered, note, created FROM live_moments WHERE session_id IN (${marks(ids)}) AND kind IN ('struggle', 'point') ORDER BY id`, ...ids);
     const struggles = group(moments.filter((m) => m.kind === 'struggle').map(({ kind, ...m }) => m));
     const points = group(moments.filter((m) => m.kind === 'point').map((m) => ({ session_id: m.session_id, text: m.note, created: m.created })));
@@ -70,7 +80,7 @@ function createRecordSource({ db, access }) {
     }
     const courseIds = [...new Set(sessions.map((s) => s.course_id))];
     const courses = new Map(db.all(`SELECT id, code, title FROM courses WHERE id IN (${marks(courseIds)})`, ...courseIds).map((c) => [c.id, { code: c.code, title: c.title }]));
-    const enrolled = new Map(db.all(`SELECT course_id, COUNT(*) AS n FROM enrollments WHERE course_id IN (${marks(courseIds)}) GROUP BY course_id`, ...courseIds).map((r) => [r.course_id, r.n]));
+    const enrolled = new Map(student ? [] : db.all(`SELECT course_id, COUNT(*) AS n FROM enrollments WHERE course_id IN (${marks(courseIds)}) GROUP BY course_id`, ...courseIds).map((r) => [r.course_id, r.n]));
     const lecturerIds = [...new Set(sessions.map((s) => s.lecturer_id).filter(Boolean))];
     const lecturers = new Map(lecturerIds.length ? db.all(`SELECT id, name FROM users WHERE id IN (${marks(lecturerIds)})`, ...lecturerIds).map((u) => [u.id, u.name]) : []);
     return sessions.map((session) => buildRecord({
@@ -132,7 +142,7 @@ function createRecordSource({ db, access }) {
   /** The record as text for the assistant's context, for this person. */
   function contextFor(user, session) {
     const lecturer = access.teachingCourse(user, session.course_id);
-    const record = load(session, lecturer ? { audience: 'lecturer' } : { audience: 'student', studentId: user.id });
+    const record = load(session, lecturer ? { audience: 'lecturer', reader: user } : { audience: 'student', studentId: user.id });
     return recordText({ ...record, notes: [] });
   }
 

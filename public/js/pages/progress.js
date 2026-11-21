@@ -40,7 +40,7 @@ function trendTile(trend) {
 
 /**
  * One bar per lecture, as tall as its understood %, coloured by status, with the 60 % and 80 % lines. With `you`,
- * the student's own bar next to the class's. Each bar opens that lecture's review.
+ * the student's own bars only (a student is never shown how the class did). Each bar opens that lecture's review.
  */
 function termChart(lectures, { you = false } = {}) {
   if (!lectures.length) return '';
@@ -52,9 +52,9 @@ function termChart(lectures, { you = false } = {}) {
   const plotH = 150;
   const n = lectures.length;
   const slot = (W - left - right) / n;
-  const bw = Math.min(46, slot * (you ? 0.36 : 0.62));
+  const bw = Math.min(46, slot * 0.62);
   const y = (v) => top + plotH - (v / 100) * plotH;
-  const out = [`<svg class="lecture-chart term-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${you ? 'Your understanding and the class’s, lecture by lecture' : 'How each lecture landed'}" xmlns="http://www.w3.org/2000/svg">`];
+  const out = [`<svg class="lecture-chart term-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${you ? 'How you followed, lecture by lecture' : 'How each lecture landed'}" xmlns="http://www.w3.org/2000/svg">`];
   for (const v of [0, 60, 80, 100]) out.push(`<line x1="${left}" x2="${W - right}" y1="${y(v)}" y2="${y(v)}" class="lc-grid"${v === 60 || v === 80 ? ' stroke-dasharray="4 4"' : ''}/><text x="${left - 6}" y="${y(v) + 4}" class="lc-axis" text-anchor="end">${v}%</text>`);
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   lectures.forEach((l, i) => {
@@ -65,8 +65,7 @@ function termChart(lectures, { you = false } = {}) {
     const date = shortDate(l.date);
     out.push(`<g class="term-bar" data-go="${reviewHref(l.session)}" role="link" tabindex="0" aria-label="${esc(`${l.title}, ${date}`)}">`);
     if (you) {
-      out.push(bar(cx - bw - 1, l.answered ? l.you : null, BAR[statusOf(l.answered ? l.you : null)], `${l.title} · you`));
-      out.push(bar(cx + 1, l.class, COLORS.quiet, `${l.title} · class`));
+      out.push(bar(cx - bw / 2, l.answered ? l.you : null, BAR[statusOf(l.answered ? l.you : null)], `${l.title} · you`));
     } else {
       out.push(bar(cx - bw / 2, l.understood, BAR[l.status] || COLORS.quiet, `${l.title} · ${date}`));
       if (l.flags) out.push(`<path d="M${cx.toFixed(1)} ${top + plotH + 6} l5 9 h-10 z" fill="${COLORS.flag}"><title>${l.flags} ${l.flags === 1 ? 'flag' : 'flags'}</title></path>`);
@@ -184,13 +183,12 @@ function mineView(d) {
     <div class="stack stagger">
       <section class="review-stats">
         ${tile(pct(a.you), 'You understood, on average', a.status === 'quiet' ? '' : `is-${a.status}`)}
-        ${tile(pct(a.class), 'Class average')}
         ${tile(a.parts, a.parts === 1 ? 'Part to work on' : 'Parts to work on', a.parts ? 'is-trouble' : 'is-good')}
         ${trendTile(d.trend)}
       </section>
-      <section class="card review-chart-card"><div class="spread"><h2>You and the class, lecture by lecture</h2><span class="small muted">Tap a lecture for your recap</span></div>
+      <section class="card review-chart-card"><div class="spread"><h2>How you followed, lecture by lecture</h2><span class="small muted">Tap a lecture for your recap</span></div>
         <div class="lecture-chart-wrap">${termChart(d.lectures, { you: true })}</div>
-        <div class="chart-legend"><span><i style="background:${COLORS.following}"></i>You (coloured by how you followed)</span><span><i style="background:${COLORS.quiet}"></i>The class</span></div>
+        <div class="chart-legend"><span><i style="background:${COLORS.following}"></i>Following</span><span><i style="background:${COLORS.unsure}"></i>Some unsure</span><span><i style="background:${COLORS.lost}"></i>Often lost</span></div>
       </section>
       <section class="card flush"><div class="card-head"><h2>Areas to work on</h2><span class="chip ${d.parts.length ? 'danger' : 'success'}">${d.parts.length}</span></div>
         ${d.parts.length ? html`<p class="small muted" style="padding:0 20px 8px">Every part you were unsure about, lost in or flagged, newest first.</p>
@@ -199,7 +197,7 @@ function mineView(d) {
           return html`<div class="term-row">
             <div class="spread"><span class="small muted">${shortDate(p.date)} · ${p.lecture}</span>${you ? html`<span class="chip ${you[0]}">${you[1]}</span>` : html`<span class="chip">${icon('flag', 13)} You flagged it</span>`}</div>
             <p class="mt-4"><strong>${p.part} · ${p.at}</strong> ${p.title}</p>
-            <p class="small muted mt-4">The class: ${pct(p.class)} understood · ${p.topic}</p>
+            <p class="small muted mt-4">${p.topic}</p>
             ${p.points.length > 1 ? html`<ul class="small term-parts">${p.points.slice(1, 5).map((k) => html`<li>${k}</li>`)}</ul>` : ''}
             ${p.flags.filter((f) => f.note).map((f) => html`<p class="small mt-4">${icon('flag', 13)} You asked: “${f.note}”</p>`)}
             <div class="cluster mt-8"><button class="btn btn-sm" data-quiz-one="${i}">${icon('graduation', 14)} Quiz me on this</button>
@@ -211,7 +209,7 @@ function mineView(d) {
       <section class="card flush"><div class="card-head"><h2>Every lecture</h2></div>
         <div class="list">${[...d.lectures].reverse().map((l) => html`<a class="list-row" href="${reviewHref(l.session)}">
           <span class="tile">${icon('presentation', 18)}</span>
-          <span class="body"><span class="title">${l.title}</span><span class="sub">${shortDate(l.date)} · you ${pct(l.answered ? l.you : null)} · class ${pct(l.class)}${l.targets ? ` · ${plural(l.targets, 'part')} to work on` : ''}</span></span>
+          <span class="body"><span class="title">${l.title}</span><span class="sub">${shortDate(l.date)} · you ${pct(l.answered ? l.you : null)}${l.targets ? ` · ${plural(l.targets, 'part')} to work on` : ''}</span></span>
           <span class="trail">${icon('chevron-right', 16)}</span></a>`)}</div></section>
     </div>`}`;
 }

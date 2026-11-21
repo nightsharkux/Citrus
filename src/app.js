@@ -15,6 +15,7 @@ const { applySecurityHeaders, isCrossSite, clientIp } = require('./http/security
 const { createStaticServer } = require('./http/static');
 const { createBus } = require('./realtime/bus');
 const { createSecretBox } = require('./lib/crypto');
+const { createVault } = require('./modules/live/vault');
 const { createKeys } = require('./services/keys');
 const { createAiService } = require('./ai/service');
 const { createContextBuilder } = require('./ai/context');
@@ -77,6 +78,8 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const settings = createSettings(db);
   const keys = createKeys({ config, db, env });
   const secretBox = createSecretBox(keys.master());
+  // What lecturers say in a lecture is stored sealed, with a key per lecture (modules/live/vault.js).
+  const vault = createVault(keys.master(), { access });
   const nfcKey = keys.nfc();
   const packs = env.CAMPUS_BUNDLED_KNOWLEDGE === 'off' ? [] : [].concat(site.knowledgePack || []);
   const programmes = site.academicSnapshot && env.CAMPUS_BUNDLED_KNOWLEDGE !== 'off'
@@ -95,11 +98,11 @@ function createApp({ config, db, env = process.env, fetchImpl }) {
   const oidc = createOidc({ db, config, ...(fetchImpl ? { fetchImpl } : {}) });
   const moodle = createMoodleConnector({ baseUrl: config.moodle.url, ...(fetchImpl ? { fetchImpl } : {}) });
   const buildContext = createContextBuilder({ db, timetable, timeZone, programmes, studyGroups });
-  const maintenance = createMaintenance({ db, config, settings });
+  const maintenance = createMaintenance({ db, config, settings, vault });
   const blobs = createBlobStore({ env, secret: keys.master() });
 
   const deps = {
-    db, config, site, env, access, bus, audit, settings, secretBox, nfcKey, ai, push, notifier,
+    db, config, site, env, access, bus, audit, settings, secretBox, vault, nfcKey, ai, push, notifier,
     timetable, studyGroups, campusPosts, review, participation, deviceCommands, rooms, sessions, oidc, moodle, buildContext, programmes, blobs,
   };
 

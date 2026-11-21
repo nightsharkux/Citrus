@@ -47,7 +47,7 @@ export function mountPublic() {
       <header class="public-top">${brand('/')}<nav class="cluster" id="public-nav"></nav><button type="button" class="btn btn-ghost btn-sm" data-lang-toggle aria-label="Language" data-no-translate>${getLanguage() === 'de' ? 'EN' : 'DE'}</button></header>
       ${storageWarning('user')}
       <main id="view" class="view"></main>
-      <footer class="public-foot"><span>${session.site.conceptNotice || ''}</span><span>${session.site.name} ${session.site.version || ''}</span></footer>
+      <footer class="public-foot"><span>${session.site.conceptNotice || ''}</span><span>${session.site.name} ${session.site.version || ''} · <span data-no-translate>M. Mangena</span></span></footer>
     </div>`);
 }
 
