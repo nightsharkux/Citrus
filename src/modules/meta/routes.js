@@ -1,6 +1,7 @@
 'use strict';
 /** Public metadata for clients, monitoring and the "All tools" directory. */
 const capabilities = require('../../../config/capabilities');
+const { markSvg } = require('../../lib/brand-mark');
 
 function register(router, { db, config }) {
   const started = Date.now();
@@ -45,14 +46,10 @@ function register(router, { db, config }) {
     return { ok: database === 'ok', version: config.site.version, database, databaseMs, databaseSince, region: process.env.VERCEL_REGION || null, uptimeSeconds: Math.round((Date.now() - started) / 1000) };
   }, { auth: 'public' });
 
-  /** The ring logo in this edition's colours (browser tab icon, social previews). */
+  /** The Citrus slice mark (browser tab icon, the mark in the pages, social previews): src/lib/brand-mark.js. */
   router.get('/brand/mark.svg', (ctx) => {
-    const [a, b, c] = config.site.palette.aurora;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><title>${config.site.shortName}</title>`
-      + `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset=".55" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></linearGradient></defs>`
-      + '<path d="M78.34 26.22A37 37 0 1 0 78.34 73.78" fill="none" stroke="url(#g)" stroke-width="17" stroke-linecap="round"/></svg>';
     ctx.res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
-    ctx.res.end(svg);
+    ctx.res.end(markSvg(config.site.shortName));
   }, { auth: 'public' });
 
   /** Raster app icon for this edition (notifications need PNG). */

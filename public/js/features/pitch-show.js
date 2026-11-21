@@ -6,7 +6,7 @@
  */
 import { html, render } from '../core/dom.js';
 import { icon } from '../core/icons.js';
-import { wordmark } from '../core/brand.js';
+import { wordmarkClassic } from '../core/brand.js';
 import { session } from '../core/store.js';
 import { createFace } from './face.js';
 import { speak, stopSpeaking } from './speaker.js';
@@ -26,7 +26,7 @@ export function showPitch() {
   render(el, html`<button class="pitch-close" data-close aria-label="Close">${icon('x', 22)}</button>
     <div class="pitch-inner">
       <div class="pitch-face" data-face></div>
-      <h1 class="pitch-title">${wordmark()}</h1>
+      <h1 class="pitch-title">${wordmarkClassic()}</h1>
       <p class="pitch-lead">${lang === 'de' ? 'Der Assistent für den Hörsaal' : 'The classroom assistant'}</p>
       <div class="pitch-cards">${cards.map(([id, glyph, title, body]) => html`<div class="pitch-card" data-card="${id}"><span class="tile accent">${icon(glyph, 22)}</span><strong>${title}</strong><span class="small muted">${body}</span></div>`)}</div>
       <div class="pitch-side" data-card="ask">${icon('campus', 16)} ${lang === 'de' ? 'Nebenbei: einfach Citrus fragen, statt Dokumente zu durchsuchen' : 'On the side: just ask Citrus instead of searching documents'}</div>

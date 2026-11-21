@@ -150,13 +150,13 @@ test('visual cues are parsed from any chunking, stripped from the text and store
   }
 });
 
-test('brand mark and manifest follow the edition', async () => {
+test('the brand mark is the slice and the manifest follows the edition', async () => {
   const app = await startApp({ env: { CAMPUS_EDITION: 'general' } });
   try {
     const mark = await app.call('anon', 'GET', '/brand/mark.svg');
     assert.equal(mark.status, 200);
     assert.match(mark.headers.get('content-type'), /image\/svg\+xml/);
-    assert.match(mark.body, /#7C6CFF/i);
+    assert.match(mark.body, /#ED8641/i, 'the slice mark, the same in every edition');
     const manifest = await app.call('anon', 'GET', '/manifest.webmanifest');
     assert.equal(manifest.body.short_name, 'Citrus');
     assert.equal(manifest.body.icons[0].src, '/icons/general-192.png');

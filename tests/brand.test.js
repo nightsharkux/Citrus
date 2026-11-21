@@ -35,7 +35,7 @@ test('the old name is gone from the code, the scripts, the Android app, the docs
   assert.deepEqual(found, []);
 });
 
-test('the site, its manifest and its mark say Citrus, and the mark is a C', async () => {
+test('the site, its manifest and its mark say Citrus, and the mark is the citrus slice', async () => {
   const app = await startApp();
   try {
     const boot = await app.call('anon', 'GET', '/api/bootstrap');
@@ -46,8 +46,9 @@ test('the site, its manifest and its mark say Citrus, and the mark is a C', asyn
     assert.doesNotMatch(JSON.stringify(manifest.body), /Campus OS/);
     const mark = await (await fetch(`${app.base}/brand/mark.svg`)).text();
     assert.match(mark, /<title>Citrus<\/title>/);
-    assert.match(mark, /stroke-linecap="round"/, 'a C with round ends, not a closed ring');
-    assert.doesNotMatch(mark, /<circle/);
+    assert.match(mark, /<linearGradient/, 'orange to pink to violet');
+    assert.equal((mark.match(/<path /g) || []).length, 11, 'the ring and ten segments');
+    assert.doesNotMatch(mark, /stroke-linecap|<circle|<script|<image/, 'plain shapes only');
     const page = await (await fetch(`${app.base}/`)).text();
     assert.doesNotMatch(page, /Campus OS/);
   } finally {
@@ -55,20 +56,22 @@ test('the site, its manifest and its mark say Citrus, and the mark is a C', asyn
   }
 });
 
-test('the wordmark is a gradient C followed by "itrus", and screen readers hear Citrus', async () => {
-  const { wordmark, ringMark } = await import(pathToFileURL(path.join(root, 'public', 'js', 'core', 'brand.js')).href);
+test('the wordmark is the slice followed by "Citrus", and screen readers hear Citrus', async () => {
+  const { wordmark, wordmarkClassic, ringMark } = await import(pathToFileURL(path.join(root, 'public', 'js', 'core', 'brand.js')).href);
   const mark = String(wordmark());
   assert.match(mark, /aria-label="Citrus"/);
-  assert.match(mark, /class="wordmark-c"/);
-  assert.match(mark, />itrus</);
-  assert.match(String(ringMark(40)), /class="ring-mark"/);
+  assert.match(mark, /<img class="wordmark-mark" src="\/brand\/mark\.svg" alt=""/);
+  assert.match(mark, />Citrus</);
+  assert.doesNotMatch(mark, /wordmark-c/);
+  assert.match(String(ringMark(40)), /<img class="ring-mark" src="\/brand\/mark\.svg"/);
+  // The full-screen presentation keeps the earlier wordmark, a gradient C and "itrus".
+  assert.match(String(wordmarkClassic()), /class="wordmark-c"/);
   const css = fs.readFileSync(path.join(root, 'public', 'css', 'face.css'), 'utf8');
-  assert.match(css, /--c-mask:/, 'the C shape the marks are cut from');
-  assert.match(css, /\.wordmark-c\s*\{/);
-  assert.doesNotMatch(css, /wordmark-o/);
+  assert.match(css, /\.wordmark-mark\s*\{/);
+  assert.match(css, /img\.ring-mark/);
 });
 
-test('the app icons are the new C: four pictures, each a dark tile', () => {
+test('the app icons are the slice: four pictures, each a dark tile', () => {
   for (const edition of ['general', 'oth']) {
     for (const size of [192, 512]) {
       const png = fs.readFileSync(path.join(root, 'public', 'icons', `${edition}-${size}.png`));
