@@ -153,7 +153,7 @@ public class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
-                setImmersive(false); // a full page load never keeps the bars hidden
+                hideBars(false); // a full page load never keeps the bars hidden
                 CookieManager.getInstance().flush();
                 connect(url);
             }
@@ -383,7 +383,7 @@ public class MainActivity extends Activity {
      * the edge shows them for a moment.
      */
     @SuppressWarnings("deprecation")
-    private void setImmersive(boolean on) {
+    private void hideBars(boolean on) {
         if (Build.VERSION.SDK_INT >= 30) {
             android.view.WindowInsetsController c = getWindow().getInsetsController();
             if (c == null) return;
@@ -425,7 +425,7 @@ public class MainActivity extends Activity {
                 case "immersive": {
                     // The study sign: hide the status and navigation bars while it is up, show them again after.
                     boolean on = o.optBoolean("on", false);
-                    runOnUiThread(() -> setImmersive(on));
+                    runOnUiThread(() -> hideBars(on));
                     break;
                 }
                 case "save": {
