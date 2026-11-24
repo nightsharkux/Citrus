@@ -1,5 +1,21 @@
 # Citrus 1.1
 
+<table>
+<tr>
+<td><a href="https://citrus-mdu.vercel.app"><img src="docs/qr-live.png" alt="QR code linking to the live Citrus app" width="160"></a></td>
+<td>
+
+**Live app:** <https://citrus-mdu.vercel.app>
+Scan the code with a phone to open it.
+
+**Stack:** Node.js 22 (no runtime dependencies), SQLite, plain ES modules, Android app, classroom NFC and puck hardware gateway.
+
+</td>
+</tr>
+</table>
+
+Related: [NFC Participation](https://github.com/nightsharkux/nfc-participation), [Folio](https://github.com/nightsharkux/folio), [Yris](https://github.com/nightsharkux/yris).
+
 A classroom assistant for universities, built around the lecture: students give live feedback from their phones, the class status shows on screen and on the Citrus Puck so the lecturer can explain again at once, professors review where explanations need work, students see where they got stuck, and participation is taken with the NFC chip already in student IDs. **Citrus**, an assistant that knows your courses, makes information easy to reach on the side. Students, lecturers and administrators each get their own views. One codebase serves several institution themes (an OTH Amberg-Weiden concept edition and a general edition).
 
 > **Status:** a production-structured pilot. The code is complete and tested, but a real university deployment still needs HTTPS, your identity provider, a data-protection review and institutional approval. The OTH edition is an independent concept, **not** an official OTH Amberg-Weiden service.
