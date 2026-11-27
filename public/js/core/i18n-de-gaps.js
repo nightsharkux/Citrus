@@ -479,4 +479,9 @@ export const PATTERNS = [
   [/^Version (\S+) · updated (\S+)$/, (v, d) => `Version ${v} · aktualisiert ${d}`],
   [/^Version (\S+) · (\S+)$/, (v, d) => `Version ${v} · ${d}`],
   [/^You accepted version (\S+)(?: on (.+))?\.$/, (v, d) => `Du hast Version ${v}${d ? ` am ${d}` : ''} akzeptiert.`],
+  // The AI Gateway's answers, as the person sees them when a request is refused.
+  [/^Vercel AI Gateway has no credits for this key \(HTTP 402\)\. Check that the credits were added to the team that owns the key\.$/, () => 'Das Vercel AI Gateway hat für diesen Schlüssel kein Guthaben (HTTP 402). Prüfe, ob das Guthaben dem Team gutgeschrieben wurde, dem der Schlüssel gehört.'],
+  [/^Vercel AI Gateway refused the key or the model \(HTTP (\d+)\)\. Check the gateway key and model access\.$/, (c) => `Das Vercel AI Gateway hat den Schlüssel oder das Modell abgelehnt (HTTP ${c}). Prüfe den Gateway-Schlüssel und den Modellzugriff.`],
+  [/^Vercel AI Gateway is busy \(HTTP 429\)\. Try again in a moment\.$/, () => 'Das Vercel AI Gateway ist ausgelastet (HTTP 429). Versuche es gleich noch einmal.'],
+  [/^Vercel AI Gateway returned HTTP (\d+)\. Try again; if it keeps happening, check the gateway key, credits and model access\.$/, (c) => `Das Vercel AI Gateway antwortete mit HTTP ${c}. Versuche es noch einmal; wenn es bleibt, prüfe Gateway-Schlüssel, Guthaben und Modellzugriff.`],
 ];

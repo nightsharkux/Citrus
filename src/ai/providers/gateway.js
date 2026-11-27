@@ -125,6 +125,12 @@ module.exports = {
   },
   errors: {
     unreachable: 'Cannot reach Vercel AI Gateway. Check server connectivity.',
-    status: (code) => `Vercel AI Gateway returned HTTP ${code}. Check the gateway key, credits and model access.`,
+    // Said as it is, so the person fixing it looks in the right place: only a 402 is about credits.
+    status(code) {
+      if (code === 402) return 'Vercel AI Gateway has no credits for this key (HTTP 402). Check that the credits were added to the team that owns the key.';
+      if (code === 401 || code === 403) return `Vercel AI Gateway refused the key or the model (HTTP ${code}). Check the gateway key and model access.`;
+      if (code === 429) return 'Vercel AI Gateway is busy (HTTP 429). Try again in a moment.';
+      return `Vercel AI Gateway returned HTTP ${code}. Try again; if it keeps happening, check the gateway key, credits and model access.`;
+    },
   },
 };

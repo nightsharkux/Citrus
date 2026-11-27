@@ -103,7 +103,16 @@ function makeProviders({ fetchImpl = (...args) => fetch(...args), env = process.
       searched = false;
     }
     if (!response.ok) {
-      console.error('Citrus AI provider status:', provider.id, response.status);
+      // The provider's own reason (its error type and message, never what was sent) goes in the log, so a refusal can be told apart.
+      let reason = '';
+      try {
+        const body = JSON.parse(await response.text());
+        const e = body?.error ?? body;
+        reason = [e?.type, e?.code, e?.message].filter((v) => typeof v === 'string').join(' | ').replace(/\s+/g, ' ').slice(0, 300);
+      } catch {
+        /* no readable body */
+      }
+      console.error('Citrus AI provider status:', provider.id, response.status, reason);
       throw new AiError(provider.errors.status(response.status));
     }
     return { provider, response, searched };
