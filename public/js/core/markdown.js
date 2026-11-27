@@ -216,7 +216,13 @@ function parseList(lines, start, opts) {
   const tag = first.ordered ? 'ol' : 'ul';
   const startAttr = first.ordered && first.number > 1 ? ` start="${first.number}"` : '';
   return {
-    html: `<${tag}${startAttr}>${items.map((it) => `<li>${inline(it.text, opts.citations)}${it.blocks.join('')}</li>`).join('')}</${tag}>`,
+    // "- [ ] task" and "- [x] task" are a to-do list: an open or ticked box, then the task.
+    html: `<${tag}${startAttr}>${items.map((it) => {
+      const box = /^\[( |x|X)\]\s+/.exec(it.text);
+      if (!box) return `<li>${inline(it.text, opts.citations)}${it.blocks.join('')}</li>`;
+      const done = box[1] !== ' ';
+      return `<li class="task${done ? ' is-done' : ''}"><span class="task-box" aria-hidden="true"></span>${inline(it.text.slice(box[0].length), opts.citations)}${it.blocks.join('')}</li>`;
+    }).join('')}</${tag}>`,
     next: i,
   };
 }

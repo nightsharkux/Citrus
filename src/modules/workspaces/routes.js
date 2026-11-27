@@ -319,6 +319,9 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
 
   // --- Meeting minutes ---
 
+  /** The minutes prompt with today's date (in the institution's time zone) and the person who ran the meeting. */
+  const minutesPrompt = (w, user) => prompts.meetingPrompt(w.title, { date: new Intl.DateTimeFormat('en-CA', { timeZone: config.site.timezone }).format(new Date()), author: user.name });
+
   router.post('/api/workspaces/:id/analyze', async (ctx) => {
     const w = member(ctx.user, ctx.params.id);
     const b = await ctx.json();
@@ -333,7 +336,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
     source = source.slice(0, 40_000);
     if (!source.trim()) throw badRequest('Add meeting notes or a transcript first');
     const useAi = ai.status(ctx.user).aiEnabled;
-    const report = useAi ? await ai.complete({ user: ctx.user, system: prompts.meetingPrompt(w.title), prompt: prompts.referenceBlock('NOTES', source.slice(0, 20_000)), maxTokens: 1500, task: 'summary' }) : offlineMinutes(source);
+    const report = useAi ? await ai.complete({ user: ctx.user, system: minutesPrompt(w, ctx.user), prompt: prompts.referenceBlock('NOTES', source.slice(0, 20_000)), maxTokens: 3200, task: 'summary' }) : offlineMinutes(source);
     const label = useAi ? 'AI draft' : 'Offline extraction';
     const reportId = db.insert('INSERT INTO meeting_reports(workspace_id, owner_id, recording_id, report, source, created) VALUES(?, ?, ?, ?, ?, ?)', w.id, ctx.user.id, recordingId, report, label, isoNow());
     return { id: reportId, report, source: label };
@@ -431,7 +434,7 @@ function register(router, { db, config, access, ai, bus, audit, blobs = { enable
       if (useAi) {
         try {
           // The main model, not the cheap summary one: minutes are judged on the details they keep.
-          text = await ai.complete({ user, system: prompts.meetingPrompt(w.title), prompt: prompts.referenceBlock('NOTES', source.slice(0, 30_000)), maxTokens: 2500, task: 'chat' });
+          text = await ai.complete({ user, system: minutesPrompt(w, user), prompt: prompts.referenceBlock('NOTES', source.slice(0, 30_000)), maxTokens: 3500, task: 'chat' });
           label = 'AI draft';
         } catch {
           text = '';
