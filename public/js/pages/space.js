@@ -145,7 +145,11 @@ function minutesList(d) {
         <a class="btn btn-ghost btn-icon btn-sm" href="/api/workspaces/${d.room.id}/reports/${r.id}/minutes.txt" aria-label="Download as text" title="Download as .txt">${icon('download', 15)}</a>
         <button class="btn btn-ghost btn-icon btn-sm" data-print="${r.id}" aria-label="Save as PDF" title="Save as PDF">${icon('file', 15)}</button>
         ${r.mine || d.room.isOwner ? html`<button class="btn btn-ghost btn-icon btn-sm" data-del-report="${r.id}" aria-label="Delete" title="Delete">${icon('trash', 15)}</button>` : ''}</span></summary>
-    <div class="prose small mt-8">${markdown(r.report)}</div>
+    <div class="minutes-sheet">
+      <div class="minutes-band" aria-hidden="true"></div>
+      <div class="minutes-brand"><img src="/brand/mark.svg" width="18" height="18" alt=""><span>Citrus · Meeting minutes</span></div>
+      <div class="prose minutes-prose">${markdown(r.report)}</div>
+    </div>
     ${ai && !r.parent_id ? html`<form class="minutes-versions" data-versions="${r.id}">
       <p class="small muted">Make separate files from these minutes. Type or say what you need.</p>
       <div class="flag-kinds">${VERSION_IDEAS.map(([instruction, label]) => html`<button type="button" class="chip outline" data-idea="${instruction}">${label}</button>`)}</div>

@@ -105,6 +105,7 @@ export default {
   'No tools yet': 'Noch keine Werkzeuge',
   'Make one above, or add one someone shared under More tools.': 'Mach oben eines oder füge unter „Weitere Werkzeuge“ eines hinzu, das jemand geteilt hat.',
   'Back at 15:30': 'Zurück um 15:30',
+  'Citrus · Meeting minutes': 'Citrus · Besprechungsprotokoll',
   'Pick a look': 'Wähle einen Stil',
   'Calm blue': 'Ruhiges Blau',
   'Library green': 'Bibliotheksgrün',

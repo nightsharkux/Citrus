@@ -113,6 +113,13 @@ const hex = (h) => {
 };
 const tint = (rgb, amount) => rgb.map((v) => 1 - (1 - v) * amount);
 const rgbOp = (rgb, stroke = false) => `${rgb.map((v) => v.toFixed(3)).join(' ')} ${stroke ? 'RG' : 'rg'}`;
+// The Citrus colours, orange through pink to violet: the band across the top of every page one.
+const CITRUS = ['#ED8641', '#E7817C', '#E07BB0', '#B974CE', '#8B6BF0'].map(hex);
+const along = (stops, t) => {
+  const f = Math.min(stops.length - 1, Math.max(0, t * (stops.length - 1)));
+  const i = Math.min(stops.length - 2, Math.floor(f));
+  return stops[i].map((v, k) => v + (stops[i + 1][k] - v) * (f - i));
+};
 const INK = hex('#1f2328');
 const MUTED = hex('#5b636e');
 const RULE = hex('#dfe3e8');
@@ -357,13 +364,16 @@ function drawList(doc, block) {
     const indent = 6 + item.depth * 16;
     const size = 10.5;
     const lead = size * 1.45;
-    const lines = wrap(parseInline(item.text), WIDTH - indent - 16, size);
+    // "[ ] task" and "[x] task" are a to-do list: a small box, empty or filled, then the task.
+    const task = /^\[( |x|X)\]\s+/.exec(item.text);
+    const lines = wrap(parseInline(task ? item.text.slice(task[0].length) : item.text), WIDTH - indent - 16, size);
     lines.forEach((parts, n) => {
       doc.room(lead);
       doc.y -= lead;
       const base = doc.y + lead * 0.28;
       if (n === 0) {
-        if (item.marker === '•') doc.textLine([{ text: '•', font: FONTS.bold }], PAGE.left + indent, base, size, doc.accent);
+        if (task) doc.rect(PAGE.left + indent, base - 1.4, 8, 8, task[1] === ' ' ? null : doc.accent, doc.accent, 1.1);
+        else if (item.marker === '•') doc.textLine([{ text: '•', font: FONTS.bold }], PAGE.left + indent, base, size, doc.accent);
         else doc.textLine([{ text: item.marker, font: FONTS.bold }], PAGE.left + indent - 2, base, size, doc.accent);
       }
       doc.textLine(parts, PAGE.left + indent + 16, base, size);
@@ -594,7 +604,8 @@ export function notesPdf({ title = '', subtitle = '', kicker = 'Citrus', markdow
   }
   const doc = new Doc(hex(accent));
   // Title block: a coloured band, the kicker, the title and what it is about.
-  doc.rect(0, PAGE.h - 8, PAGE.w, 8, doc.accent);
+  const STRIPS = 48;
+  for (let k = 0; k < STRIPS; k += 1) doc.rect((PAGE.w / STRIPS) * k, PAGE.h - 8, PAGE.w / STRIPS + 0.6, 8, along(CITRUS, k / (STRIPS - 1)));
   doc.y -= 4;
   doc.flow([{ text: pdfText(kicker.toUpperCase()), bold: true }], { size: 8.5, color: doc.accent, leading: 12 });
   doc.y -= 2;

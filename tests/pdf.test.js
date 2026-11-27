@@ -71,3 +71,13 @@ test('graphs are embedded as pictures', async () => {
   assert.match(text, /\/Subtype \/Image \/Width 4 \/Height 2 [^>]*\/Filter \/DCTDecode/);
   assert.match(text, /\/Im1 Do/);
 });
+
+test('minutes: a to-do list is drawn with boxes (not "[ ]" text) under the Citrus colour band', async () => {
+  const { notesPdf } = await load('core/pdf.js');
+  const bytes = notesPdf({ title: 'Team meeting — Minutes', markdown: '## Your to-do list\n- [ ] Alvis: send the flyers\n- [x] Adi: book the room\n- a plain bullet' });
+  const text = checkStructure(bytes);
+  assert.doesNotMatch(text, /\[ \]|\[x\]/, 'the markers are not printed as text');
+  // The band across the top is drawn in strips that run from orange to violet.
+  const fills = new Set([...text.matchAll(/(\d\.\d{3}) (\d\.\d{3}) (\d\.\d{3}) rg\s+[\d.]+ 833\.89 [\d.]+ 8\.00 re f/g)].map((m) => m[0].split(' rg')[0]));
+  assert.ok(fills.size > 20, 'many colours along the band');
+});

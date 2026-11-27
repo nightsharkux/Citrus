@@ -212,6 +212,37 @@ a.source:hover { background: var(--fill-2); color: var(--text); text-decoration:
 .recording audio { width: 100%; height: 38px; }
 .transcript summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--accent); }
 .report { padding: 14px 16px; border-radius: var(--radius); background: var(--fill); }
+
+/* The minutes as a sheet of paper in the Citrus colours: orange to violet, on warm white with dark writing, in light and
+   dark mode alike (the sheet sets its own colours, so it is never dark purple with white writing). */
+.minutes-sheet {
+  --text: #2b2433; --text-2: #4d4458; --text-3: #8a8094; --accent: #E8793A; --accent-soft: #ffeadb;
+  --hairline: #eadfd6; --fill: #fbf3ec; --border: #eadfd6;
+  position: relative; margin-top: 12px; padding: 0 clamp(16px, 4vw, 30px) 24px; overflow: hidden;
+  border-radius: 18px; border: 1px solid #eadfd6; background: #fffdfa; color: var(--text);
+  box-shadow: 0 14px 34px -22px rgba(139, 107, 240, .45);
+}
+.minutes-band { height: 6px; margin: 0 calc(-1 * clamp(16px, 4vw, 30px)); background: linear-gradient(90deg, #ED8641, #E7817C 27%, #E07BB0 50%, #B974CE 73%, #8B6BF0); }
+.minutes-brand { display: flex; align-items: center; gap: 8px; padding: 16px 0 2px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+.minutes-brand img { display: block; }
+.minutes-prose { font-size: 15px; line-height: 1.62; color: var(--text); }
+.minutes-prose h1, .minutes-prose h2, .minutes-prose h3 { color: var(--text); letter-spacing: -.01em; }
+.minutes-prose > :first-child { margin-top: 6px; font-size: 1.55em; font-weight: 800; line-height: 1.2; }
+/* Each section heading starts with a small ring, like the slice in the logo. */
+.minutes-prose > h1:not(:first-child), .minutes-prose > h2:not(:first-child), .minutes-prose > h3 { display: flex; align-items: center; gap: .55em; margin-top: 1.7em; font-size: 1.14em; font-weight: 800; }
+.minutes-prose > h1:not(:first-child)::before, .minutes-prose > h2:not(:first-child)::before, .minutes-prose > h3::before {
+  content: ""; flex: none; width: .8em; height: .8em; border-radius: 50%;
+  background: conic-gradient(from 200deg, #ED8641, #E07BB0, #8B6BF0, #ED8641);
+  -webkit-mask: radial-gradient(farthest-side, transparent 52%, #000 56%); mask: radial-gradient(farthest-side, transparent 52%, #000 56%);
+}
+.minutes-prose h3 { border-left: 0; padding-left: 0; }
+.minutes-prose td, .minutes-prose th { overflow-wrap: normal; word-break: normal; }
+.minutes-prose td:first-child { min-width: 7.5em; }
+.minutes-prose a { color: #7a56e6; }
+.minutes-prose th { background: #fff0e3; color: #a8501a; }
+.minutes-prose tbody tr:nth-child(even) td { background: #fdf8f3; }
+.minutes-prose .task-box { border-color: #ED8641; }
+.minutes-prose li.task.is-done .task-box { background: #ED8641; }
 .captions-card { display: flex; flex-direction: column; gap: 14px; }
 .captions { max-height: 56vh; min-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; font-size: 18px; line-height: 1.5; padding-right: 6px; }
 .captions p { animation: rise var(--dur) var(--ease); }
